@@ -1,10 +1,10 @@
 import { PrismaClient } from "@prisma/client";
+import { securitySeed } from "./seeds/security";
 
 const prisma = new PrismaClient();
 
 async function main() {
-  // await paymentTypesSeed(prisma);
-  // await entryTypesSeed(prisma);
+  await securitySeed(prisma);
 }
 
 main()
