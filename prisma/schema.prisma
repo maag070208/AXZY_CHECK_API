@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl"]
 }
 
 datasource db {
@@ -50,18 +51,19 @@ model DaySchedule {
 }
 
 model Appointment {
-  id            Int       @id @default(autoincrement())
-  userId        Int
-  childId       Int
-  scheduleId    Int
-  modeId        Int
-  createdAt     DateTime @default(now())
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  childId    Int
+  scheduleId Int
+  modeId     Int
+  createdAt  DateTime @default(now())
 
-  user          User @relation(fields: [userId], references: [id])
-  child         Child @relation(fields: [childId], references: [id])
-  schedule      DaySchedule @relation(fields: [scheduleId], references: [id])
-  mode          TrainingMode @relation(fields: [modeId], references: [id])
+  user     User         @relation(fields: [userId], references: [id])
+  child    Child        @relation(fields: [childId], references: [id])
+  schedule DaySchedule  @relation(fields: [scheduleId], references: [id])
+  mode     TrainingMode @relation(fields: [modeId], references: [id])
 }
+
 model Child {
   id        Int       @id @default(autoincrement())
   name      String
