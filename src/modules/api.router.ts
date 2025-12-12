@@ -1,18 +1,18 @@
 import { Router } from "express";
 
 import indexRoute from "./index.routes";
-import clientRoute from "./clients/client.routes";
-import paymentRoute from "./payments/payment.routes";
-import mailRoute from "./mail/mail.routes";
-import fileRoute from "./files/files.routes";
 import userRoute from "./users/user.routes";
+import trainingModeRoute from "./trainingMode/trainingMode.controller";
+import dayScheduleRoute from "./daySchedule/daySchedule.routes";
+import appointmentRoute from "./appointment/appointment.routes";
+import childrenRoute from "./children/children.routes";
+
 const apiRouter = Router();
 
 apiRouter.use("/", indexRoute);
 apiRouter.use("/users", userRoute);
-apiRouter.use("/clients", clientRoute);
-apiRouter.use("/payments", paymentRoute);
-apiRouter.use("/mail", mailRoute);
-apiRouter.use("/files", fileRoute);
-
+apiRouter.use("/training-modes", trainingModeRoute);
+apiRouter.use("/day-schedule", dayScheduleRoute);
+apiRouter.use("/appointments", appointmentRoute);
+apiRouter.use("/children", childrenRoute);
 export default apiRouter;

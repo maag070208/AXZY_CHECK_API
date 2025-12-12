@@ -1,76 +1,74 @@
 generator client {
-    provider = "prisma-client-js"
+  provider = "prisma-client-js"
 }
 
 datasource db {
-    provider = "mysql"
-    url      = env("DATABASE_URL")
+  provider = "mysql"
+  url      = env("DATABASE_URL")
 }
 
 model User {
-    id   Int    @id @default(autoincrement())
-    uuid String @unique @default(cuid())
-
-    email    String  @unique
-    password String
-    name     String
-    lastName String
-    role     String
-    active   Boolean @default(true)
-
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
+  id           Int           @id @default(autoincrement())
+  name         String
+  lastName     String?
+  email        String        @unique
+  password     String
+  role         Role          @default(USER)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  children     Child[]
+  appointments Appointment[]
 }
 
-model Client {
-    id   Int    @id @default(autoincrement())
-    uuid String @unique @default(cuid())
-
-    name        String
-    phoneNumber String
-    email       String
-    rfc         String @unique
-
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-    active    Boolean  @default(true)
-
-    payments Payment[]
+enum Role {
+  ADMIN
+  USER
 }
 
-model Payment {
-    id   Int    @id @default(autoincrement())
-    uuid String @unique @default(cuid())
+model TrainingMode {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  description String?
+  isActive    Boolean @default(true)
 
-    invoiceDate       DateTime
-    invoiceNumber     String
-    total             Float
-    subTotal          Float
-    paid              Float
-    invoiceExpiration DateTime?
-    pdfUrl            String?
-    xmlUrl            String?
-    hasFiles          Boolean   @default(false)
-    createdAt         DateTime  @default(now())
-    updatedAt         DateTime  @updatedAt
-    active            Boolean   @default(true)
-
-    clientId      Int
-    client        Client          @relation(fields: [clientId], references: [id])
-    paymentDetail PaymentDetail[]
+  schedules    DaySchedule[]
+  appointments Appointment[]
 }
 
-model PaymentDetail {
-    id   Int    @id @default(autoincrement())
-    uuid String @unique @default(cuid())
+model DaySchedule {
+  id        Int      @id @default(autoincrement())
+  date      DateTime
+  startTime DateTime
+  endTime   DateTime
+  capacity  Int
+  modeId    Int
 
-    concept String
-    amount  Float
+  mode         TrainingMode  @relation(fields: [modeId], references: [id])
+  appointments Appointment[]
 
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-    active    Boolean  @default(true)
+  @@unique([date, startTime, endTime])
+}
 
-    paymentId Int
-    payment   Payment @relation(fields: [paymentId], references: [id])
+model Appointment {
+  id            Int       @id @default(autoincrement())
+  userId        Int
+  childId       Int
+  scheduleId    Int
+  modeId        Int
+  createdAt     DateTime @default(now())
+
+  user          User @relation(fields: [userId], references: [id])
+  child         Child @relation(fields: [childId], references: [id])
+  schedule      DaySchedule @relation(fields: [scheduleId], references: [id])
+  mode          TrainingMode @relation(fields: [modeId], references: [id])
+}
+model Child {
+  id        Int       @id @default(autoincrement())
+  name      String
+  lastName  String?
+  birthDate DateTime?
+  userId    Int
+
+  user         User          @relation(fields: [userId], references: [id])
+  appointments Appointment[]
 }

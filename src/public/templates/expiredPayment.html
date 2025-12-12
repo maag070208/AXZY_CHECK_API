@@ -46,7 +46,7 @@
     "
   >
     <div style="display: none">
-      Se ha agregado un concepto a tu cuenta. &#8199;&#65279;&#847;
+      ⚠️ Aviso: Factura Vencida. &#8199;&#65279;&#847; &#8199;&#65279;&#847;
       &#8199;&#65279;&#847; &#8199;&#65279;&#847; &#8199;&#65279;&#847;
       &#8199;&#65279;&#847; &#8199;&#65279;&#847; &#8199;&#65279;&#847;
       &#8199;&#65279;&#847; &#8199;&#65279;&#847; &#8199;&#65279;&#847;
@@ -96,7 +96,7 @@
       &#8199;&#65279;&#847; &#8199;&#65279;&#847; &#8199;&#65279;&#847;
       &#8199;&#65279;&#847; &#8199;&#65279;&#847; &#8199;&#65279;&#847;
       &#8199;&#65279;&#847; &#8199;&#65279;&#847; &#8199;&#65279;&#847;
-      &#8199;&#65279;&#847; &#8199;&#65279;&#847;
+      &#8199;&#65279;&#847;
     </div>
     <div
       role="article"
@@ -172,8 +172,8 @@
                       Hola, {{name}}
                     </h1>
                     <p style="margin: 0; line-height: 24px">
-                      Se ha agregado un concepto <b>{{concept_header}}</b> a tu
-                      cuenta.
+                      Te informamos que tienes una factura pendiente de pago:
+                      {{invoice_number}}, con los siguientes detalles:
                     </p>
                     <div role="separator" style="line-height: 24px">&zwj;</div>
                     <div>
@@ -186,7 +186,7 @@
                               color: #334155;
                             "
                           >
-                            <strong>Fecha/Hora:</strong>
+                            <strong>Total de la Factura:</strong>
                           </td>
                           <td
                             style="
@@ -195,7 +195,47 @@
                               color: #334155;
                             "
                           >
-                            {{date}}
+                            {{total}}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td
+                            style="
+                              padding: 8px 0 8px 0;
+                              font-size: 16px;
+                              color: #334155;
+                            "
+                          >
+                            <strong>Pago Realizado:</strong>
+                          </td>
+                          <td
+                            style="
+                              padding: 8px 0 8px 0;
+                              font-size: 16px;
+                              color: #334155;
+                            "
+                          >
+                            {{paid}}
+                          </td>
+                        </tr>
+                        <tr>
+                          <td
+                            style="
+                              padding: 8px 0 8px 0;
+                              font-size: 16px;
+                              color: #334155;
+                            "
+                          >
+                            <strong>Saldo pendiente:</strong>
+                          </td>
+                          <td
+                            style="
+                              padding: 8px 0 8px 0;
+                              font-size: 16px;
+                              color: #334155;
+                            "
+                          >
+                            {{remaining}}
                           </td>
                         </tr>
                         <tr>
@@ -215,51 +255,22 @@
                               color: #334155;
                             "
                           >
-                            {{expiration_date}}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td
-                            style="
-                              padding: 8px 0 8px 0;
-                              font-size: 16px;
-                              color: #334155;
-                            "
-                          >
-                            <strong>Concepto:</strong>
-                          </td>
-                          <td
-                            style="
-                              padding: 8px 0 8px 0;
-                              font-size: 16px;
-                              color: #334155;
-                            "
-                          >
-                            {{concept_detail}}
-                          </td>
-                        </tr>
-                        <tr>
-                          <td
-                            style="
-                              padding: 8px 0 8px 0;
-                              font-size: 16px;
-                              color: #334155;
-                            "
-                          >
-                            <strong>Total:</strong>
-                          </td>
-                          <td
-                            style="
-                              padding: 8px 0 8px 0;
-                              font-size: 16px;
-                              color: #334155;
-                            "
-                          >
-                            ${{total}}
+                            {{invoiceExpiration}}
                           </td>
                         </tr>
                       </table>
                     </div>
+
+                    <div role="separator" style="line-height: 24px">&zwj;</div>
+                    <p style="margin: 0; line-height: 24px; color: red">
+                      ⚠️ Atención: Tu factura ha vencido. Te recomendamos
+                      realizar el pago lo antes posible para evitar cargos
+                      adicionales.
+                    </p>
+                    <p style="margin: 0; line-height: 24px">
+                      Si ya realizaste el pago, por favor ignora este mensaje.
+                    </p>
+
                     <div
                       role="separator"
                       style="

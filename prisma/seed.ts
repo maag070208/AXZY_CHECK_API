@@ -1,10 +1,12 @@
 import { PrismaClient } from "@prisma/client";
 import { securitySeed } from "./seeds/security";
+import { trainingSeed } from "./seeds/trainingSeed";
 
 const prisma = new PrismaClient();
 
 async function main() {
   await securitySeed(prisma);
+   await trainingSeed(prisma);
 }
 
 main()

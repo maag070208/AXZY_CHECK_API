@@ -1,31 +1,823 @@
 openapi: 3.0.3
 info:
   title: AXZY REHAB API
-  description: REHAB API
+  description: API para control de usuarios, hijos, horarios, citas y modos de entrenamiento.
   version: 1.0.0
+
 servers:
-  - url: http://localhost:4000
+  - url: http://localhost:4000/api/v1
     description: Local server
+
 tags:
   - name: index
     description: Operations about index
+  - name: users
+    description: User management and authentication
+  - name: children
+    description: Registro y gestión de hijos por usuario
+  - name: training-modes
+    description: CRUD de modos de entrenamiento
+  - name: day-schedule
+    description: Gestión de horarios por día
+  - name: appointments
+    description: Gestión de citas asignadas a hijos
+
 paths:
-  /api/v1/:
+
+  ###########################################################################
+  # INDEX
+  ###########################################################################
+  /:
     get:
-      tags:
-        - index
+      tags: [index]
       summary: Get index
-      operationId: getIndex
       responses:
         "200":
-          description: Index
+          description: OK
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-#schemas
-#components:
-#  schemas:
+                $ref: '#/components/schemas/TResultString'
+
+  ###########################################################################
+  # USERS
+  ###########################################################################
+  /users:
+    get:
+      tags: [users]
+      summary: Obtener todos los usuarios
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultUserArray'
+
+    post:
+      tags: [users]
+      summary: Registrar nuevo usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        "201":
+          description: Usuario creado exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultUser'
+
+  /users/login:
+    post:
+      tags: [users]
+      summary: Login de usuario y generación de JWT
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLogin'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultLogin'
+        "401":
+          description: Invalid credentials
+
+  ###########################################################################
+  # CHILDREN
+  ###########################################################################
+  /children/user/{userId}:
+    get:
+      tags: [children]
+      summary: Obtener hijos de un usuario
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: 
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultChildArray'
+
+  /children:
+    get:
+      tags: [children]
+      summary: Obtener todos los hijos
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultChildArray'
+    post:
+      tags: [children]
+      summary: Registrar hijo para un usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChildCreate'
+      responses:
+        "201":
+          description: Usuario creado exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultChild'
+
+  /children/{id}:
+    get:
+      tags: [children]
+      summary: Obtener hijo por ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: 
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultChild'
+
+    put:
+      tags: [children]
+      summary: Actualizar hijo
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: 
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChildCreate'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultChild'
+
+    delete:
+      tags: [children]
+      summary: Eliminar hijo
+      parameters:
+        - name: id
+          in: path
+          required: true # Corregido/Asegurado
+          schema: 
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultChild'
+
+  /children/assign:
+    post:
+      tags: [children]
+      summary: Asignar cita a hijo (Training Mode/Schedule)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentCreate'
+      responses:
+        "201":
+          description: Cita creada exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultAppointment'
+
+  ###########################################################################
+  # TRAINING MODES
+  ###########################################################################
+  /training-modes:
+    get:
+      tags: [training-modes]
+      summary: Obtener todos los modos
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultTrainingModeArray'
+
+    post:
+      tags: [training-modes]
+      summary: Crear modo de entrenamiento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrainingModeCreate'
+      responses:
+        "201":
+          description: Usuario creado exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultTrainingMode'
+
+  /training-modes/{id}:
+    get:
+      tags: [training-modes]
+      summary: Obtener modo por ID
+      parameters:
+        - name: id
+          in: path
+          required: true # Corregido
+          schema: 
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultTrainingMode'
+
+    put:
+      tags: [training-modes]
+      summary: Actualizar modo
+      parameters:
+        - name: id
+          in: path
+          required: true # Corregido
+          schema: 
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrainingModeCreate'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultTrainingMode'
+
+    delete:
+      tags: [training-modes]
+      summary: Eliminar modo
+      parameters:
+        - name: id
+          in: path
+          required: true # Corregido
+          schema: 
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultTrainingMode'
+
+  ###########################################################################
+  # DAY SCHEDULE
+  ###########################################################################
+  /day-schedule:
+    get:
+      tags: [day-schedule]
+      summary: Obtener todos los horarios
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDayScheduleArray'
+
+    post:
+      tags: [day-schedule]
+      summary: Crear horario del día
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DayScheduleCreate'
+      responses:
+        "201":
+          description: Usuario creado exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDaySchedule'
+
+  /day-schedule/today:
+    get:
+      tags: [day-schedule]
+      summary: Horarios de hoy
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDayScheduleArray'
+
+  /day-schedule/week:
+    get:
+      tags: [day-schedule]
+      summary: Horarios de la semana actual
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDayScheduleArray'
+
+  /day-schedule/available:
+    get:
+      tags: [day-schedule]
+      summary: Horarios con espacios disponibles
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDayScheduleAvailableArray'
+
+  /day-schedule/date/{date}:
+    get:
+      tags: [day-schedule]
+      summary: Horarios por fecha (yyyy-mm-dd)
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema: 
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDayScheduleArray'
+
+  /day-schedule/{id}:
+    get:
+      tags: [day-schedule]
+      summary: Obtener horario por ID
+      parameters:
+        - name: id
+          in: path
+          required: true # Corregido/Asegurado
+          schema: 
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDaySchedule'
+
+    put:
+      tags: [day-schedule]
+      summary: Actualizar horario
+      parameters:
+        - name: id
+          in: path
+          required: true # Corregido
+          schema: 
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DayScheduleCreate'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDaySchedule'
+
+    delete:
+      tags: [day-schedule]
+      summary: Eliminar horario
+      parameters:
+        - name: id
+          in: path
+          required: true # Corregido
+          schema: 
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDaySchedule'
+
+  ###########################################################################
+  # APPOINTMENTS (NOW USING childId)
+  ###########################################################################
+  /appointments:
+    get:
+      tags: [appointments]
+      summary: Obtener todas las citas
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultAppointmentArray'
+
+    post:
+      tags: [appointments]
+      summary: Crear cita asignada a un hijo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentCreate'
+      responses:
+        "201":
+          description: Usuario creado exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultAppointment'
+
+  /appointments/{id}:
+    get:
+      tags: [appointments]
+      summary: Obtener cita por ID
+      parameters:
+        - name: id
+          in: path
+          required: true # Corregido
+          schema: 
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultAppointment'
+
+    delete:
+      tags: [appointments]
+      summary: Eliminar cita
+      parameters:
+        - name: id
+          in: path
+          required: true # Corregido
+          schema: 
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultAppointment'
+
+  /appointments/user/{userId}:
+    get:
+      tags: [appointments]
+      summary: Citas por usuario (padre)
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema: 
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultAppointmentArray'
+
+  /appointments/date/{date}:
+    get:
+      tags: [appointments]
+      summary: Citas por fecha
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema: 
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultAppointmentArray'
+
+  /appointments/schedule/{scheduleId}:
+    get:
+      tags: [appointments]
+      summary: Citas por horario
+      parameters:
+        - name: scheduleId
+          in: path
+          required: true
+          schema: 
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultAppointmentArray'
+
+  /appointments/child/{childName}:
+    get:
+      tags: [appointments]
+      summary: Citas por nombre del hijo
+      parameters:
+        - name: childName
+          in: path
+          required: true # Corregido
+          schema: 
+            type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultAppointmentArray'
+
+  /appointments/mode/{modeId}:
+    get:
+      tags: [appointments]
+      summary: Citas por modo
+      parameters:
+        - name: modeId
+          in: path
+          required: true # Corregido
+          schema: 
+            type: integer
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultAppointmentArray'
+
+
+####################################################################
+# COMPONENTS / SCHEMAS
+####################################################################
+components:
+  schemas:
+
+    ################################################################
+    # TResult WRAPPERS
+    ################################################################
+    TResultString:
+      type: object
+      properties:
+        data: { type: string }
+        error: { type: string, nullable: true }
+
+    TResultUser:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/User' }
+        error: { type: string, nullable: true }
+
+    TResultUserArray:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/User' }
+        error: { type: string, nullable: true }
+
+    TResultChild:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/Child' }
+        error: { type: string, nullable: true }
+
+    TResultChildArray:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Child' }
+        error: { type: string, nullable: true }
+
+    TResultLogin:
+      type: object
+      properties:
+        data: { type: string, description: JWT generado }
+        error: { type: string, nullable: true }
+
+    TResultTrainingMode:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/TrainingMode' }
+        error: { type: string, nullable: true }
+
+    TResultTrainingModeArray:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/TrainingMode' }
+        error: { type: string, nullable: true }
+
+    TResultDaySchedule:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/DaySchedule' }
+        error: { type: string, nullable: true }
+
+    TResultDayScheduleArray:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/DaySchedule' }
+        error: { type: string, nullable: true }
+
+    TResultDayScheduleAvailableArray:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/DayScheduleAvailable' }
+        error: { type: string, nullable: true }
+
+    TResultAppointment:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/Appointment' }
+        error: { type: string, nullable: true }
+
+    TResultAppointmentArray:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Appointment' }
+        error: { type: string, nullable: true }
+
+    ################################################################
+    # ENTITIES
+    ################################################################
+
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        lastName: { type: string }
+        email: { type: string }
+        rfc: { type: string }
+        role:
+          type: string
+          enum: ["ADMIN", "USER"]
+
+    UserCreate:
+      type: object
+      required: [name, email, password]
+      properties:
+        name: { type: string }
+        lastName: { type: string }
+        email: { type: string }
+        password: { type: string }
+        role: { type: string }
+
+    UserLogin:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string }
+        password: { type: string }
+
+    Child:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        lastName: { type: string }
+        birthDate: { type: string, format: date-time }
+        userId: { type: integer }
+
+    ChildCreate:
+      type: object
+      required: [name, userId]
+      properties:
+        name: { type: string }
+        lastName: { type: string }
+        birthDate: { type: string, format: date } # INFO: formato de fecha: YYYY-MM-DD
+        userId: { type: integer }
+
+    TrainingMode:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        description: { type: string }
+        isActive: { type: boolean }
+
+    TrainingModeCreate:
+      type: object
+      required: [name]
+      properties:
+        name: { type: string }
+        description: { type: string }
+        isActive: { type: boolean }
+
+    DaySchedule:
+      type: object
+      properties:
+        id: { type: integer }
+        date: { type: string, format: date }
+        startTime: { type: string, format: date-time }
+        endTime: { type: string, format: date-time }
+        capacity: { type: integer }
+        modeId: { type: integer }
+
+    DayScheduleAvailable:
+      allOf:
+        - $ref: '#/components/schemas/DaySchedule'
+        - type: object
+          properties:
+            available: { type: integer }
+
+    DayScheduleCreate:
+      type: object
+      required: [date, startTime, endTime, capacity, modeId]
+      properties:
+        date: { type: string, format: date }
+        startTime: { type: string, format: date-time }
+        endTime: { type: string, format: date-time }
+        capacity: { type: integer }
+        modeId: { type: integer }
+
+    Appointment:
+      type: object
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        childId: { type: integer }
+        scheduleId: { type: integer }
+        modeId: { type: integer }
+        createdAt: { type: string, format: date-time }
+        child: { $ref: '#/components/schemas/Child' }
+        schedule: { $ref: '#/components/schemas/DaySchedule' }
+        user: { $ref: '#/components/schemas/User' }
+        mode: { $ref: '#/components/schemas/TrainingMode' }
+
+    AppointmentCreate:
+      type: object
+      required: [userId, childId, scheduleId, modeId]
+      properties:
+        userId: { type: integer }
+        childId: { type: integer }
+        scheduleId: { type: integer }
+        modeId: { type: integer }
