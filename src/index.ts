@@ -11,7 +11,6 @@ import { createTResult } from "@src/core/mappers/tresult.mapper";
 
 //router
 import apiRouter from "@src/modules/api.router";
-import fileUpload from "express-fileupload";
 import { apiValidator } from "./core/middlewares/schema-validator.middleware";
 
 //server
@@ -19,7 +18,14 @@ const app = express();
 
 const PORT = 4444;
 
-app.use([express.json(), helmet(), cors(), morgan("dev"), fileUpload()]);
+app.use([
+  express.json(),
+  helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }),
+  cors(),
+  morgan("dev"),
+]);
+app.use("/uploads", express.static("public/uploads"));
+app.use("/pdf", express.static("public/pdf"));
 
 app.use(
   "/swagger",

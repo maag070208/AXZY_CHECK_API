@@ -1,12 +1,14 @@
 import { PrismaClient } from "@prisma/client";
 import { securitySeed } from "./seeds/security";
-import { trainingSeed } from "./seeds/trainingSeed";
+import { locationsSeed } from "./seeds/locations";
+import { parkingSeed } from "./seeds/parking";
 
 const prisma = new PrismaClient();
 
 async function main() {
   await securitySeed(prisma);
-   await trainingSeed(prisma);
+  await locationsSeed(prisma);
+  await parkingSeed(prisma);
 }
 
 main()

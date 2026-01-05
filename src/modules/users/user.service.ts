@@ -1,7 +1,29 @@
 import { prismaClient } from "@src/core/config/database";
 
-export const getUsers = async () => {
-  return prismaClient.user.findMany();
+export const getUsers = async (search?: string) => {
+  if (!search) {
+    return prismaClient.user.findMany({
+        orderBy: { name: 'asc' }
+    });
+  }
+
+  return prismaClient.user.findMany({
+    where: {
+      OR: [
+          { name: { contains: search } }, 
+          { lastName: { contains: search } },
+          { email: { contains: search } },
+          {
+              entriesCreated: {
+                  some: {
+                      plates: { contains: search }
+                  }
+              }
+          }
+      ]
+    },
+    orderBy: { name: 'asc' }
+  });
 };
 
 export const getUserByEmail = async (email: string) => {
@@ -24,14 +46,6 @@ export const updateUser = async (id: number, data: any) => {
       id,
     },
     data,
-  });
-};
-
-export const getCoaches = async () => {
-  return prismaClient.user.findMany({
-    where: {
-      role: 'COACH',
-    },
   });
 };
 

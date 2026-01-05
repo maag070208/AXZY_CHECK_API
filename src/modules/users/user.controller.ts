@@ -31,7 +31,8 @@ export const login = async (req: Request, res: Response) => {
 
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
-    const users = await getUsers();
+    const { q } = req.query;
+    const users = await getUsers(q as string);
 
     return res.status(200).json(createTResult(users));
   } catch (error: any) {

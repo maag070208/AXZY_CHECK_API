@@ -1,14 +1,10 @@
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient, Role } from "@prisma/client";
 import bcrypt from "bcryptjs";
 
 export const securitySeed = async (prisma: PrismaClient) => {
-  const admin = await adminSeed(prisma);
-  const user1 = await user1Seed(prisma);
-  const user2 = await user2Seed(prisma);
-  await coach1Seed(prisma);
-  await coach2Seed(prisma);
-
-  await childrenSeed(prisma, user1.id, user2.id);
+  await adminSeed(prisma);
+  await operatorSeed(prisma);
+  await userSeed(prisma);
 };
 
 // ---------------------------
@@ -18,123 +14,52 @@ const adminSeed = async (prisma: PrismaClient) => {
   const password = await bcrypt.hash("admin123", 10);
 
   return prisma.user.upsert({
-    where: { email: "admin@academy.com" },
+    where: { email: "admin@park.com" },
     update: {},
     create: {
       name: "Administrador",
-      email: "admin@academy.com",
+      lastName: "Principal",
+      email: "admin@park.com",
       password,
-      role: "ADMIN",
+      role: Role.ADMIN,
     },
   });
 };
 
 // ---------------------------
-// USER 1
+// OPERATOR
 // ---------------------------
-const user1Seed = async (prisma: PrismaClient) => {
+const operatorSeed = async (prisma: PrismaClient) => {
+  const password = await bcrypt.hash("operator123", 10);
+
+  return prisma.user.upsert({
+    where: { email: "operator@park.com" },
+    update: {},
+    create: {
+      name: "Operador",
+      lastName: "Turno 1",
+      email: "operator@park.com",
+      password,
+      role: Role.OPERATOR,
+    },
+  });
+};
+
+// ---------------------------
+// USER (CLIENTE EJEMPLO)
+// ---------------------------
+const userSeed = async (prisma: PrismaClient) => {
   const password = await bcrypt.hash("user123", 10);
 
   return prisma.user.upsert({
-    where: { email: "user1@academy.com" },
+    where: { email: "cliente@park.com" },
     update: {},
     create: {
-      name: "Padre Uno",
-      email: "user1@academy.com",
+      name: "Cliente",
+      lastName: "Prueba",
+      email: "cliente@park.com",
       password,
-      role: "USER",
-    },
-  });
-};
-
-// ---------------------------
-// USER 2
-// ---------------------------
-const user2Seed = async (prisma: PrismaClient) => {
-  const password = await bcrypt.hash("user123", 10);
-
-  return prisma.user.upsert({
-    where: { email: "user2@academy.com" },
-    update: {},
-    create: {
-      name: "Padre Dos",
-      email: "user2@academy.com",
-      password,
-      role: "USER",
-    },
-  });
-};
-
-// ---------------------------
-// CHILDREN
-// ---------------------------
-const childrenSeed = async (
-  prisma: PrismaClient,
-  user1Id: number,
-  user2Id: number
-) => {
-  // User 1 → 1 hijo
-  await prisma.child.upsert({
-    where: { id: 1 },
-    update: {},
-    create: {
-      name: "Daniel Jacobo",
-      userId: user1Id,
-    },
-  });
-
-  // User 2 → 2 hijos
-  await prisma.child.upsert({
-    where: { id: 2 },
-    update: {},
-    create: {
-      name: "Ximena Ávila",
-      userId: user2Id,
-    },
-  });
-
-  await prisma.child.upsert({
-    where: { id: 3 },
-    update: {},
-    create: {
-      name: "Said Martínez",
-      userId: user2Id,
-    },
-  });
-};
-
-// ---------------------------
-// COACH 1
-// ---------------------------
-const coach1Seed = async (prisma: PrismaClient) => {
-  const password = await bcrypt.hash("coach123", 10);
-
-  return prisma.user.upsert({
-    where: { email: "coach1@academy.com" },
-    update: {},
-    create: {
-      name: "Carlos Entrenador",
-      email: "coach1@academy.com",
-      password,
-      role: "COACH",
-    },
-  });
-};
-
-// ---------------------------
-// COACH 2
-// ---------------------------
-const coach2Seed = async (prisma: PrismaClient) => {
-  const password = await bcrypt.hash("coach123", 10);
-
-  return prisma.user.upsert({
-    where: { email: "coach2@academy.com" },
-    update: {},
-    create: {
-      name: "Luis Instructor",
-      email: "coach2@academy.com",
-      password,
-      role: "COACH",
+      role: Role.USER,
     },
   });
 };
