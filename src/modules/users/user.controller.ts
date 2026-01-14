@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
-import { addUser, getUserByEmail, getUsers } from "./user.service";
+import { addUser, getUserByUsername, getUsers } from "./user.service";
+
 import {
   comparePassword,
   generateJWT,
@@ -9,9 +10,9 @@ import {
 
 export const login = async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { username, password } = req.body;
 
-    const user = await getUserByEmail(email);
+    const user = await getUserByUsername(username);
     console.log(user);
     if (!user) {
       return res.status(401).json(createTResult("", ["User not found"]));
@@ -42,13 +43,13 @@ export const getAllUsers = async (req: Request, res: Response) => {
 
 export const createUser = async (req: Request, res: Response) => {
   try {
-    const { name, lastName, email, password, role, shiftStart, shiftEnd } = req.body;
+    const { name, lastName, username, password, role, shiftStart, shiftEnd } = req.body;
 
-    const existing = await getUserByEmail(email);
+    const existing = await getUserByUsername(username);
     if (existing) {
       return res
         .status(400)
-        .json(createTResult(null, ["Email already exists"]));
+        .json(createTResult(null, ["Username already exists"]));
     }
 
     const hashed = await hashPassword(password);
@@ -56,7 +57,8 @@ export const createUser = async (req: Request, res: Response) => {
     const user = await addUser({
       name,
       lastName,
-      email,
+      username,
+
       password: hashed,
       role: role ?? "USER",
       shiftStart,
@@ -81,13 +83,14 @@ export const getCoachesList = async (req: Request, res: Response) => {
 export const updateUserProfile = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, lastName, email } = req.body;
+    const { name, lastName, username } = req.body;
+
     const { updateUser } = require("./user.service");
 
     const updated = await updateUser(Number(id), {
         name,
         lastName,
-        email
+        username
     });
 
     // Generate new token with updated info? Or just return success.

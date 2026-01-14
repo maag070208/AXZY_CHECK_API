@@ -8,8 +8,14 @@ export const uploadFile = async (req: Request, res: Response) => {
     }
 
     const imageUrl = `/uploads/${req.file.filename}`;
-    // Return the URL
-    return res.status(200).json(createTResult({ url: imageUrl }));
+    // Return the URL and metadata
+    return res.status(200).json(
+      createTResult({
+        url: imageUrl,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+      })
+    );
   } catch (error: any) {
     return res.status(500).json(createTResult(null, error.message));
   }

@@ -13,12 +13,12 @@ tags:
     description: Gestión de usuarios y roles
   - name: locations
     description: Gestión de cajones de estacionamiento
-  - name: entries
-    description: Registro de entradas y evidencia fotográfica
-  - name: movements
-    description: Movimientos de vehículos
-  - name: exits
-    description: Registro de salidas
+  - name: uploads
+    description: Carga de archivos
+  - name: kardex
+    description: Registro de rondines y evidencia
+
+
 
 paths:
 
@@ -81,6 +81,7 @@ paths:
     get:
       tags: [locations]
       summary: Listar locaciones
+
       responses:
         "200":
           description: OK
@@ -100,6 +101,7 @@ paths:
                properties:
                  aisle: { type: string }
                  spot: { type: string }
+                 number: { type: string }
       responses:
         "201":
           description: Created
@@ -109,22 +111,12 @@ paths:
                 $ref: '#/components/schemas/TResultLocation'
 
   ###########################################################################
-  # ENTRIES
+  # UPLOADS
   ###########################################################################
-  /entries:
-    get:
-      tags: [entries]
-      summary: Listar entradas
-      responses:
-        "200":
-          description: OK
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TResultEntryArray'
+  /uploads:
     post:
-      tags: [entries]
-      summary: Registrar entrada (Fotos)
+      tags: [uploads]
+      summary: Subir archivo (Imagen o Video)
       requestBody:
         required: true
         content:
@@ -132,112 +124,87 @@ paths:
             schema:
               type: object
               properties:
-                userId: { type: integer }
-                operatorUserId: { type: integer }
-                brand: { type: string }
-                model: { type: string }
-                color: { type: string }
-                plates: { type: string }
-                mileage: { type: integer }
-                notes: { type: string }
-                photo_frontal: { type: string, format: binary }
-                photo_trasera: { type: string, format: binary }
-                photo_lateral_derecho: { type: string, format: binary }
-                photo_lateral_izquierdo: { type: string, format: binary }
-                photo_interior: { type: string, format: binary }
-                photo_extras: { type: string, format: binary }
-      responses:
-        "201":
-          description: Created
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/TResultEntry'
-
-  /entries/{id}:
-    get:
-      tags: [entries]
-      summary: Detalle entrada
-      parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: integer }
+                file:
+                  type: string
+                  format: binary
       responses:
         "200":
           description: OK
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TResultEntry'
+                $ref: '#/components/schemas/TResultUpload'
 
   ###########################################################################
-  # MOVEMENTS
+  # KARDEX
   ###########################################################################
-  /movements:
-    get:
-      tags: [movements]
-      summary: Listar movimientos
-      responses:
-         "200":
-           description: OK
-           content:
-             application/json:
-               schema:
-                 $ref: '#/components/schemas/TResultMovementArray'
+  /kardex:
     post:
-      tags: [movements]
-      summary: Registrar movimiento
+      tags: [kardex]
+      summary: Crear registro de kardex
       requestBody:
+        required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                entryId: { type: integer }
-                toLocationId: { type: integer }
-                assignedUserId: { type: integer }
+              $ref: '#/components/schemas/KardexCreate'
       responses:
         "201":
-           description: Created
+           description: Le Created
            content:
              application/json:
                schema:
-                 $ref: '#/components/schemas/TResultMovement'
-
-  ###########################################################################
-  # EXITS
-  ###########################################################################
-  /exits:
+                 $ref: '#/components/schemas/TResultKardex'
     get:
-      tags: [exits]
-      summary: Listar salidas
+      tags: [kardex]
+      summary: Listar kardex (filtros opcionales)
+      parameters:
+        - in: query
+          name: userId
+          schema:
+            type: integer
+        - in: query
+          name: locationId
+          schema:
+            type: integer
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date-time
       responses:
          "200":
            description: OK
            content:
              application/json:
                schema:
-                 $ref: '#/components/schemas/TResultExitArray'
-    post:
-      tags: [exits]
-      summary: Registrar salida
-      requestBody:
-        content:
-          application/json:
-             schema:
-               type: object
-               properties:
-                 entryId: { type: integer }
-                 operatorUserId: { type: integer }
-                 notes: { type: string }
+                 $ref: '#/components/schemas/TResultKardexArray'
+  
+  /kardex/{id}:
+    get:
+      tags: [kardex]
+      summary: Detalle de kardex
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: 
+            type: integer
       responses:
-         "201":
-            description: Created
-            content:
-              application/json:
-                schema:
-                  $ref: '#/components/schemas/TResultExit'
+         "200":
+           description: OK
+           content:
+             application/json:
+               schema:
+                 $ref: '#/components/schemas/TResultKardex'
+
+
+
 
 components:
   schemas:
@@ -284,47 +251,32 @@ components:
            items: { $ref: '#/components/schemas/Location' }
          error: { type: string, nullable: true }
 
-    TResultEntry:
-       type: object
-       properties:
-         data: { $ref: '#/components/schemas/Entry' }
-         error: { type: string, nullable: true }
-    
-    TResultEntryArray:
+    TResultUpload:
        type: object
        properties:
          data:
-           type: array
-           items: { $ref: '#/components/schemas/Entry' }
+           type: object
+           properties:
+             url: { type: string }
+             mimetype: { type: string }
+             size: { type: integer }
          error: { type: string, nullable: true }
 
-    TResultMovement:
+    TResultKardex:
        type: object
        properties:
-         data: { $ref: '#/components/schemas/Movement' }
-         error: { type: string, nullable: true }
-    
-    TResultMovementArray:
-       type: object
-       properties:
-         data:
-           type: array
-           items: { $ref: '#/components/schemas/Movement' }
+         data: { $ref: '#/components/schemas/Kardex' }
          error: { type: string, nullable: true }
 
-    TResultExit:
-       type: object
-       properties:
-         data: { $ref: '#/components/schemas/Exit' }
-         error: { type: string, nullable: true }
-    
-    TResultExitArray:
+    TResultKardexArray:
        type: object
        properties:
          data:
            type: array
-           items: { $ref: '#/components/schemas/Exit' }
+           items: { $ref: '#/components/schemas/Kardex' }
          error: { type: string, nullable: true }
+
+
 
     ################################################################
     # ENTITIES
@@ -336,24 +288,31 @@ components:
         id: { type: integer }
         name: { type: string }
         lastName: { type: string }
-        email: { type: string }
-        role: { type: string }
+        username: { type: string }
 
+        role: 
+           type: string
+           enum: [ADMIN, SHIFT_GUARD, GUARD]
     UserCreate:
       type: object
-      required: [name, email, password]
+      required: [name, username, password]
+
       properties:
         name: { type: string }
         lastName: { type: string }
-        email: { type: string }
-        password: { type: string }
-        role: { type: string }
+        username: { type: string }
 
+        password: { type: string }
+        role: 
+           type: string
+           enum: [ADMIN, SHIFT_GUARD, GUARD]
     UserLogin:
       type: object
-      required: [email, password]
+      required: [username, password]
+
       properties:
-        email: { type: string }
+        username: { type: string }
+
         password: { type: string }
     
     Location:
@@ -363,35 +322,39 @@ components:
          name: { type: string }
          aisle: { type: string }
          spot: { type: string }
+         number: { type: string }
          isOccupied: { type: boolean }
     
-    Entry:
+    Kardex:
        type: object
        properties:
          id: { type: integer }
-         entryNumber: { type: string }
-         plates: { type: string }
-         brand: { type: string }
-         model: { type: string }
-         color: { type: string }
-         status: { type: string }
-         photos: 
+         userId: { type: integer }
+         locationId: { type: integer }
+         timestamp: { type: string, format: date-time }
+         notes: { type: string }
+         media: 
            type: array
-           items: 
+           items:
              type: object
              properties:
-               category: { type: string }
-               imageUrl: { type: string }
+               type: { type: string, enum: [IMAGE, VIDEO] }
+               url: { type: string }
+               description: { type: string }
+         user: { $ref: '#/components/schemas/User' }
+         location: { $ref: '#/components/schemas/Location' }
     
-    Movement:
+    KardexCreate:
        type: object
+       required: [userId, locationId]
        properties:
-         id: { type: integer }
-         fromLocationId: { type: integer }
-         toLocationId: { type: integer }
-    
-    Exit:
-       type: object
-       properties:
-         id: { type: integer }
-         exitDate: { type: string }
+         userId: { type: integer }
+         locationId: { type: integer }
+         notes: { type: string }
+         media:
+           type: array
+           items:
+             type: object
+             properties:
+               type: { type: string, enum: [IMAGE, VIDEO] }
+               url: { type: string }

@@ -2,10 +2,10 @@ import { PrismaClient } from "@prisma/client";
 
 export const locationsSeed = async (prisma: PrismaClient) => {
   const locations = [
-    { name: "A", aisle: "A", spot: "1" },
-    { name: "B", aisle: "B", spot: "1" },
-    { name: "C", aisle: "C", spot: "1" },
-    { name: "D", aisle: "D", spot: "1" },
+    { name: "A-1-1", aisle: "A", spot: "1", number: "1" },
+    { name: "B-1-1", aisle: "B", spot: "1", number: "1" },
+    { name: "C-1-1", aisle: "C", spot: "1", number: "1" },
+    { name: "D-1-1", aisle: "D", spot: "1", number: "1" },
   ];
 
   for (const location of locations) {

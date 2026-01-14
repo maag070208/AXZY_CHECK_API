@@ -23,7 +23,6 @@ app.use([
   morgan("dev"),
 ]);
 app.use("/uploads", express.static("public/uploads"));
-app.use("/pdf", express.static("public/pdf"));
 
 app.use(
   "/swagger",
@@ -34,6 +33,13 @@ app.use(
     swaggerUiHandler(req, res, next);
   }
 );
+
+app.get("/swagger.json", (req, res) => {
+  const swaggerDocument = YAML.load("./swagger.yaml");
+  res.json(swaggerDocument);
+});
+
+
 // app.use(apiValidator());
 
 app.use("/api/v1", apiRouter);

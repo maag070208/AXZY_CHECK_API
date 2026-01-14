@@ -6,38 +6,29 @@ export const getAllLocations = async () => {
   return await prisma.location.findMany({
     where: { softDelete: false },
     orderBy: { name: "asc" },
-    include: {
-        entries: {
-            where: {
-                status: {
-                    notIn: ["EXITED", "CANCELLED"]
-                }
-            },
-            include: {
-                user: true,
-                photos: true
-            }
-        }
-    }
+    
+
   });
 };
 
 export const createLocation = async (data: {
   aisle: string;
   spot: string;
+  number: string;
   name?: string;
 }) => {
-  const name = data.name || `${data.aisle}-${data.spot}`;
+  const name = data.name || `${data.aisle}-${data.spot}-${data.number}`;
   return await prisma.location.create({
     data: {
       aisle: data.aisle,
       spot: data.spot,
+      number: data.number,
       name,
     },
   });
 };
 
-export const updateLocation = async (id: number, data: { aisle: string; spot: string; name: string }) => {
+export const updateLocation = async (id: number, data: { aisle: string; spot: string; number: string; name: string }) => {
     return await prisma.location.update({
         where: { id },
         data
@@ -47,26 +38,12 @@ export const updateLocation = async (id: number, data: { aisle: string; spot: st
 export const deleteLocation = async (id: number) => {
     const location = await prisma.location.findUnique({
         where: { id },
-        include: {
-            entries: {
-                where: {
-                    status: {
-                        notIn: ["EXITED", "CANCELLED"]
-                    }
-                }
-            }
-        }
     });
 
     if (!location) throw new Error("Location not found");
 
-    if (location.entries.length > 0) {
-        throw new Error("No se puede eliminar una zona con vehículos activos.");
-    }
-
-    return await prisma.location.update({
+    return await prisma.location.delete({
         where: { id },
-        data: { softDelete: true }
     });
 };
 

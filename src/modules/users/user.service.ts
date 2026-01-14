@@ -12,24 +12,18 @@ export const getUsers = async (search?: string) => {
       OR: [
           { name: { contains: search } }, 
           { lastName: { contains: search } },
-          { email: { contains: search } },
-          {
-              entriesCreated: {
-                  some: {
-                      plates: { contains: search }
-                  }
-              }
-          }
+          { username: { contains: search } }
       ]
+
     },
     orderBy: { name: 'asc' }
   });
 };
 
-export const getUserByEmail = async (email: string) => {
+export const getUserByUsername = async (username: string) => {
   return prismaClient.user.findFirst({
     where: {
-      email,
+      username,
     },
   });
 };

@@ -3,26 +3,17 @@ import { Router } from "express";
 import indexRoute from "./index.routes";
 import userRoute from "./users/user.routes";
 import locationsRoute from "./locations/locations.routes";
-import entriesRoute from "./entries/entries.routes";
-import movementsRoute from "./movements/movements.routes";
-import exitsRoute from "./exits/exits.routes";
 import uploadRoute from "./common/upload.routes";
-import keyAssignmentsRoute from "./key-assignments/key-assignments.routes";
-import extraCostsRoute from "./extra-costs/extra-costs.routes";
+import kardexRoute from "./kardex/kardex.routes";
+
 
 const apiRouter = Router();
 
 apiRouter.use("/", indexRoute);
 apiRouter.use("/users", userRoute);
 apiRouter.use("/locations", locationsRoute);
-apiRouter.use("/entries", entriesRoute);
-apiRouter.use("/movements", movementsRoute);
-apiRouter.use("/exits", exitsRoute);
 apiRouter.use("/uploads", uploadRoute);
-apiRouter.use("/key-assignments", keyAssignmentsRoute);
-apiRouter.use("/extra-costs", extraCostsRoute);
-apiRouter.use("/reports", require("./reports/reports.routes").default);
-apiRouter.use("/config", require("./config/config.routes").default);
-apiRouter.use("/vehicle-types", require("./vehicle-types/vehicle-types.routes").default);
+apiRouter.use("/kardex", kardexRoute);
+
 
 export default apiRouter;

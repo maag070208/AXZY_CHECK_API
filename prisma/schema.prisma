@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -14,28 +14,8 @@ datasource db {
 
 enum Role {
   ADMIN
-  LIDER
-  OPERATOR
-  USER
-}
-
-enum EntryStatus {
-  ACTIVE
-  MOVED
-  EXITED
-  CANCELLED
-}
-
-enum MovementStatus {
-  PENDING
-  IN_PROGRESS
-  COMPLETED
-}
-
-enum ExitStatus {
-  REQUESTED
-  DELIVERED
-  CANCELLED
+  SHIFT_GUARD
+  GUARD
 }
 
 ////////////////////////////////////////////////////
@@ -46,7 +26,7 @@ model User {
   id         Int      @id @default(autoincrement())
   name       String
   lastName   String?
-  email      String   @unique
+  username   String   @unique
   password   String
   role       Role
   active     Boolean  @default(true)
@@ -57,13 +37,7 @@ model User {
   updatedAt  DateTime @updatedAt
 
   // Relations
-  entriesCreated    VehicleEntry[]    @relation("EntryCreator")
-  entriesHandled    VehicleEntry[]    @relation("EntryOperator")
-  movements         VehicleMovement[]
-  exitsHandled      VehicleExit[]
-  keyAssignments    KeyAssignment[]
-  extraCostsOwned   ExtraCost[]       @relation("CostOwner")
-  extraCostsApplied ExtraCost[]       @relation("CostOperator")
+  kardexEntries Kardex[]
 }
 
 ////////////////////////////////////////////////////
@@ -74,6 +48,7 @@ model Location {
   id         Int      @id @default(autoincrement())
   aisle      String
   spot       String
+  number     String
   name       String   @unique
   isOccupied Boolean  @default(false)
   active     Boolean  @default(true)
@@ -81,185 +56,21 @@ model Location {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  entries        VehicleEntry[]
-  keyAssignments KeyAssignment[]   @relation("AssignmentTargetLocation")
-  movementsFrom  VehicleMovement[] @relation("MovementFrom")
-  movementsTo    VehicleMovement[] @relation("MovementTo")
+  kardexEntries Kardex[]
 }
 
-////////////////////////////////////////////////////
-// VEHICLE ENTRY (INGRESO)
-////////////////////////////////////////////////////
+model Kardex {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  locationId Int
+  timestamp  DateTime @default(now())
+  notes      String?  @db.Text
+  media      Json? // Array of { type: 'IMAGE' | 'VIDEO', url: 'string' }
 
-model VehicleEntry {
-  id             Int         @id @default(autoincrement())
-  entryNumber    String      @unique
-  userId         Int // Cliente
-  operatorUserId Int // Quien registra y tiene las llaves
-  locationId     Int
-  entryDate      DateTime    @default(now())
-  status         EntryStatus
-  notes          String?
+  user     User     @relation(fields: [userId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
 
-  // Vehicle info
-  brand   String
-  model   String
-  color   String
-  plates  String?
-  mileage Int?
-
-  active     Boolean  @default(true)
-  softDelete Boolean  @default(false)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  // Relations
-  user        User              @relation("EntryCreator", fields: [userId], references: [id])
-  operator    User              @relation("EntryOperator", fields: [operatorUserId], references: [id])
-  location    Location          @relation(fields: [locationId], references: [id])
-  photos      VehiclePhoto[]
-  movements   VehicleMovement[]
-  assignments KeyAssignment[]
-  extraCosts  ExtraCost[]
-
-  series        String?
-  exit          VehicleExit?
-  vehicleTypeId Int?
-  vehicleType   VehicleType? @relation(fields: [vehicleTypeId], references: [id])
-}
-
-////////////////////////////////////////////////////
-// VEHICLE TYPES (CATALOGO)
-////////////////////////////////////////////////////
-
-model VehicleType {
-  id        Int      @id @default(autoincrement())
-  name      String   @unique
-  cost      Float
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  entries VehicleEntry[]
-}
-
-////////////////////////////////////////////////////
-// VEHICLE PHOTOS (EVIDENCIA)
-////////////////////////////////////////////////////
-
-model VehiclePhoto {
-  id          Int      @id @default(autoincrement())
-  entryId     Int
-  category    String // frontal, trasera, lateral_derecho, interior, etc.
-  imageUrl    String
-  description String?
-  createdAt   DateTime @default(now())
-
-  entry VehicleEntry @relation(fields: [entryId], references: [id])
-}
-
-////////////////////////////////////////////////////
-// VEHICLE MOVEMENTS
-////////////////////////////////////////////////////
-
-model VehicleMovement {
-  id             Int            @id @default(autoincrement())
-  entryId        Int
-  fromLocationId Int
-  toLocationId   Int
-  assignedUserId Int
-  status         MovementStatus
-  createdAt      DateTime       @default(now())
-  completedAt    DateTime?
-
-  // Relations
-  entry        VehicleEntry @relation(fields: [entryId], references: [id])
-  assignedUser User         @relation(fields: [assignedUserId], references: [id])
-  fromLocation Location     @relation("MovementFrom", fields: [fromLocationId], references: [id])
-  toLocation   Location     @relation("MovementTo", fields: [toLocationId], references: [id])
-}
-
-////////////////////////////////////////////////////
-// VEHICLE EXIT (SALIDA)
-////////////////////////////////////////////////////
-
-model VehicleExit {
-  id             Int        @id @default(autoincrement())
-  entryId        Int        @unique
-  operatorUserId Int
-  exitDate       DateTime   @default(now())
-  status         ExitStatus
-  notes          String?
-  finalCost      Float      @default(0)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  entry    VehicleEntry @relation(fields: [entryId], references: [id])
-  operator User         @relation(fields: [operatorUserId], references: [id])
-}
-
-////////////////////////////////////////////////////
-// KEY ASSIGNMENTS (LLAVES)
-////////////////////////////////////////////////////
-
-enum KeyAssignmentType {
-  MOVEMENT
-  DELIVERY
-}
-
-enum KeyAssignmentStatus {
-  ACTIVE
-  COMPLETED
-}
-
-model KeyAssignment {
-  id             Int                 @id @default(autoincrement())
-  entryId        Int
-  operatorUserId Int
-  type           KeyAssignmentType
-  status         KeyAssignmentStatus @default(ACTIVE)
-  startedAt      DateTime            @default(now())
-  endedAt        DateTime?
-
-  entry    VehicleEntry @relation(fields: [entryId], references: [id])
-  operator User         @relation(fields: [operatorUserId], references: [id])
-
-  targetLocationId Int?
-  targetLocation   Location? @relation("AssignmentTargetLocation", fields: [targetLocationId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-////////////////////////////////////////////////////
-// EXTRA COSTS (COSTOS EXTRAS)
-////////////////////////////////////////////////////
-
-model ExtraCost {
-  id         Int     @id @default(autoincrement())
-  entryId    Int
-  userId     Int // Dueño del auto
-  operatorId Int // Operador que aplica el costo
-  reason     String
-  amount     Float
-  imageUrl   String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  entry    VehicleEntry @relation(fields: [entryId], references: [id])
-  user     User         @relation("CostOwner", fields: [userId], references: [id])
-  operator User         @relation("CostOperator", fields: [operatorId], references: [id])
-}
-
-////////////////////////////////////////////////////
-// SYSTEM CONFIG
-////////////////////////////////////////////////////
-
-model SystemConfig {
-  id        Int      @id @default(autoincrement())
-  key       String   @unique // e.g., 'PARKING_SETTINGS'
-  value     Json // e.g., { "maxCapacity": 200 }
-  updatedAt DateTime @updatedAt
+  @@index([userId])
+  @@index([locationId])
+  @@index([timestamp])
 }

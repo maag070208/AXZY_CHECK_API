@@ -14,15 +14,16 @@ const adminSeed = async (prisma: PrismaClient) => {
   const password = await bcrypt.hash("admin123", 10);
 
   return prisma.user.upsert({
-    where: { email: "admin@park.com" },
+    where: { username: "admin" },
     update: {},
     create: {
       name: "Administrador",
       lastName: "Principal",
-      email: "admin@park.com",
+      username: "admin",
       password,
       role: Role.ADMIN,
     },
+
   });
 };
 
@@ -30,17 +31,17 @@ const adminSeed = async (prisma: PrismaClient) => {
 // OPERATOR
 // ---------------------------
 const operatorSeed = async (prisma: PrismaClient) => {
-  const password = await bcrypt.hash("operator123", 10);
+  const password = await bcrypt.hash("user123", 10);
 
   return prisma.user.upsert({
-    where: { email: "operator@park.com" },
+    where: { username: "guard1" },
     update: {},
     create: {
-      name: "Operador",
+      name: "Guardia",
       lastName: "Turno 1",
-      email: "operator@park.com",
+      username: "guard1",
       password,
-      role: Role.OPERATOR,
+      role: Role.SHIFT_GUARD,
       shiftStart: "08:00",
       shiftEnd: "16:00"
     },
@@ -54,14 +55,14 @@ const userSeed = async (prisma: PrismaClient) => {
   const password = await bcrypt.hash("user123", 10);
 
   return prisma.user.upsert({
-    where: { email: "cliente@park.com" },
+    where: { username: "guard2" },
     update: {},
     create: {
-      name: "Cliente",
+      name: "Guardia",
       lastName: "Prueba",
-      email: "cliente@park.com",
+      username: "guard2",
       password,
-      role: Role.USER,
+      role: Role.GUARD,
     },
   });
 };
