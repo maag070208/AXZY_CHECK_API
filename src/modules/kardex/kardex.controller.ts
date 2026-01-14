@@ -4,7 +4,7 @@ import { createKardex, getKardex, getKardexById, updateKardex } from "./kardex.s
 
 export const createKardexEntry = async (req: Request, res: Response) => {
   try {
-    const { userId, locationId, notes, media } = req.body;
+    const { userId, locationId, notes, media, latitude, longitude } = req.body;
 
     if (!userId || !locationId) {
       return res.status(400).json(createTResult(null, ["userId and locationId are required"]));
@@ -15,6 +15,8 @@ export const createKardexEntry = async (req: Request, res: Response) => {
       locationId: Number(locationId),
       notes,
       media,
+      latitude,
+      longitude,
     });
 
     return res.status(201).json(createTResult(entry));
@@ -26,11 +28,13 @@ export const createKardexEntry = async (req: Request, res: Response) => {
 export const updateKardexEntry = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { notes, media } = req.body;
+    const { notes, media, latitude, longitude } = req.body;
 
     const entry = await updateKardex(Number(id), {
       notes,
       media,
+      latitude,
+      longitude,
     });
 
     return res.status(200).json(createTResult(entry));

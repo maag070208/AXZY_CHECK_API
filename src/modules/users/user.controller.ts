@@ -11,7 +11,7 @@ import {
 export const login = async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;
-
+    console.log({ username, password });
     const user = await getUserByUsername(username);
     console.log(user);
     if (!user) {
@@ -43,7 +43,8 @@ export const getAllUsers = async (req: Request, res: Response) => {
 
 export const createUser = async (req: Request, res: Response) => {
   try {
-    const { name, lastName, username, password, role, shiftStart, shiftEnd } = req.body;
+    const { name, lastName, username, password, role, shiftStart, shiftEnd } =
+      req.body;
 
     const existing = await getUserByUsername(username);
     if (existing) {
@@ -62,7 +63,7 @@ export const createUser = async (req: Request, res: Response) => {
       password: hashed,
       role: role ?? "USER",
       shiftStart,
-      shiftEnd
+      shiftEnd,
     });
 
     return res.status(201).json(createTResult(user));
@@ -88,16 +89,15 @@ export const updateUserProfile = async (req: Request, res: Response) => {
     const { updateUser } = require("./user.service");
 
     const updated = await updateUser(Number(id), {
-        name,
-        lastName,
-        username
+      name,
+      lastName,
+      username,
     });
 
     // Generate new token with updated info? Or just return success.
     // Client might need to re-login or update local state.
     // For now returning the updated user.
     return res.status(200).json(createTResult(updated));
-
   } catch (error: any) {
     return res.status(500).json(createTResult(null, error.message));
   }
@@ -111,19 +111,20 @@ export const changePassword = async (req: Request, res: Response) => {
 
     const user = await getUserById(Number(id));
     if (!user) {
-        return res.status(404).json(createTResult(null, ["User not found"]));
+      return res.status(404).json(createTResult(null, ["User not found"]));
     }
 
     const isValid = await comparePassword(oldPassword, user.password);
     if (!isValid) {
-        return res.status(400).json(createTResult(null, ["La contraseña actual es incorrecta"]));
+      return res
+        .status(400)
+        .json(createTResult(null, ["La contraseña actual es incorrecta"]));
     }
 
     const hashed = await hashPassword(newPassword);
     await updateUser(Number(id), { password: hashed });
 
     return res.status(200).json(createTResult(true));
-
   } catch (error: any) {
     return res.status(500).json(createTResult(null, error.message));
   }

@@ -6,6 +6,8 @@ export const createKardex = async (data: {
   locationId: number;
   notes?: string;
   media?: any[]; // Array of { type: 'IMAGE' | 'VIDEO', url: 'string' }
+  latitude?: number;
+  longitude?: number;
 }) => {
   return prismaClient.kardex.create({
     data,
@@ -17,6 +19,8 @@ export const updateKardex = async (
   data: {
     notes?: string;
     media?: any[];
+    latitude?: number;
+    longitude?: number;
   }
 ) => {
   return prismaClient.kardex.update({
