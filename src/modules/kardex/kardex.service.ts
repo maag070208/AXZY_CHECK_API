@@ -8,7 +8,9 @@ export const createKardex = async (data: {
   media?: any[]; // Array of { type: 'IMAGE' | 'VIDEO', url: 'string' }
   latitude?: number;
   longitude?: number;
+  assignmentId?: number;
 }) => {
+  
   return prismaClient.kardex.create({
     data,
   });
@@ -54,6 +56,7 @@ export const getKardex = async (filters: {
         select: { id: true, name: true, lastName: true, username: true, role: true },
       },
       location: true,
+      assignment: true
     },
     orderBy: {
       timestamp: "desc",
@@ -69,6 +72,7 @@ export const getKardexById = async (id: number) => {
         select: { id: true, name: true, lastName: true, username: true, role: true },
       },
       location: true,
+      assignment: true
     },
   });
 };

@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mysql"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -16,6 +16,14 @@ enum Role {
   ADMIN
   SHIFT_GUARD
   GUARD
+}
+
+enum AssignmentStatus {
+  PENDING
+  CHECKING
+  UNDER_REVIEW
+  REVIEWED
+  ANOMALY
 }
 
 ////////////////////////////////////////////////////
@@ -38,6 +46,7 @@ model User {
 
   // Relations
   kardexEntries Kardex[]
+  assignments   Assignment[] @relation("GuardAssignments")
 }
 
 ////////////////////////////////////////////////////
@@ -57,6 +66,7 @@ model Location {
   updatedAt  DateTime @updatedAt
 
   kardexEntries Kardex[]
+  assignments   Assignment[]
 }
 
 model Kardex {
@@ -69,10 +79,48 @@ model Kardex {
   latitude   Float?
   longitude  Float?
 
-  user     User     @relation(fields: [userId], references: [id])
-  location Location @relation(fields: [locationId], references: [id])
+  assignmentId Int? // Optional link to an assignment
+
+  user       User        @relation(fields: [userId], references: [id])
+  location   Location    @relation(fields: [locationId], references: [id])
+  assignment Assignment? @relation(fields: [assignmentId], references: [id])
 
   @@index([userId])
   @@index([locationId])
   @@index([timestamp])
+}
+
+model Assignment {
+  id         Int              @id @default(autoincrement())
+  guardId    Int
+  locationId Int
+  status     AssignmentStatus @default(PENDING)
+  assignedBy Int // ID of user who created assignment
+  notes      String?          @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  guard    User     @relation("GuardAssignments", fields: [guardId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+  kardex   Kardex[]
+
+  tasks AssignmentTask[]
+
+  @@index([guardId])
+  @@index([locationId])
+}
+
+model AssignmentTask {
+  id           Int       @id @default(autoincrement())
+  assignmentId Int
+  description  String
+  reqPhoto     Boolean   @default(false)
+  completed    Boolean   @default(false)
+  completedAt  DateTime?
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id])
+
+  @@index([assignmentId])
 }

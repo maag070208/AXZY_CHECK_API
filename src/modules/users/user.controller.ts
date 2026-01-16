@@ -84,7 +84,7 @@ export const getCoachesList = async (req: Request, res: Response) => {
 export const updateUserProfile = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, lastName, username } = req.body;
+    const { name, lastName, username, shiftStart, shiftEnd } = req.body;
 
     const { updateUser } = require("./user.service");
 
@@ -92,6 +92,8 @@ export const updateUserProfile = async (req: Request, res: Response) => {
       name,
       lastName,
       username,
+      shiftStart,
+      shiftEnd,
     });
 
     // Generate new token with updated info? Or just return success.

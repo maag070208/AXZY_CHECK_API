@@ -13,7 +13,6 @@ COPY .env ./
 RUN yarn install --frozen-lockfile
 
 RUN npx prisma generate
-RUN npx prisma db seed
 
 COPY . .
 RUN yarn build
