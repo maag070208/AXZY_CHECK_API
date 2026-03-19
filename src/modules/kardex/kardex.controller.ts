@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
-import { registerCheck, getKardex, getKardexById, updateKardex } from "./kardex.service";
+import { registerCheck, getKardex, getKardexById, updateKardex, getDataTableKardex } from "./kardex.service";
 
 export const createKardexEntry = async (req: Request, res: Response) => {
   try {
@@ -78,6 +78,24 @@ export const getKardexDetail = async (req: Request, res: Response) => {
 
     return res.status(200).json(createTResult(entry));
   } catch (error: any) {
+    return res.status(500).json(createTResult(null, error.message));
+  }
+};
+
+export const getDataTableKardexEntries = async (req: Request, res: Response) => {
+  try {
+    const { page, limit, filters, sort } = req.body;
+
+    const result = await getDataTableKardex({
+      page: Number(page) || 1,
+      limit: Number(limit) || 10,
+      filters: filters || {},
+      sort: sort || undefined,
+    });
+
+    return res.status(200).json(createTResult(result));
+  } catch (error: any) {
+    console.error(error);
     return res.status(500).json(createTResult(null, error.message));
   }
 };

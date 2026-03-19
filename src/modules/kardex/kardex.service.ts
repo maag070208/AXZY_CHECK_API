@@ -172,3 +172,72 @@ export const getKardexById = async (id: number) => {
 
   return kardex;
 };
+
+export const getDataTableKardex = async (params: {
+  page: number;
+  limit: number;
+  filters: any;
+  sort?: { key: string; order: 'asc' | 'desc' };
+}) => {
+  const { page, limit, filters, sort } = params;
+  const skip = (page - 1) * limit;
+  const take = limit;
+
+  const where: any = {};
+
+  if (filters.userId) {
+    where.userId = Number(filters.userId);
+  }
+
+  if (filters.date && Array.isArray(filters.date) && filters.date[0]) {
+      const start = new Date(filters.date[0]);
+      let endString = filters.date[1] || filters.date[0];
+      const end = new Date(endString);
+      
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+          start.setHours(0, 0, 0, 0);
+          end.setHours(23, 59, 59, 999);
+          
+          where.timestamp = {
+              gte: start,
+              lte: end
+          };
+      }
+  }
+
+  const orderBy: any = {};
+  if (sort && sort.key) {
+    // Basic mapping for related fields if needed
+    if (sort.key === 'user') {
+        orderBy.user = { name: sort.order };
+    } else if (sort.key === 'location') {
+        orderBy.location = { name: sort.order };
+    } else {
+        orderBy[sort.key] = sort.order;
+    }
+  } else {
+    orderBy.timestamp = 'desc';
+  }
+
+  const [rows, total] = await Promise.all([
+    prismaClient.kardex.findMany({
+      skip,
+      take,
+      where,
+      include: {
+        user: {
+          select: { id: true, name: true, lastName: true, username: true, role: true },
+        },
+        location: true,
+        assignment: true,
+      },
+      orderBy,
+    }),
+    prismaClient.kardex.count({ where }),
+  ]);
+
+  return {
+    data: rows,
+    total,
+  };
+};

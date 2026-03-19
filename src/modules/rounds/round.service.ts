@@ -7,7 +7,61 @@ import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.uti
 const prisma = prismaClient;
 
 export const getDataTableRounds = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
-    const prismaParams = getPrismaPaginationParams(params);
+    // Extract custom frontend-only filters
+    const customFilters = params.filters || {};
+    
+    // Clean filters for generic Prisma mapping
+    const cleanFilters: any = {};
+    if (params.filters) {
+        for (const [key, value] of Object.entries(params.filters)) {
+            if (key !== 'refreshKey' && key !== 'date') {
+                if (key === 'guard') {
+                    // Map the UI column "guard" to Prisma "guardId"
+                    cleanFilters['guardId'] = Number(value);
+                } else if (key === 'recurringConfiguration') {
+                    cleanFilters['recurringConfigurationId'] = Number(value);
+                } else {
+                    cleanFilters[key] = value;
+                }
+            }
+        }
+    }
+
+    const prismaParams = getPrismaPaginationParams({ ...params, filters: cleanFilters });
+
+    // Map `date` to actual startTime range filter
+    if (customFilters.date) {
+        if (Array.isArray(customFilters.date) && customFilters.date[0]) {
+            const start = new Date(customFilters.date[0]);
+            
+            const endString = customFilters.date[1] ? customFilters.date[1] : customFilters.date[0];
+            const end = new Date(endString);
+            
+            if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+                start.setHours(0, 0, 0, 0);
+                end.setHours(23, 59, 59, 999); 
+    
+                prismaParams.where.startTime = {
+                    gte: start,
+                    lte: end
+                };
+            }
+        } else if (typeof customFilters.date === 'string') {
+            const start = new Date(customFilters.date as string);
+            
+            if (!isNaN(start.getTime())) {
+                start.setHours(0, 0, 0, 0);
+                
+                const end = new Date(start);
+                end.setHours(23, 59, 59, 999); 
+    
+                prismaParams.where.startTime = {
+                    gte: start,
+                    lte: end
+                };
+            }
+        }
+    }
 
     const [rows, total] = await Promise.all([
         prisma.round.findMany({
