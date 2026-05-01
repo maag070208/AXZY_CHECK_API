@@ -1,0 +1,852 @@
+openapi: 3.0.3
+
+info:
+  title: AXZY PARKING API
+  description: API para control de estacionamiento, entradas, salidas, movimientos y evidencia.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:4444/api/v1
+    description: Local server
+
+tags:
+  - name: users
+    description: Gestión de usuarios y roles
+  - name: locations
+    description: Gestión de cajones de estacionamiento
+  - name: uploads
+    description: Carga de archivos
+  - name: kardex
+    description: Registro de rondines y evidencia
+  - name: schedules
+    description: Gestión de horarios de trabajo
+  - name: assignments
+    description: Control de tareas y zonas asignadas
+  - name: rounds
+    description: Seguimiento de recorridos de seguridad
+  - name: incidents
+    description: Reporte de anomalías detectadas
+  - name: maintenance
+    description: Solicitudes y seguimiento de mantenimiento
+  - name: properties
+    description: Gestión de casas y departamentos
+  - name: residents
+    description: Gestión de perfiles de residentes y sus accesos
+
+
+
+paths:
+
+  ###########################################################################
+  # USERS
+  ###########################################################################
+  /users:
+    get:
+      tags: [users]
+      summary: Obtener todos los usuarios
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultUserArray'
+
+    post:
+      tags: [users]
+      summary: Registrar nuevo usuario
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserCreate'
+      responses:
+        "201":
+          description: Usuario creado exitosamente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultUser'
+
+  /users/datatable:
+    post:
+      tags: [users]
+      summary: Obtener usuarios paginados con filtros y ordenamiento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataTableFetchParams'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDataTable'
+
+  /users/login:
+    post:
+      tags: [users]
+      summary: Login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLogin'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultLogin'
+        "401":
+          description: Invalid credentials
+
+  ###########################################################################
+  # LOCATIONS
+  ###########################################################################
+  /locations:
+    get:
+      tags: [locations]
+      summary: Listar locaciones
+
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultLocationArray'
+    post:
+      tags: [locations]
+      summary: Crear locación
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+               type: object
+               properties:
+                 aisle: { type: string }
+                 spot: { type: string }
+                 number: { type: string }
+      responses:
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultLocation'
+
+  /locations/datatable:
+    post:
+      tags: [locations]
+      summary: Obtener locaciones paginadas con filtros y ordenamiento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataTableFetchParams'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDataTable'
+
+  ###########################################################################
+  # UPLOADS
+  ###########################################################################
+  /uploads:
+    post:
+      tags: [uploads]
+      summary: Subir archivo (Imagen o Video)
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultUpload'
+
+  ###########################################################################
+  # KARDEX
+  ###########################################################################
+  /kardex:
+    post:
+      tags: [kardex]
+      summary: Crear registro de kardex
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KardexCreate'
+      responses:
+        "201":
+           description: Le Created
+           content:
+             application/json:
+               schema:
+                 $ref: '#/components/schemas/TResultKardex'
+    get:
+      tags: [kardex]
+      summary: Listar kardex (filtros opcionales)
+      parameters:
+        - in: query
+          name: userId
+          schema:
+            type: integer
+        - in: query
+          name: locationId
+          schema:
+            type: integer
+        - in: query
+          name: startDate
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: endDate
+          schema:
+            type: string
+            format: date-time
+      responses:
+         "200":
+           description: OK
+           content:
+             application/json:
+               schema:
+                 $ref: '#/components/schemas/TResultKardexArray'
+  
+  /kardex/{id}:
+    get:
+      tags: [kardex]
+      summary: Detalle de kardex
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: 
+            type: integer
+      responses:
+         "200":
+           description: OK
+           content:
+             application/json:
+               schema:
+                 $ref: '#/components/schemas/TResultKardex'
+
+
+
+
+  ###########################################################################
+  # SCHEDULES
+  ###########################################################################
+  /schedules/datatable:
+    post:
+      tags: [schedules]
+      summary: Obtener horarios paginados con filtros y ordenamiento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataTableFetchParams'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDataTable'
+
+  ###########################################################################
+  # ASSIGNMENTS
+  ###########################################################################
+  /assignments/datatable:
+    post:
+      tags: [assignments]
+      summary: Obtener asignaciones paginadas con filtros y ordenamiento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataTableFetchParams'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDataTable'
+
+  ###########################################################################
+  # ROUNDS
+  ###########################################################################
+  /rounds/datatable:
+    post:
+      tags: [rounds]
+      summary: Obtener rondines paginados con filtros y ordenamiento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataTableFetchParams'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDataTable'
+
+  ###########################################################################
+  # INCIDENTS
+  ###########################################################################
+  /incidents/datatable:
+    post:
+      tags: [incidents]
+      summary: Obtener incidencias paginadas con filtros y ordenamiento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataTableFetchParams'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDataTable'
+
+  ###########################################################################
+  # MAINTENANCE
+  ###########################################################################
+  /maintenance/datatable:
+    post:
+      tags: [maintenance]
+      summary: Obtener mantenimientos paginados con filtros y ordenamiento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataTableFetchParams'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDataTable'
+
+  ###########################################################################
+  # PROPERTIES
+  ###########################################################################
+  /properties:
+    get:
+      tags: [properties]
+      summary: Listar todas las propiedades
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultPropertyArray'
+    post:
+      tags: [properties]
+      summary: Crear nueva propiedad
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyCreate'
+      responses:
+        "201":
+          description: Creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultProperty'
+
+  /properties/datatable:
+    post:
+      tags: [properties]
+      summary: Obtener propiedades paginadas
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataTableFetchParams'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDataTable'
+
+  /properties/{id}:
+    get:
+      tags: [properties]
+      summary: Detalle de propiedad
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultProperty'
+    put:
+      tags: [properties]
+      summary: Actualizar propiedad
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PropertyUpdate'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultProperty'
+    delete:
+      tags: [properties]
+      summary: Eliminar propiedad
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultProperty'
+
+  ###########################################################################
+  # RESIDENTS
+  ###########################################################################
+  /residents:
+    get:
+      tags: [residents]
+      summary: Listar todos los residentes con sus perfiles
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultResidentArray'
+    post:
+      tags: [residents]
+      summary: Registrar nuevo residente (Usuario + Perfil)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResidentCreate'
+      responses:
+        "201":
+          description: Creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultResident'
+
+  /residents/{id}:
+    get:
+      tags: [residents]
+      summary: Detalle de residente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultResident'
+    put:
+      tags: [residents]
+      summary: Actualizar residente y su perfil
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResidentUpdate'
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultResident'
+    delete:
+      tags: [residents]
+      summary: Eliminar residente
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultResident'
+
+components:
+  schemas:
+    DataTableFetchParams:
+      type: object
+      properties:
+        page: { type: integer, default: 1 }
+        limit: { type: integer, default: 10 }
+        filters: { type: object, additionalProperties: true }
+        sort:
+          type: object
+          properties:
+            key: { type: string }
+            direction: { type: string, enum: [asc, desc] }
+
+    TResultDataTable:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: object
+          properties:
+            rows: { type: array, items: { type: object } }
+            total: { type: integer }
+        messages: { type: array, items: { type: string } }
+
+    ################################################################
+    # TResult WRAPPERS
+    ################################################################
+    TResultString:
+      type: object
+      properties:
+        data: { type: string }
+        error: { type: string, nullable: true }
+
+    TResultUser:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/User' }
+        error: { type: string, nullable: true }
+
+    TResultUserArray:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/User' }
+        error: { type: string, nullable: true }
+
+    TResultLogin:
+      type: object
+      properties:
+        data: { type: string, description: JWT generado }
+        error: { type: string, nullable: true }
+    
+    TResultLocation:
+       type: object
+       properties:
+         data: { $ref: '#/components/schemas/Location' }
+         error: { type: string, nullable: true }
+    
+    TResultLocationArray:
+       type: object
+       properties:
+         data:
+           type: array
+           items: { $ref: '#/components/schemas/Location' }
+         error: { type: string, nullable: true }
+
+    TResultUpload:
+       type: object
+       properties:
+         data:
+           type: object
+           properties:
+             url: { type: string }
+             mimetype: { type: string }
+             size: { type: integer }
+         error: { type: string, nullable: true }
+
+    TResultKardex:
+       type: object
+       properties:
+         data: { $ref: '#/components/schemas/Kardex' }
+         error: { type: string, nullable: true }
+
+    TResultKardexArray:
+       type: object
+       properties:
+         data:
+           type: array
+           items: { $ref: '#/components/schemas/Kardex' }
+         error: { type: string, nullable: true }
+
+
+
+    ################################################################
+    # ENTITIES
+    ################################################################
+
+    User:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        lastName: { type: string }
+        username: { type: string }
+
+        role: 
+           type: string
+           enum: [ADMIN, SHIFT_GUARD, GUARD, MANTENIMIENTO, RESIDENT]
+    UserCreate:
+      type: object
+      required: [name, username, password]
+
+      properties:
+        name: { type: string }
+        lastName: { type: string }
+        username: { type: string }
+
+        password: { type: string }
+        role: 
+           type: string
+           enum: [ADMIN, SHIFT_GUARD, GUARD, MANTENIMIENTO, RESIDENT]
+    UserLogin:
+      type: object
+      required: [username, password]
+
+      properties:
+        username: { type: string }
+
+        password: { type: string }
+    
+    Location:
+       type: object
+       properties:
+         id: { type: integer }
+         name: { type: string }
+         aisle: { type: string }
+         spot: { type: string }
+         number: { type: string }
+         isOccupied: { type: boolean }
+    
+    Kardex:
+       type: object
+       properties:
+         id: { type: integer }
+         userId: { type: integer }
+         locationId: { type: integer }
+         timestamp: { type: string, format: date-time }
+         notes: { type: string }
+         media: 
+           type: array
+           items:
+             type: object
+             properties:
+                type: { type: string, enum: [IMAGE, VIDEO] }
+                url: { type: string }
+
+    ################################################################
+    # PROPERTY SCHEMAS
+    ################################################################
+    TResultProperty:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/Property' }
+        error: { type: string, nullable: true }
+
+    TResultPropertyArray:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/Property' }
+        error: { type: string, nullable: true }
+
+    Property:
+      type: object
+      properties:
+        id: { type: integer }
+        identifier: { type: string }
+        name: { type: string }
+        type: { type: string, enum: [CASA, DEPARTAMENTO] }
+        mainStreet: { type: string }
+        betweenStreets: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+        isInhabited: { type: boolean }
+        isForRent: { type: boolean }
+
+    PropertyCreate:
+      type: object
+      required: [identifier, name, type, mainStreet]
+      properties:
+        identifier: { type: string }
+        name: { type: string }
+        type: { type: string, enum: [CASA, DEPARTAMENTO] }
+        mainStreet: { type: string }
+        betweenStreets: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+        isInhabited: { type: boolean }
+        isForRent: { type: boolean }
+
+    PropertyUpdate:
+      type: object
+      properties:
+        identifier: { type: string }
+        name: { type: string }
+        type: { type: string, enum: [CASA, DEPARTAMENTO] }
+        mainStreet: { type: string }
+        betweenStreets: { type: string }
+        latitude: { type: number }
+        longitude: { type: number }
+        isInhabited: { type: boolean }
+        isForRent: { type: boolean }
+
+    ################################################################
+    # RESIDENT SCHEMAS
+    ################################################################
+    TResultResident:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/User' } # Retorna el usuario con su perfil
+        error: { type: string, nullable: true }
+
+    TResultResidentArray:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/User' }
+        error: { type: string, nullable: true }
+
+    ResidentCreate:
+      type: object
+      required: [name, username, password]
+      properties:
+        name: { type: string }
+        lastName: { type: string }
+        username: { type: string }
+        password: { type: string }
+        propertyId: { type: integer }
+        firstName: { type: string }
+        fatherLastName: { type: string }
+        motherLastName: { type: string }
+        phoneNumber: { type: string }
+        email: { type: string }
+        ineFrontUrl: { type: string }
+        ineBackUrl: { type: string }
+        emergencyContact: { type: string }
+        emergencyPhone: { type: string }
+        notes: { type: string }
+
+    ResidentUpdate:
+      type: object
+      properties:
+        name: { type: string }
+        lastName: { type: string }
+        username: { type: string }
+        password: { type: string }
+        propertyId: { type: integer }
+        firstName: { type: string }
+        fatherLastName: { type: string }
+        motherLastName: { type: string }
+        phoneNumber: { type: string }
+        email: { type: string }
+        ineFrontUrl: { type: string }
+        ineBackUrl: { type: string }
+        emergencyContact: { type: string }
+        emergencyPhone: { type: string }
+        notes: { type: string }
+
+    ResidentProfile:
+      type: object
+      properties:
+        id: { type: integer }
+        userId: { type: integer }
+        firstName: { type: string }
+        fatherLastName: { type: string }
+        motherLastName: { type: string }
+        phoneNumber: { type: string }
+        email: { type: string }
+        ineFrontUrl: { type: string }
+        ineBackUrl: { type: string }
+        emergencyContact: { type: string }
+        emergencyPhone: { type: string }
+        notes: { type: string }
+    
+    KardexCreate:
+       type: object
+       required: [userId, locationId]
+       properties:
+         userId: { type: integer }
+         locationId: { type: integer }
+         notes: { type: string }
+         media:
+           type: array
+           items:
+             type: object
+             properties:
+               type: { type: string, enum: [IMAGE, VIDEO] }
+               url: { type: string }

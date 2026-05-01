@@ -1,0 +1,382 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Role {
+  id    Int    @id @default(autoincrement())
+  name  String @unique
+  value String
+  users User[]
+}
+
+model PropertyType {
+  id         Int        @id @default(autoincrement())
+  name       String     @unique
+  value      String
+  properties Property[]
+}
+
+model PropertyStatus {
+  id         Int        @id @default(autoincrement())
+  name       String     @unique
+  value      String
+  properties Property[]
+}
+
+model InvitationType {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique
+  value       String
+  invitations Invitation[]
+}
+
+model User {
+  id                       Int                      @id @default(autoincrement())
+  name                     String
+  lastName                 String?
+  username                 String                   @unique
+  password                 String
+  active                   Boolean                  @default(true)
+  softDelete               Boolean                  @default(false)
+  shiftStart               String?
+  shiftEnd                 String?
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+  isLoggedIn               Boolean                  @default(false)
+  recurringConfigurationId Int?
+  scheduleId               Int?
+  propertyId               Int?
+  roleId                   Int
+  assignments              Assignment[]             @relation("GuardAssignments")
+  incidents                Incident[]
+  resolvedIncidents        Incident[]               @relation("IncidentResolver")
+  invitationsCreated       Invitation[]             @relation("UserInvitations")
+  kardexEntries            Kardex[]
+  maintenances             Maintenance[]
+  resolvedMaintenances     Maintenance[]            @relation("MaintenanceResolver")
+  contacts                 ResidentContact[]        @relation("UserContacts")
+  residentProfile          ResidentProfile?
+  rounds                   Round[]                  @relation("GuardRounds")
+  property                 Property?                @relation(fields: [propertyId], references: [id])
+  recurringConfiguration   RecurringConfiguration?  @relation(fields: [recurringConfigurationId], references: [id])
+  role                     Role                     @relation(fields: [roleId], references: [id])
+  schedule                 Schedule?                @relation(fields: [scheduleId], references: [id])
+  recurringConfigurations  RecurringConfiguration[] @relation("RecurringAssignments")
+}
+
+model Schedule {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  startTime String
+  endTime   String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+}
+
+model Property {
+  id             Int            @id @default(autoincrement())
+  identifier     String         @unique
+  name           String
+  mainStreet     String
+  betweenStreets String?
+  latitude       Float?
+  longitude      Float?
+  active         Boolean        @default(true)
+  softDelete     Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+  statusId       Int
+  typeId         Int
+  invitations    Invitation[]
+  status         PropertyStatus @relation(fields: [statusId], references: [id])
+  type           PropertyType   @relation(fields: [typeId], references: [id])
+  users          User[]
+
+  @@index([identifier])
+}
+
+model ResidentProfile {
+  id               Int      @id @default(autoincrement())
+  userId           Int      @unique
+  firstName        String?
+  fatherLastName   String?
+  motherLastName   String?
+  phoneNumber      String?
+  email            String?
+  ineFrontUrl      String?
+  ineBackUrl       String?
+  emergencyContact String?
+  emergencyPhone   String?
+  notes            String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  user             User     @relation(fields: [userId], references: [id])
+}
+
+model Invitation {
+  id          Int              @id @default(autoincrement())
+  code        String           @unique
+  guestName   String
+  createdById Int
+  propertyId  Int
+  validFrom   DateTime
+  validUntil  DateTime
+  status      InvitationStatus @default(PENDING)
+  entryTime   DateTime?
+  exitTime    DateTime?
+  notes       String?
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+  typeId      Int
+  createdBy   User             @relation("UserInvitations", fields: [createdById], references: [id])
+  property    Property         @relation(fields: [propertyId], references: [id])
+  type        InvitationType   @relation(fields: [typeId], references: [id])
+
+  @@index([code])
+}
+
+model Location {
+  id                 Int                 @id @default(autoincrement())
+  aisle              String
+  spot               String
+  number             String
+  name               String              @unique
+  isOccupied         Boolean             @default(false)
+  active             Boolean             @default(true)
+  softDelete         Boolean             @default(false)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  assignments        Assignment[]
+  kardexEntries      Kardex[]
+  recurringLocations RecurringLocation[]
+}
+
+model Kardex {
+  id           Int         @id @default(autoincrement())
+  userId       Int
+  locationId   Int
+  timestamp    DateTime    @default(now())
+  notes        String?
+  media        Json?
+  latitude     Float?
+  longitude    Float?
+  assignmentId Int?
+  scanType     ScanType    @default(FREE)
+  assignment   Assignment? @relation(fields: [assignmentId], references: [id])
+  location     Location    @relation(fields: [locationId], references: [id])
+  user         User        @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([locationId])
+  @@index([timestamp])
+}
+
+model Assignment {
+  id         Int              @id @default(autoincrement())
+  guardId    Int
+  locationId Int
+  status     AssignmentStatus @default(PENDING)
+  assignedBy Int
+  notes      String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+  guard      User             @relation("GuardAssignments", fields: [guardId], references: [id])
+  location   Location         @relation(fields: [locationId], references: [id])
+  tasks      AssignmentTask[]
+  kardex     Kardex[]
+
+  @@index([guardId])
+  @@index([locationId])
+}
+
+model AssignmentTask {
+  id           Int        @id @default(autoincrement())
+  assignmentId Int
+  description  String
+  reqPhoto     Boolean    @default(false)
+  completed    Boolean    @default(false)
+  completedAt  DateTime?
+  assignment   Assignment @relation(fields: [assignmentId], references: [id])
+
+  @@index([assignmentId])
+}
+
+model RecurringConfiguration {
+  id                 Int                 @id @default(autoincrement())
+  title              String
+  description        String?
+  active             Boolean             @default(true)
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  recurringLocations RecurringLocation[]
+  rounds             Round[]
+  users              User[]
+  guards             User[]              @relation("RecurringAssignments")
+}
+
+model RecurringLocation {
+  id              Int                    @id @default(autoincrement())
+  locationId      Int
+  active          Boolean                @default(true)
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  configurationId Int
+  configuration   RecurringConfiguration @relation(fields: [configurationId], references: [id])
+  location        Location               @relation(fields: [locationId], references: [id])
+  tasks           RecurringTask[]
+}
+
+model RecurringTask {
+  id                  Int               @id @default(autoincrement())
+  recurringLocationId Int
+  description         String
+  reqPhoto            Boolean           @default(false)
+  recurringLocation   RecurringLocation @relation(fields: [recurringLocationId], references: [id])
+}
+
+model IncidentCategory {
+  id          Int            @id @default(autoincrement())
+  name        String         @unique
+  value       String
+  type        String         @default("INCIDENT") // INCIDENT or MAINTENANCE
+  color       String?
+  icon        String?
+  types       IncidentType[]
+  incidents   Incident[]
+  maintenances Maintenance[]
+}
+
+model IncidentType {
+  id           Int              @id @default(autoincrement())
+  categoryId   Int
+  name         String           @unique
+  value        String
+  category     IncidentCategory @relation(fields: [categoryId], references: [id])
+  incidents    Incident[]
+  maintenances Maintenance[]
+}
+
+model Incident {
+  id           Int               @id @default(autoincrement())
+  guardId      Int
+  title        String
+  categoryId   Int?
+  typeId       Int?
+  description  String?
+  media        Json?
+  latitude     Float?
+  longitude    Float?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  resolvedAt   DateTime?
+  resolvedById Int?
+  status       IncidentStatus    @default(PENDING)
+  category     IncidentCategory? @relation(fields: [categoryId], references: [id])
+  type         IncidentType?     @relation(fields: [typeId], references: [id])
+  guard        User              @relation(fields: [guardId], references: [id])
+  resolvedBy   User?             @relation("IncidentResolver", fields: [resolvedById], references: [id])
+}
+
+model Round {
+  id                       Int                     @id @default(autoincrement())
+  guardId                  Int
+  startTime                DateTime                @default(now())
+  endTime                  DateTime?
+  status                   RoundStatus             @default(IN_PROGRESS)
+  recurringConfigurationId Int?
+  guard                    User                    @relation("GuardRounds", fields: [guardId], references: [id])
+  recurringConfiguration   RecurringConfiguration? @relation(fields: [recurringConfigurationId], references: [id])
+}
+
+model SysConfig {
+  key   String @id
+  value String
+}
+
+model Maintenance {
+  id           Int               @id @default(autoincrement())
+  guardId      Int
+  title        String
+  categoryId   Int?
+  typeId       Int?
+  category     String?
+  description  String?
+  media        Json?
+  latitude     Float?
+  longitude    Float?
+  status       MaintenanceStatus @default(PENDING)
+  resolvedAt   DateTime?
+  resolvedById Int?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  guard        User              @relation(fields: [guardId], references: [id])
+  resolvedBy   User?             @relation("MaintenanceResolver", fields: [resolvedById], references: [id])
+  categoryRel  IncidentCategory? @relation(fields: [categoryId], references: [id])
+  type         IncidentType?     @relation(fields: [typeId], references: [id])
+}
+
+model ResidentContact {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  name         String
+  phone        String?
+  email        String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  relationship String?
+  user         User     @relation("UserContacts", fields: [userId], references: [id])
+}
+
+model ResidentRelationship {
+  id        Int      @id @default(autoincrement())
+  name      String   @unique
+  value     String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum AssignmentStatus {
+  PENDING
+  CHECKING
+  UNDER_REVIEW
+  REVIEWED
+  ANOMALY
+}
+
+enum InvitationStatus {
+  PENDING
+  ENTERED
+  EXITED
+  EXPIRED
+  CANCELLED
+}
+
+enum ScanType {
+  ASSIGNMENT
+  RECURRING
+  FREE
+}
+
+enum IncidentStatus {
+  PENDING
+  ATTENDED
+}
+
+enum RoundStatus {
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum MaintenanceStatus {
+  PENDING
+  ATTENDED
+}

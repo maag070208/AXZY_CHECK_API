@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "target": "es2016",
+    "module": "commonjs",
+    "baseUrl": ".",
+    "outDir": "./dist",
+    "types": ["node"],
+    "paths": {
+      "@src/*": ["src/*"],
+      "@controllers/*": ["controllers/*"],
+      "@services/*": ["services/*"],
+      "@routes/*": ["routes/*"],
+      "@core/*": ["core/*"],
+      "@entity/*": ["core/entities/*"],
+      "@dto/*": ["core/dto/*"],
+      "@mappers/*": ["core/mappers/*"]
+    },
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "strict": true,
+    "skipLibCheck": true
+  }
+}
