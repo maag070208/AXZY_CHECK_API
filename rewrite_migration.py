@@ -1,4 +1,6 @@
--- Rename old Enums to free up the namespace
+import re
+
+new_sql = """-- Rename old Enums to free up the namespace
 ALTER TYPE "Role" RENAME TO "Role_old";
 ALTER TYPE "PropertyType" RENAME TO "PropertyType_old";
 ALTER TYPE "PropertyStatus" RENAME TO "PropertyStatus_old";
@@ -113,3 +115,7 @@ ALTER TABLE "Property" ADD CONSTRAINT "Property_statusId_fkey" FOREIGN KEY ("sta
 
 -- AddForeignKey
 ALTER TABLE "Invitation" ADD CONSTRAINT "Invitation_typeId_fkey" FOREIGN KEY ("typeId") REFERENCES "InvitationType"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+"""
+
+with open("prisma/migrations/20260423063041_update_to_catalogs/migration.sql", "w") as f:
+    f.write(new_sql)
