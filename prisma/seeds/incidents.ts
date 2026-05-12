@@ -38,19 +38,57 @@ export const incidentCatalogsSeed = async (prisma: PrismaClient) => {
     ];
 
     for (const cat of categories) {
-        const { types, ...catData } = cat;
-        const createdCat = await prisma.incidentCategory.upsert({
-            where: { name: catData.name },
-            update: catData,
-            create: catData
+        let createdCat = await prisma.incidentCategory.findUnique({
+            where: { name: cat.name },
+            select: { id: true }
         });
 
-        for (const type of types) {
-            await prisma.incidentType.upsert({
-                where: { name: type.name },
-                update: { ...type, categoryId: createdCat.id },
-                create: { ...type, categoryId: createdCat.id }
+        if (createdCat) {
+            await prisma.incidentCategory.update({
+                where: { id: createdCat.id },
+                data: {
+                    value: cat.value,
+                    type: cat.type,
+                    color: cat.color,
+                    icon: cat.icon
+                }
             });
+        } else {
+            createdCat = await prisma.incidentCategory.create({
+                data: {
+                    name: cat.name,
+                    value: cat.value,
+                    type: cat.type,
+                    color: cat.color,
+                    icon: cat.icon
+                },
+                select: { id: true }
+            });
+        }
+
+        for (const type of cat.types) {
+            const existingType = await prisma.incidentType.findUnique({
+                where: { name: type.name },
+                select: { id: true }
+            });
+
+            if (existingType) {
+                await prisma.incidentType.update({
+                    where: { id: existingType.id },
+                    data: {
+                        value: type.value,
+                        categoryId: createdCat.id
+                    }
+                });
+            } else {
+                await prisma.incidentType.create({
+                    data: {
+                        name: type.name,
+                        value: type.value,
+                        categoryId: createdCat.id
+                    }
+                });
+            }
         }
     }
 

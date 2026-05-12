@@ -243,14 +243,14 @@ model RecurringTask {
 }
 
 model IncidentCategory {
-  id          Int            @id @default(autoincrement())
-  name        String         @unique
-  value       String
-  type        String         @default("INCIDENT") // INCIDENT or MAINTENANCE
-  color       String?
-  icon        String?
-  types       IncidentType[]
-  incidents   Incident[]
+  id           Int            @id @default(autoincrement())
+  name         String         @unique
+  value        String
+  color        String?
+  icon         String?
+  type         String         @default("INCIDENT")
+  incidents    Incident[]
+  types        IncidentType[]
   maintenances Maintenance[]
 }
 
@@ -259,8 +259,8 @@ model IncidentType {
   categoryId   Int
   name         String           @unique
   value        String
-  category     IncidentCategory @relation(fields: [categoryId], references: [id])
   incidents    Incident[]
+  category     IncidentCategory @relation(fields: [categoryId], references: [id])
   maintenances Maintenance[]
 }
 
@@ -268,21 +268,21 @@ model Incident {
   id           Int               @id @default(autoincrement())
   guardId      Int
   title        String
-  categoryId   Int?
-  typeId       Int?
   description  String?
   media        Json?
-  latitude     Float?
-  longitude    Float?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
   resolvedAt   DateTime?
   resolvedById Int?
   status       IncidentStatus    @default(PENDING)
+  categoryId   Int?
+  typeId       Int?
+  latitude     Float?
+  longitude    Float?
   category     IncidentCategory? @relation(fields: [categoryId], references: [id])
-  type         IncidentType?     @relation(fields: [typeId], references: [id])
   guard        User              @relation(fields: [guardId], references: [id])
   resolvedBy   User?             @relation("IncidentResolver", fields: [resolvedById], references: [id])
+  type         IncidentType?     @relation(fields: [typeId], references: [id])
 }
 
 model Round {
@@ -305,21 +305,21 @@ model Maintenance {
   id           Int               @id @default(autoincrement())
   guardId      Int
   title        String
-  categoryId   Int?
-  typeId       Int?
   category     String?
   description  String?
   media        Json?
-  latitude     Float?
-  longitude    Float?
   status       MaintenanceStatus @default(PENDING)
   resolvedAt   DateTime?
   resolvedById Int?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
+  latitude     Float?
+  longitude    Float?
+  categoryId   Int?
+  typeId       Int?
+  categoryRel  IncidentCategory? @relation(fields: [categoryId], references: [id])
   guard        User              @relation(fields: [guardId], references: [id])
   resolvedBy   User?             @relation("MaintenanceResolver", fields: [resolvedById], references: [id])
-  categoryRel  IncidentCategory? @relation(fields: [categoryId], references: [id])
   type         IncidentType?     @relation(fields: [typeId], references: [id])
 }
 
