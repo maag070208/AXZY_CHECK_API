@@ -325,9 +325,6 @@ export const deleteUser = async (req: Request, res: Response) => {
     await deleteUserService(Number(id));
     return res.status(200).json(createTResult(true));
   } catch (error: any) {
-    if (error.code === 'P2003') {
-        return res.status(400).json(createTResult(null, ['No se puede eliminar este usuario porque tiene registros de historial o asignaciones.']));
-    }
     return res.status(500).json(createTResult(null, error.message));
   }
 };

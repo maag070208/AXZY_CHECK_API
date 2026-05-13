@@ -52,6 +52,7 @@ export const getUserByUsername = async (username: string) => {
   return prismaClient.user.findFirst({
     where: {
       username,
+      softDelete: false,
     },
     include: {
       schedule: true,
@@ -117,6 +118,7 @@ export const getUserById = async (id: number) => {
   return prismaClient.user.findUnique({
     where: {
       id,
+      softDelete: false,
     },
   });
 };
@@ -140,7 +142,15 @@ export const getLoggedInGuards = async (excludeUserId: number) => {
 };
 
 export const deleteUser = async (id: number) => {
-  return prismaClient.user.delete({
-    where: { id }
+  const user = await prismaClient.user.findUnique({ where: { id } });
+  if (!user) return null;
+
+  return prismaClient.user.update({
+    where: { id },
+    data: { 
+      softDelete: true, 
+      active: false,
+      username: `${user.username}_deleted_${Date.now()}`
+    }
   });
 };
