@@ -1,7 +1,7 @@
 openapi: 3.0.3
 
 info:
-  title: AXZY PARKING API
+  title: AXZY CHECK API
   description: API para control de estacionamiento, entradas, salidas, movimientos y evidencia.
   version: 1.0.0
 
@@ -36,10 +36,34 @@ tags:
     description: Administración de catálogos (tipos de incidencia y mantenimiento)
   - name: dashboard
     description: Métricas y estadísticas del panel de control
+  - name: health
+    description: Estado del servicio y verificación de dependencias
 
 
 
 paths:
+
+  ###########################################################################
+  # HEALTH
+  ###########################################################################
+  /health:
+    get:
+      tags: [health]
+      summary: Verificar estado del servicio y conexión a base de datos
+      description: Devuelve la versión del API, tiempo de actividad y el estado de la base de datos.
+      responses:
+        "200":
+          description: Servicio operativo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultHealthCheck'
+        "503":
+          description: Servicio degradado (base de datos no disponible)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultHealthCheck'
 
   ###########################################################################
   # USERS
@@ -1228,6 +1252,45 @@ components:
       type: object
       properties:
         data: { $ref: '#/components/schemas/IncidentTypeDTO' }
+        messages:
+          type: array
+          items: { type: string }
+        success: { type: boolean }
+
+    ################################################################
+    # HEALTH
+    ################################################################
+    DatabaseStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [up, down]
+        latencyMs:
+          type: integer
+          nullable: true
+        error:
+          type: string
+          nullable: true
+
+    HealthCheck:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded, down]
+        service: { type: string }
+        version: { type: string }
+        uptime: { type: integer, description: "Segundos desde el arranque del proceso" }
+        timestamp: { type: string, format: date-time }
+        environment: { type: string }
+        database:
+          $ref: '#/components/schemas/DatabaseStatus'
+
+    TResultHealthCheck:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/HealthCheck' }
         messages:
           type: array
           items: { type: string }
