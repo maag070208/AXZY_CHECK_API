@@ -37,12 +37,14 @@ export const getCatalog = async (key: string) => {
         case CatalogKey.ROLE:
             return prismaClient.role.findMany({ select: selectFields });
         case CatalogKey.INCIDENT_CATEGORY:
-            return prismaClient.incidentCategory.findMany({ 
-                select: { ...selectFields, color: true, icon: true, type: true } 
+            return prismaClient.incidentCategory.findMany({
+                where: { active: true },
+                select: { ...selectFields, color: true, icon: true, type: true }
             });
         case CatalogKey.INCIDENT_TYPE:
-            return prismaClient.incidentType.findMany({ 
-                select: { ...selectFields, categoryId: true } 
+            return prismaClient.incidentType.findMany({
+                where: { active: true, category: { active: true } },
+                select: { ...selectFields, categoryId: true }
             });
         case CatalogKey.PROPERTY:
             const properties = await prismaClient.property.findMany({ 

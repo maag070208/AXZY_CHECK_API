@@ -32,6 +32,10 @@ tags:
     description: Gestión de casas y departamentos
   - name: residents
     description: Gestión de perfiles de residentes y sus accesos
+  - name: catalog
+    description: Administración de catálogos (tipos de incidencia y mantenimiento)
+  - name: dashboard
+    description: Métricas y estadísticas del panel de control
 
 
 
@@ -361,6 +365,257 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultDataTable'
+
+  ###########################################################################
+  # CATALOG MANAGEMENT (tipos de incidencia y mantenimiento)
+  ###########################################################################
+  /catalog/incident-categories:
+    get:
+      tags: [catalog]
+      summary: Listar categorías de catálogo
+      description: Por defecto sólo devuelve categorías activas. ADMIN puede pasar adminOnly=true para ver inactivas.
+      parameters:
+        - in: query
+          name: type
+          schema: { type: string, enum: [INCIDENT, MAINTENANCE] }
+        - in: query
+          name: adminOnly
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultIncidentCategoryArray' }
+    post:
+      tags: [catalog]
+      summary: Crear una nueva categoría (ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateIncidentCategoryDTO' }
+      responses:
+        "201":
+          description: Categoría creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultIncidentCategory' }
+        "400": { description: Validación o duplicado }
+
+  /catalog/incident-categories/{id}:
+    get:
+      tags: [catalog]
+      summary: Detalle de una categoría
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultIncidentCategory' }
+        "404": { description: No encontrada }
+    put:
+      tags: [catalog]
+      summary: Actualizar una categoría (ADMIN)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateIncidentCategoryDTO' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultIncidentCategory' }
+        "404": { description: No encontrada }
+    delete:
+      tags: [catalog]
+      summary: Soft delete de una categoría (ADMIN)
+      description: Marca active=false y desactiva también los tipos hijos.
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultIncidentCategory' }
+
+  /catalog/incident-categories/{id}/activate:
+    patch:
+      tags: [catalog]
+      summary: Reactivar una categoría desactivada (ADMIN)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultIncidentCategory' }
+
+  /catalog/incident-types:
+    get:
+      tags: [catalog]
+      summary: Listar tipos de catálogo
+      parameters:
+        - in: query
+          name: categoryId
+          schema: { type: integer }
+        - in: query
+          name: type
+          schema: { type: string, enum: [INCIDENT, MAINTENANCE] }
+        - in: query
+          name: adminOnly
+          schema: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultIncidentTypeArray' }
+    post:
+      tags: [catalog]
+      summary: Crear un nuevo tipo (ADMIN)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CreateIncidentTypeDTO' }
+      responses:
+        "201":
+          description: Tipo creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultIncidentType' }
+        "400": { description: Validación o duplicado }
+
+  /catalog/incident-types/{id}:
+    get:
+      tags: [catalog]
+      summary: Detalle de un tipo
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultIncidentType' }
+    put:
+      tags: [catalog]
+      summary: Actualizar un tipo (ADMIN)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateIncidentTypeDTO' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultIncidentType' }
+    delete:
+      tags: [catalog]
+      summary: Soft delete de un tipo (ADMIN)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultIncidentType' }
+
+  /catalog/incident-types/{id}/activate:
+    patch:
+      tags: [catalog]
+      summary: Reactivar un tipo desactivado (ADMIN)
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultIncidentType' }
+
+  ###########################################################################
+  # DASHBOARD
+  ###########################################################################
+  /dashboard:
+    get:
+      tags: [dashboard]
+      summary: Obtener métricas del panel de control
+      description: Retorna conteos de propiedades, ubicaciones, guardias, rondas activas, incidencias pendientes, mantenimientos, asignaciones, rutas activas y actividad reciente.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDashboard'
+  /dashboard/completed-rounds-today:
+    get:
+      tags: [dashboard]
+      summary: Obtener rondas completadas hoy
+      description: Retorna las rondas completadas en el día de hoy con tiempo de duración, escaneos y omisiones.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean }
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id: { type: integer }
+                        guardName: { type: string }
+                        routeName: { type: string }
+                        startTime: { type: string, format: date-time }
+                        endTime: { type: string, format: date-time }
+                        durationMinutes: { type: integer }
+                        totalLocations: { type: integer }
+                        scannedLocations: { type: integer }
+                        missedLocations: { type: integer }
+                  messages: { type: array, items: { type: string } }
 
   ###########################################################################
   # PROPERTIES
@@ -707,6 +962,39 @@ components:
                 url: { type: string }
 
     ################################################################
+    # DASHBOARD SCHEMAS
+    ################################################################
+    TResultDashboard:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: object
+          properties:
+            totalProperties: { type: integer, description: Total de propiedades activas }
+            totalLocations: { type: integer, description: Total de ubicaciones activas }
+            totalGuards: { type: integer, description: Total de guardias activos }
+            totalUsers: { type: integer, description: Total de usuarios activos }
+            activeRounds: { type: integer, description: Rondas en progreso }
+            pendingIncidents: { type: integer, description: Incidencias pendientes }
+            pendingMaintenance: { type: integer, description: Mantenimientos pendientes }
+            activeAssignments: { type: integer, description: Asignaciones activas }
+            activeRoutes: { type: integer, description: Rutas activas }
+            recentActivity:
+              type: array
+              items:
+                type: object
+                properties:
+                  id: { type: integer }
+                  guardName: { type: string }
+                  locationName: { type: string }
+                  timestamp: { type: string, format: date-time }
+                  scanType: { type: string }
+        messages:
+          type: array
+          items: { type: string }
+
+    ################################################################
     # PROPERTY SCHEMAS
     ################################################################
     TResultProperty:
@@ -850,3 +1138,97 @@ components:
              properties:
                type: { type: string, enum: [IMAGE, VIDEO] }
                url: { type: string }
+
+    IncidentCategoryDTO:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        value: { type: string }
+        color: { type: string, nullable: true }
+        icon: { type: string, nullable: true }
+        type: { type: string, enum: [INCIDENT, MAINTENANCE] }
+        active: { type: boolean }
+
+    IncidentTypeDTO:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        value: { type: string }
+        categoryId: { type: integer }
+        active: { type: boolean }
+
+    CreateIncidentCategoryDTO:
+      type: object
+      required: [name, value, type]
+      properties:
+        name: { type: string }
+        value: { type: string }
+        color: { type: string, nullable: true }
+        icon: { type: string, nullable: true }
+        type: { type: string, enum: [INCIDENT, MAINTENANCE] }
+
+    UpdateIncidentCategoryDTO:
+      type: object
+      properties:
+        name: { type: string }
+        value: { type: string }
+        color: { type: string, nullable: true }
+        icon: { type: string, nullable: true }
+        type: { type: string, enum: [INCIDENT, MAINTENANCE] }
+
+    CreateIncidentTypeDTO:
+      type: object
+      required: [name, value, categoryId]
+      properties:
+        name: { type: string }
+        value: { type: string }
+        categoryId: { type: integer }
+
+    UpdateIncidentTypeDTO:
+      type: object
+      properties:
+        name: { type: string }
+        value: { type: string }
+        categoryId: { type: integer }
+
+    TResultIncidentCategoryArray:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/IncidentCategoryDTO' }
+        messages:
+          type: array
+          items: { type: string }
+        success: { type: boolean }
+
+    TResultIncidentCategory:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/IncidentCategoryDTO' }
+        messages:
+          type: array
+          items: { type: string }
+        success: { type: boolean }
+
+    TResultIncidentTypeArray:
+      type: object
+      properties:
+        data:
+          type: array
+          items: { $ref: '#/components/schemas/IncidentTypeDTO' }
+        messages:
+          type: array
+          items: { type: string }
+        success: { type: boolean }
+
+    TResultIncidentType:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/IncidentTypeDTO' }
+        messages:
+          type: array
+          items: { type: string }
+        success: { type: boolean }

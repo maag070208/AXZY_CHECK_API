@@ -23,6 +23,12 @@ export function getPrismaPaginationParams(params: ITDataTableFetchParams) {
     Object.entries(filters).forEach(([key, value]) => {
       if (value === undefined || value === null || value === "" || key === "refreshKey") return;
 
+      // Array filtering: use Prisma `in` operator
+      if (Array.isArray(value)) {
+        where[key] = { in: value };
+        return;
+      }
+
       // String filtering
       if (typeof value === "string") {
         // If it's an ID field, try to parse it as a number for exact match

@@ -16,7 +16,8 @@ import propertiesRoute from "./properties/properties.routes";
 import residentsRoute from "./residents/residents.routes";
 import invitationsRoute from "./invitations/invitations.routes";
 import catalogRoute from "./catalog/catalog.routes";
-
+import catalogManagementRoute from "./catalog-management/catalog.routes";
+import dashboardRoute from "./dashboard/dashboard.routes";
 
 const apiRouter = Router();
 
@@ -35,7 +36,11 @@ apiRouter.use("/reports", reportRoute);
 apiRouter.use("/properties", propertiesRoute);
 apiRouter.use("/residents", residentsRoute);
 apiRouter.use("/invitations", invitationsRoute);
+// Mount catalog-management BEFORE catalog so specific routes like /incident-categories
+// take precedence over the catch-all GET /catalog/:key in the legacy catalog router.
+apiRouter.use("/catalog", catalogManagementRoute);
 apiRouter.use("/catalog", catalogRoute);
+apiRouter.use("/dashboard", dashboardRoute);
 
 
 export default apiRouter;

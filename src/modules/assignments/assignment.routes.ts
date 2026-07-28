@@ -1,6 +1,6 @@
 
 import { Router } from "express";
-import { createAssignment, getAllAssignments, getMyAssignments, updateStatus, toggleTask, getDataTable } from "./assignment.controller";
+import { createAssignment, getAllAssignments, getMyAssignments, updateStatus, toggleTask, getDataTable, getActiveAssignments } from "./assignment.controller";
 import { authenticate } from "../common/middlewares/auth.middleware";
 
 const router = Router();
@@ -10,6 +10,7 @@ router.post("/", createAssignment); // TODO: Add Role Middleware
 router.post("/datatable", getDataTable);
 router.get("/", getAllAssignments); // TODO: Add Role Middleware
 router.get("/all", getAllAssignments);
+router.get("/active", getActiveAssignments);
 
 // Guard Routes
 router.get("/me", authenticate, getMyAssignments);

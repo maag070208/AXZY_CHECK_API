@@ -68,6 +68,15 @@ export const getAllAssignments = async (req: Request, res: Response) => {
     }
 }
 
+export const getActiveAssignments = async (req: Request, res: Response) => {
+    try {
+        const result = await assignmentService.getActiveAssignments();
+        return res.status(200).json(createTResult(result));
+    } catch (error: any) {
+        return res.status(500).json(createTResult(null, error.message));
+    }
+}
+
 export const updateStatus = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;

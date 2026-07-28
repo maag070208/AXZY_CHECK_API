@@ -133,6 +133,22 @@ export const getAllAssignments = async (filters: { guardId?: number; status?: As
   });
 };
 
+export const getActiveAssignments = async () => {
+  return prisma.assignment.findMany({
+    where: {
+      status: {
+        in: [AssignmentStatus.PENDING, AssignmentStatus.CHECKING]
+      }
+    },
+    include: {
+      location: { select: { id: true, name: true } },
+      guard: { select: { id: true, name: true, lastName: true } },
+      tasks: true,
+    },
+    orderBy: { createdAt: 'desc' }
+  });
+};
+
 // Update status
 export const updateAssignmentStatus = async (id: number, status: AssignmentStatus) => {
     return prisma.assignment.update({

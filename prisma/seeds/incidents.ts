@@ -34,6 +34,14 @@ export const incidentCatalogsSeed = async (prisma: PrismaClient) => {
                 { name: 'PAQUETERIA', value: 'Entrega Paquetería' },
                 { name: 'QUEJA', value: 'Queja Vecinal' }
             ]
+        },
+        {
+            name: 'GENERAL',
+            value: 'General',
+            type: 'INCIDENT',
+            color: '#64748B',
+            icon: 'information-outline',
+            types: []
         }
     ];
 
