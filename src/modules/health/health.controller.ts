@@ -17,6 +17,12 @@ export interface HealthCheckDTO {
     latencyMs: number | null;
     error: string | null;
   };
+  pool: {
+    limit: number;
+    active: number;
+    idle: number;
+    total: number;
+  };
 }
 
 const checkDatabase = async (): Promise<HealthCheckDTO["database"]> => {
@@ -39,8 +45,39 @@ const checkDatabase = async (): Promise<HealthCheckDTO["database"]> => {
   }
 };
 
+const checkPool = async (): Promise<HealthCheckDTO["pool"]> => {
+  try {
+    const result = await prismaClient.$queryRaw<Array<{ count: bigint; state: string }>>`
+        SELECT count(*)::bigint as count, state
+        FROM pg_stat_activity
+        WHERE datname = current_database()
+          AND application_name LIKE '%prisma%'
+        GROUP BY state
+    `;
+    const byState: Record<string, number> = {};
+    (result as any[]).forEach((r) => {
+      byState[r.state] = Number(r.count);
+    });
+    const active = byState.active ?? 0;
+    const idle = byState.idle ?? 0;
+    return {
+      limit: parseInt(process.env.PRISMA_CONNECTION_LIMIT ?? "10", 10),
+      active,
+      idle,
+      total: active + idle,
+    };
+  } catch {
+    return {
+      limit: parseInt(process.env.PRISMA_CONNECTION_LIMIT ?? "10", 10),
+      active: 0,
+      idle: 0,
+      total: 0,
+    };
+  }
+};
+
 export const getHealth = async (_req: Request, res: Response): Promise<Response> => {
-  const database = await checkDatabase();
+  const [database, pool] = await Promise.all([checkDatabase(), checkPool()]);
   const status: HealthCheckDTO["status"] =
     database.status === "up" ? "ok" : "degraded";
   const httpStatus = database.status === "up" ? 200 : 503;
@@ -53,6 +90,7 @@ export const getHealth = async (_req: Request, res: Response): Promise<Response>
     timestamp: new Date().toISOString(),
     environment: process.env.NODE_ENV ?? "development",
     database,
+    pool,
   };
 
   return res.status(httpStatus).json(createTResult(payload));

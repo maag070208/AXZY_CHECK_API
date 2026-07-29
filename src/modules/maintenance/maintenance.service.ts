@@ -21,8 +21,6 @@ export const getDataTableMaintenances = async (params: ITDataTableFetchParams): 
     return { rows, total };
 };
 
-import { sendMaintenanceEmail } from "@src/core/utils/emailSender";
-
 export const createMaintenance = async (data: {
     guardId: number;
     title: string;
@@ -59,7 +57,16 @@ export const createMaintenance = async (data: {
                 }
             });
             if (enrichedMaintenance) {
-                await sendMaintenanceEmail(enrichedMaintenance, enrichedMaintenance.guard);
+                console.log('[EMAIL:MAINTENANCE]', JSON.stringify({
+                    to: 'MAINTENANCE_EMAIL recipients',
+                    subject: `🔧 Nuevo Reporte de Mantenimiento: ${enrichedMaintenance.title}`,
+                    reportedBy: `${enrichedMaintenance.guard.name} ${enrichedMaintenance.guard.lastName || ''}`,
+                    category: enrichedMaintenance.categoryRel?.value || enrichedMaintenance.category,
+                    type: enrichedMaintenance.type?.value,
+                    description: enrichedMaintenance.description,
+                    mediaCount: Array.isArray(enrichedMaintenance.media) ? enrichedMaintenance.media.length : 0,
+                    timestamp: new Date().toISOString()
+                }));
             }
         } catch (error) {
             console.error("Background maintenance processing error:", error);

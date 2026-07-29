@@ -1,7 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { prismaClient } from '../src/core/config/database';
 import { hackerLog } from './seeds/logger';
 
-const prisma = new PrismaClient();
+const prisma = prismaClient;
 
 async function main() {
     hackerLog.ascii();

@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
-const prisma = new PrismaClient();
+import { prismaClient } from "./src/core/config/database";
+const prisma = prismaClient;
 
 async function main() {
     const existing = await prisma.sysConfig.findUnique({ where: { key: "INCIDENT_EMAIL" }});

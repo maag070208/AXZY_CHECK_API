@@ -51,21 +51,100 @@ export const getDataTableRounds = async (params: ITDataTableFetchParams): Promis
         }
     }
 
-    const [rows, total] = await Promise.all([
-        prisma.round.findMany({
-            ...prismaParams,
-            include: {
-                guard: {
-                    select: { id: true, name: true, lastName: true }
-                },
-                recurringConfiguration: true
-            },
-            orderBy: prismaParams.orderBy || { startTime: 'desc' }
-        }),
-        prisma.round.count({
-            where: prismaParams.where
-        })
-    ]);
+    // Query 1: round.findMany (serial, sin includes profundos)
+    const rounds = await prisma.round.findMany({
+        ...prismaParams,
+        include: {
+            guard: {
+                select: { id: true, name: true, lastName: true }
+            }
+        },
+        orderBy: prismaParams.orderBy || { startTime: 'desc' }
+    });
+
+    if (rounds.length === 0) {
+        const total = await prisma.round.count({ where: prismaParams.where });
+        return { rows: [], total };
+    }
+
+    // Query 2: round.count (serial, solo si hay resultados)
+    const total = await prisma.round.count({ where: prismaParams.where });
+
+    // Query 3: recurringLocations agrupados por configurationId (1 sola query batch)
+    const configIds = Array.from(new Set(
+        (rounds as any[])
+            .map(r => r.recurringConfigurationId)
+            .filter((id): id is number => typeof id === 'number')
+    ));
+
+    let locations: Array<{ id: number; configurationId: number; locationId: number; active: boolean }> = [];
+    if (configIds.length > 0) {
+        locations = await prisma.recurringLocation.findMany({
+            where: { configurationId: { in: configIds } },
+            select: { id: true, configurationId: true, locationId: true, active: true }
+        });
+    }
+
+    const locationsByConfig = new Map<number, number[]>();
+    locations.forEach(l => {
+        if (l.active === false) return;
+        const list = locationsByConfig.get(l.configurationId) || [];
+        list.push(l.locationId);
+        locationsByConfig.set(l.configurationId, list);
+    });
+
+    // Query 4: scans (IN + rango global, con índices userId y timestamp)
+    const now = new Date();
+    const guardIds = Array.from(new Set((rounds as any[]).map(r => r.guardId)));
+    const minStart = new Date(
+        Math.min(...(rounds as any[]).map(r => r.startTime.getTime()))
+    );
+    const maxEnd = new Date(
+        Math.max(...(rounds as any[]).map(r => (r.endTime || now).getTime()))
+    );
+
+    const scans = await prisma.kardex.findMany({
+        where: {
+            userId: { in: guardIds },
+            timestamp: { gte: minStart, lte: maxEnd }
+        },
+        select: {
+            userId: true,
+            timestamp: true,
+            locationId: true,
+            media: true
+        }
+    });
+
+    const scansByGuard = new Map<number, Array<{ locationId: number; timestamp: Date; media: unknown }>>();
+    scans.forEach((s: any) => {
+        const list = scansByGuard.get(s.userId) || [];
+        list.push({ locationId: s.locationId, timestamp: s.timestamp, media: s.media });
+        scansByGuard.set(s.userId, list);
+    });
+
+    const rows = (rounds as any[]).map(r => {
+        const rangeStart = r.startTime.getTime();
+        const rangeEnd = (r.endTime || now).getTime();
+
+        const expectedLocations = locationsByConfig.get(r.recurringConfigurationId) || [];
+
+        const visitedWithPhoto = new Set<number>();
+        (scansByGuard.get(r.guardId) || []).forEach(s => {
+            const ts = new Date(s.timestamp).getTime();
+            if (ts < rangeStart || ts > rangeEnd) return;
+            if (!Array.isArray(s.media) || s.media.length === 0) return;
+            visitedWithPhoto.add(s.locationId);
+        });
+
+        const completedPoints = expectedLocations.filter(id => visitedWithPhoto.has(id)).length;
+
+        return {
+            ...r,
+            expectedPoints: expectedLocations.length,
+            completedPoints,
+        };
+    });
 
     return { rows, total };
 };

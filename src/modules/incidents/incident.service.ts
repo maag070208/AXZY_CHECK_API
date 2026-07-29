@@ -40,7 +40,6 @@ export const getDataTableIncidents = async (params: ITDataTableFetchParams): Pro
 
     return { rows, total };
 };
-import { sendIncidentEmail } from "@src/core/utils/emailSender";
 
 export const createIncident = async (data: {
     guardId: number;
@@ -77,7 +76,16 @@ export const createIncident = async (data: {
                 }
             });
             if (enrichedIncident) {
-                await sendIncidentEmail(enrichedIncident, enrichedIncident.guard);
+                console.log('[EMAIL:INCIDENT]', JSON.stringify({
+                    to: 'INCIDENT_EMAIL recipients',
+                    subject: `⚠️ Nuevo Incidente Reportado: ${enrichedIncident.title}`,
+                    guard: `${enrichedIncident.guard.name} ${enrichedIncident.guard.lastName || ''}`,
+                    category: enrichedIncident.category?.value,
+                    type: enrichedIncident.type?.value,
+                    description: enrichedIncident.description,
+                    mediaCount: Array.isArray(enrichedIncident.media) ? enrichedIncident.media.length : 0,
+                    timestamp: new Date().toISOString()
+                }));
             }
         } catch (error) {
             console.error("Background incident processing error:", error);

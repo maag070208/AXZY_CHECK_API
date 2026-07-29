@@ -334,6 +334,10 @@ paths:
     post:
       tags: [rounds]
       summary: Obtener rondines paginados con filtros y ordenamiento
+      description: >
+        Devuelve rondas paginadas. Cada fila incluye `expectedPoints` y
+        `completedPoints` (puntos visitados con foto) ya calculados para
+        alimentar el badge de cumplimiento del frontend.
       requestBody:
         required: true
         content:
@@ -346,7 +350,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TResultDataTable'
+                $ref: '#/components/schemas/TResultDataTableRounds'
 
   ###########################################################################
   # INCIDENTS
@@ -852,6 +856,19 @@ components:
             total: { type: integer }
         messages: { type: array, items: { type: string } }
 
+    TResultDataTableRounds:
+      type: object
+      properties:
+        success: { type: boolean }
+        data:
+          type: object
+          properties:
+            rows:
+              type: array
+              items: { $ref: '#/components/schemas/RoundListRow' }
+            total: { type: integer }
+        messages: { type: array, items: { type: string } }
+
     ################################################################
     # TResult WRAPPERS
     ################################################################
@@ -977,13 +994,49 @@ components:
          locationId: { type: integer }
          timestamp: { type: string, format: date-time }
          notes: { type: string }
-         media: 
+         media:
            type: array
            items:
              type: object
              properties:
                 type: { type: string, enum: [IMAGE, VIDEO] }
                 url: { type: string }
+
+    RoundListRow:
+      type: object
+      description: >
+        Fila de ronda devuelta por /rounds/datatable. Incluye métricas
+        calculadas de cumplimiento para mostrar el badge de 3 rangos
+        (ROJO <= 33%, ACEPTABLE 34-66%, EXCELENTE >= 67%).
+      properties:
+        id: { type: integer }
+        guardId: { type: integer }
+        startTime: { type: string, format: date-time }
+        endTime: { type: string, format: date-time, nullable: true }
+        status: { type: string, enum: [IN_PROGRESS, COMPLETED] }
+        recurringConfigurationId: { type: integer, nullable: true }
+        recurringConfiguration:
+          type: object
+          nullable: true
+          properties:
+            id: { type: integer }
+            title: { type: string }
+            startTime: { type: string, nullable: true }
+            endTime: { type: string, nullable: true }
+        guard:
+          type: object
+          properties:
+            id: { type: integer }
+            name: { type: string }
+            lastName: { type: string, nullable: true }
+        expectedPoints:
+          type: integer
+          description: Total de puntos de control (recurringLocations activas) configurados en la ruta.
+        completedPoints:
+          type: integer
+          description: >
+            Puntos únicos visitados con al menos una foto (media.length > 0)
+            durante la ventana de la ronda (startTime..endTime o now si en curso).
 
     ################################################################
     # DASHBOARD SCHEMAS
