@@ -149,8 +149,24 @@ export const getDataTableRounds = async (params: ITDataTableFetchParams): Promis
     return { rows, total };
 };
 
-export const startRound = async (guardId: number, recurringConfigId?: number): Promise<TResult<any>> => {
+export const startRound = async (guardId: number, recurringConfigId?: number, clientRef?: string, startTime?: Date): Promise<TResult<any>> => {
   try {
+    // 0. Idempotencia: si el clientRef ya fue usado, devolver la ronda existente
+    // para evitar duplicados en reintentos de sincronización offline.
+    if (clientRef) {
+      const existingByRef = await prisma.round.findUnique({
+        where: { clientRef },
+        include: { guard: true, recurringConfiguration: true },
+      });
+      if (existingByRef) {
+        return {
+          success: true,
+          messages: ['Ronda ya registrada (idempotente)'],
+          data: existingByRef,
+        };
+      }
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -263,8 +279,9 @@ export const startRound = async (guardId: number, recurringConfigId?: number): P
       data: {
         guardId,
         status: 'IN_PROGRESS',
-        startTime: new Date(),
-        recurringConfigurationId: recurringConfigId
+        startTime: startTime ?? new Date(),
+        recurringConfigurationId: recurringConfigId,
+        clientRef: clientRef ?? undefined,
       },
       include: { guard: true, recurringConfiguration: true }
     });
@@ -283,7 +300,7 @@ export const startRound = async (guardId: number, recurringConfigId?: number): P
   }
 };
 
-export const endRound = async (roundId: number): Promise<TResult<any>> => {
+export const endRound = async (roundId: number, endTime?: Date): Promise<TResult<any>> => {
   try {
     const round = await prisma.round.findUnique({
       where: { id: roundId },
@@ -294,14 +311,16 @@ export const endRound = async (roundId: number): Promise<TResult<any>> => {
     }
 
     if (round.status === 'COMPLETED') {
-        return { success: false, data: null, messages: ['Esta ronda ya ha finalizado'] };
+        // Idempotente: si ya finalizó, devolver éxito para que un reintento
+        // de sincronización no se marque como error.
+        return { success: true, data: round, messages: ['La ronda ya estaba finalizada'] };
     }
 
     const updatedRound = await prisma.round.update({
       where: { id: roundId },
       data: {
         status: 'COMPLETED',
-        endTime: new Date(),
+        endTime: endTime ?? new Date(),
       },
     });
 

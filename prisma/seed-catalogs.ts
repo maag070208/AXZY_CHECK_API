@@ -73,7 +73,6 @@ async function main() {
         { name: 'ADMIN', value: 'Administrador' },
         { name: 'GUARD', value: 'Guardia de Seguridad' },
         { name: 'SHIFT', value: 'Jefe de Guardias' },
-        { name: 'RESDN', value: 'Residente / Usuario App' },
         { name: 'MAINT', value: 'Mantenimiento' }
     ];
     for (const item of roles) {

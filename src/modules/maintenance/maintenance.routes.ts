@@ -1,6 +1,7 @@
 import { Router } from "express";
 import * as maintenanceController from "./maintenance.controller";
 import { authenticate } from "../common/middlewares/auth.middleware";
+import maintenanceReportRouter from "./maintenance-report.routes";
 
 const router = Router();
 
@@ -11,5 +12,8 @@ router.get("/pending-count", authenticate, maintenanceController.getPendingCount
 router.put("/:id/resolve", authenticate, maintenanceController.resolveMaintenance);
 router.delete("/:id", authenticate, maintenanceController.deleteMaintenance);
 router.delete("/:id/media", authenticate, maintenanceController.deleteMedia);
+
+// Sub-router con el endpoint de PDF
+router.use(maintenanceReportRouter);
 
 export default router;

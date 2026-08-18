@@ -50,7 +50,18 @@ export const createIncident = async (data: {
     media?: any;
     latitude?: number;
     longitude?: number;
+    clientRef?: string;
+    createdAt?: Date;
 }) => {
+    // Idempotencia: si el clientRef ya fue registrado, devolver la incidencia
+    // existente para evitar duplicados en reintentos de sincronización offline.
+    if (data.clientRef) {
+        const existing = await prismaClient.incident.findUnique({
+            where: { clientRef: data.clientRef },
+        });
+        if (existing) return existing;
+    }
+
     const incident = await prismaClient.incident.create({
         data: {
             guardId: data.guardId,
@@ -60,7 +71,9 @@ export const createIncident = async (data: {
             description: data.description,
             media: data.media,
             latitude: data.latitude,
-            longitude: data.longitude
+            longitude: data.longitude,
+            clientRef: data.clientRef,
+            createdAt: data.createdAt ?? undefined,
         }
     });
 

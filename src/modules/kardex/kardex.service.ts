@@ -10,7 +10,19 @@ export const registerCheck = async (data: {
   latitude?: number;
   longitude?: number;
   assignmentId?: number; // Optional manual override
+  roundId?: number; // Id de la ronda a la que pertenece el escaneo (offline-first)
+  clientRef?: string; // Referencia única del cliente para idempotencia offline
+  timestamp?: Date; // Hora original del evento (para sincronización offline)
 }) => {
+  // 0. Idempotencia: si el clientRef ya fue registrado, devolver el registro
+  // existente para evitar duplicados en reintentos de sincronización offline.
+  if (data.clientRef) {
+    const existing = await prismaClient.kardex.findUnique({
+      where: { clientRef: data.clientRef },
+    });
+    if (existing) return existing;
+  }
+
   let finalScanType: ScanType = ScanType.FREE;
   let finalAssignmentId = data.assignmentId;
 
@@ -62,7 +74,10 @@ export const registerCheck = async (data: {
         latitude: data.latitude,
         longitude: data.longitude,
         assignmentId: finalAssignmentId,
-        scanType: finalScanType
+        roundId: data.roundId,
+        scanType: finalScanType,
+        clientRef: data.clientRef,
+        timestamp: data.timestamp ?? new Date(),
     },
   });
 };

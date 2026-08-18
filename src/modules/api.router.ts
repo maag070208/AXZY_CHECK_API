@@ -19,6 +19,8 @@ import invitationsRoute from "./invitations/invitations.routes";
 import catalogRoute from "./catalog/catalog.routes";
 import catalogManagementRoute from "./catalog-management/catalog.routes";
 import dashboardRoute from "./dashboard/dashboard.routes";
+import novedadRoute from "./novedades/novedades.routes";
+import syncRoute from "./sync/sync.routes";
 
 const apiRouter = Router();
 
@@ -43,6 +45,8 @@ apiRouter.use("/invitations", invitationsRoute);
 apiRouter.use("/catalog", catalogManagementRoute);
 apiRouter.use("/catalog", catalogRoute);
 apiRouter.use("/dashboard", dashboardRoute);
+apiRouter.use("/novedades", novedadRoute);
+apiRouter.use("/sync", syncRoute);
 
 
 export default apiRouter;

@@ -38,6 +38,12 @@ tags:
     description: Métricas y estadísticas del panel de control
   - name: health
     description: Estado del servicio y verificación de dependencias
+  - name: reports
+    description: Generación de reportes ejecutivos y exportes en PDF
+  - name: novedades
+    description: Novedades en tiempo real (chat de operaciones) con difusión por Ably
+  - name: sync
+    description: Sincronización y notificación de cambios entre WEB y APP móvil
 
 
 
@@ -831,6 +837,259 @@ paths:
               schema:
                 $ref: '#/components/schemas/TResultResident'
 
+  ###########################################################################
+  # REPORTS
+  ###########################################################################
+  /reports/incidents/pdf:
+    get:
+      tags: [reports]
+      summary: Descargar PDF con el detalle de incidencias del rango seleccionado
+      description: |
+        Genera un PDF (A4) con la lista de incidencias filtradas por un rango
+        de fechas. Opcionalmente se puede acotar por IDs específicos
+        seleccionados en la UI.
+        La respuesta es `application/pdf` (binario).
+      parameters:
+        - in: query
+          name: startDate
+          required: true
+          schema: { type: string, format: date-time }
+        - in: query
+          name: endDate
+          required: true
+          schema: { type: string, format: date-time }
+        - in: query
+          name: ids
+          required: false
+          description: IDs de incidencias específicos separados por coma (ej. `1,4,7`).
+          schema: { type: string }
+        - in: query
+          name: includeImages
+          required: false
+          description: Incluir fotos de evidencia en el PDF (default true).
+          schema: { type: boolean, default: true }
+        - in: query
+          name: includeLocation
+          required: false
+          description: Incluir ubicación y mapa en el PDF (default true).
+          schema: { type: boolean, default: true }
+      responses:
+        "200":
+          description: PDF generado correctamente
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Parámetros inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultStringError'
+        "500":
+          description: Error inesperado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultStringError'
+
+  /maintenance/report/pdf:
+    get:
+      tags: [reports]
+      summary: Descargar PDF con el detalle de mantenimientos del rango seleccionado
+      description: |
+        Genera un PDF (A4) con la lista de mantenimientos filtrados por un
+        rango de fechas. Opcionalmente se puede acotar por IDs específicos
+        seleccionados en la UI. La respuesta es `application/pdf` (binario).
+      parameters:
+        - in: query
+          name: startDate
+          required: true
+          schema: { type: string, format: date-time }
+        - in: query
+          name: endDate
+          required: true
+          schema: { type: string, format: date-time }
+        - in: query
+          name: ids
+          required: false
+          description: IDs de mantenimientos separados por coma (ej. `1,4,7`).
+          schema: { type: string }
+        - in: query
+          name: includeImages
+          required: false
+          schema: { type: boolean, default: true }
+        - in: query
+          name: includeLocation
+          required: false
+          schema: { type: boolean, default: true }
+      responses:
+        "200":
+          description: PDF generado correctamente
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        "400":
+          description: Parámetros inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultStringError'
+        "500":
+          description: Error inesperado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultStringError'
+
+  ###########################################################################
+  # NOVEDADES (tiempo real / Ably)
+  ###########################################################################
+  /novedades:
+    get:
+      tags: [novedades]
+      summary: Obtener historial de novedades paginado
+      description: Devuelve las novedades más recientes. Usado para cargar el historial inicial antes de conectar el streaming en tiempo real.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: page
+          required: false
+          schema: { type: integer, minimum: 1 }
+        - in: query
+          name: limit
+          required: false
+          schema: { type: integer, minimum: 1, maximum: 100 }
+      responses:
+        "200":
+          description: Listado paginado de novedades
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultNovedadPage'
+        "401":
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultStringError'
+        "500":
+          description: Error inesperado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultStringError'
+
+    post:
+      tags: [novedades]
+      summary: Publicar una novedad
+      description: Crea una novedad en la base de datos y la difunde en tiempo real a través de Ably.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NovedadCreate'
+      responses:
+        "201":
+          description: Novedad creada y difundida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultNovedad'
+        "400":
+          description: Carga útil no válida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultStringError'
+        "403":
+          description: Rol no autorizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultStringError'
+        "500":
+          description: Error inesperado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultStringError'
+
+  /novedades/ably-token:
+    get:
+      tags: [novedades]
+      summary: Obtener token de Ably
+      description: Devuelve una solicitud de token firmada por el servidor para conectar el cliente al streaming en tiempo real sin exponer la clave secreta.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: TokenRequest de Ably
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultAblyTokenRequest'
+        "403":
+          description: Rol no autorizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultStringError'
+        "500":
+          description: Error inesperado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultStringError'
+
+  ###########################################################################
+  # SYNC
+  ###########################################################################
+  /sync/changelog:
+    get:
+      tags: [sync]
+      summary: Obtener cambios del servidor desde una marca de tiempo
+      description: |
+        Devuelve los deltas (added/modified/removed) de rutas, ubicaciones
+        dentro de rutas, asignaciones especiales y catálogos de tipos
+        (incidencia/mantenimiento) relevantes para el guardia autenticado,
+        desde la marca `since`. El cliente usa `serverTime` como cursor
+        para la siguiente llamada.
+      parameters:
+        - in: query
+          name: since
+          required: false
+          schema:
+            type: string
+            format: date-time
+          description: Fecha ISO 8601. Si se omite, se usa hace 30 días.
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultChangelog'
+        "400":
+          description: Parámetros inválidos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultStringError'
+        "401":
+          description: No autenticado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultStringError'
+
 components:
   schemas:
     DataTableFetchParams:
@@ -1215,6 +1474,17 @@ components:
              properties:
                type: { type: string, enum: [IMAGE, VIDEO] }
                url: { type: string }
+         roundId:
+           type: integer
+           nullable: true
+           description: Id de la ronda a la que pertenece el escaneo (offline-first). Se usa para asociar kardex creados sin conexión a la ronda correspondiente.
+         clientRef:
+           type: string
+           description: Referencia única del cliente para idempotencia offline (evita duplicados en reintentos).
+         timestamp:
+           type: string
+           format: date-time
+           description: Hora original del evento (para sincronización offline).
 
     IncidentCategoryDTO:
       type: object
@@ -1347,4 +1617,171 @@ components:
         messages:
           type: array
           items: { type: string }
+
+    ################################################################
+    # GENERIC ERROR
+    ################################################################
+    TResultStringError:
+      type: object
+      properties:
+        data:
+          nullable: true
+          type: object
         success: { type: boolean }
+        messages:
+          type: array
+          items: { type: string }
+        success: { type: boolean }
+
+    ################################################################
+    # NOVEDADES
+    ################################################################
+    Novedad:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        userId: { type: integer }
+        userName: { type: string }
+        userRole: { type: string }
+        message: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    NovedadCreate:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          minLength: 1
+          maxLength: 2000
+          example: "Se reporta fuga de agua en la caseta 2"
+
+    TResultNovedad:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/Novedad' }
+        success: { type: boolean }
+        messages:
+          type: array
+          items: { type: string }
+
+    TResultNovedadPage:
+      type: object
+      properties:
+        data:
+          type: object
+          properties:
+            rows:
+              type: array
+              items: { $ref: '#/components/schemas/Novedad' }
+            total: { type: integer }
+            page: { type: integer }
+            limit: { type: integer }
+        success: { type: boolean }
+        messages:
+          type: array
+          items: { type: string }
+
+    TResultAblyTokenRequest:
+      type: object
+      properties:
+        data:
+          type: object
+          description: Objeto tokenRequest generado por Ably con capability de suscripción al canal de novedades
+          additionalProperties: true
+        success: { type: boolean }
+        messages:
+          type: array
+          items: { type: string }
+
+    ################################################################
+    # SYNC / CHANGELOG
+    ################################################################
+    ChangelogRoute:
+      type: object
+      properties:
+        id: { type: integer }
+        title: { type: string }
+        description: { type: string, nullable: true }
+        active: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+        locationCount: { type: integer }
+
+    ChangelogLocation:
+      type: object
+      properties:
+        id: { type: integer }
+        recurringConfigurationId: { type: integer }
+        locationId: { type: integer }
+        locationName: { type: string }
+        active: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+        taskCount: { type: integer }
+
+    ChangelogAssignment:
+      type: object
+      properties:
+        id: { type: integer }
+        locationId: { type: integer }
+        locationName: { type: string }
+        status: { type: string }
+        notes: { type: string, nullable: true }
+        updatedAt: { type: string, format: date-time }
+
+    ChangelogType:
+      type: object
+      properties:
+        id: { type: integer }
+        name: { type: string }
+        value: { type: string }
+        categoryId: { type: integer }
+        categoryName: { type: string }
+        categoryType:
+          type: string
+          enum: [INCIDENT, MAINTENANCE]
+        active: { type: boolean }
+        updatedAt: { type: string, format: date-time }
+
+    ChangelogDelta:
+      type: object
+      properties:
+        added:
+          type: array
+          items: { type: object }
+        modified:
+          type: array
+          items: { type: object }
+        removed:
+          type: array
+          items: { type: integer }
+
+    Changelog:
+      type: object
+      properties:
+        serverTime: { type: string, format: date-time }
+        routes:
+          allOf:
+            - $ref: '#/components/schemas/ChangelogDelta'
+            - description: Bloque con `added`/`modified` de tipo ChangelogRoute.
+        locations:
+          allOf:
+            - $ref: '#/components/schemas/ChangelogDelta'
+            - description: Bloque con `added`/`modified` de tipo ChangelogLocation.
+        specialAssignments:
+          allOf:
+            - $ref: '#/components/schemas/ChangelogDelta'
+            - description: Bloque con `added`/`modified` de tipo ChangelogAssignment.
+        catalogs:
+          type: object
+          properties:
+            incidentTypes: { $ref: '#/components/schemas/ChangelogDelta' }
+            maintenanceTypes: { $ref: '#/components/schemas/ChangelogDelta' }
+
+    TResultChangelog:
+      type: object
+      properties:
+        data: { $ref: '#/components/schemas/Changelog' }
+        success: { type: boolean }
+        messages:
+          type: array
+          items: { type: string }

@@ -68,6 +68,15 @@ model User {
   role                     Role                     @relation(fields: [roleId], references: [id])
   schedule                 Schedule?                @relation(fields: [scheduleId], references: [id])
   recurringConfigurations  RecurringConfiguration[] @relation("RecurringAssignments")
+  novedades                Novedad[]
+}
+
+model Novedad {
+  id        String   @id @default(uuid())
+  userId    Int
+  message   String
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Schedule {
@@ -169,14 +178,19 @@ model Kardex {
   latitude     Float?
   longitude    Float?
   assignmentId Int?
+  roundId      Int?
+  clientRef    String?     @unique
+  isSync       Boolean     @default(true)
   scanType     ScanType    @default(FREE)
   assignment   Assignment? @relation(fields: [assignmentId], references: [id])
   location     Location    @relation(fields: [locationId], references: [id])
   user         User        @relation(fields: [userId], references: [id])
+  round        Round?      @relation(fields: [roundId], references: [id])
 
   @@index([userId])
   @@index([locationId])
   @@index([timestamp])
+  @@index([roundId])
 }
 
 model Assignment {
@@ -250,6 +264,8 @@ model IncidentCategory {
   icon         String?
   type         String         @default("INCIDENT")
   active       Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
   incidents    Incident[]
   types        IncidentType[]
   maintenances Maintenance[]
@@ -261,6 +277,8 @@ model IncidentType {
   name         String           @unique
   value        String
   active       Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
   incidents    Incident[]
   category     IncidentCategory @relation(fields: [categoryId], references: [id])
   maintenances Maintenance[]
@@ -281,6 +299,8 @@ model Incident {
   typeId       Int?
   latitude     Float?
   longitude    Float?
+  clientRef    String?            @unique
+  isSync       Boolean            @default(true)
   category     IncidentCategory? @relation(fields: [categoryId], references: [id])
   guard        User              @relation(fields: [guardId], references: [id])
   resolvedBy   User?             @relation("IncidentResolver", fields: [resolvedById], references: [id])
@@ -294,8 +314,11 @@ model Round {
   endTime                  DateTime?
   status                   RoundStatus             @default(IN_PROGRESS)
   recurringConfigurationId Int?
+  clientRef                String?                 @unique
+  isSync                   Boolean                 @default(true)
   guard                    User                    @relation("GuardRounds", fields: [guardId], references: [id])
   recurringConfiguration   RecurringConfiguration? @relation(fields: [recurringConfigurationId], references: [id])
+  kardexEntries            Kardex[]
 }
 
 model SysConfig {
@@ -319,6 +342,8 @@ model Maintenance {
   longitude    Float?
   categoryId   Int?
   typeId       Int?
+  clientRef    String?            @unique
+  isSync       Boolean            @default(true)
   categoryRel  IncidentCategory? @relation(fields: [categoryId], references: [id])
   guard        User              @relation(fields: [guardId], references: [id])
   resolvedBy   User?             @relation("MaintenanceResolver", fields: [resolvedById], references: [id])

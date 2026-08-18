@@ -7,7 +7,7 @@ const storageService = new StorageService();
 
 export const createKardexEntry = async (req: Request, res: Response) => {
   try {
-    const { userId, locationId, notes, media, latitude, longitude, assignmentId } = req.body;
+    const { userId, locationId, notes, media, latitude, longitude, assignmentId, roundId, clientRef, timestamp } = req.body;
 
     if (!userId || !locationId) {
       return res.status(400).json(createTResult(null, ["userId and locationId are required"]));
@@ -21,6 +21,9 @@ export const createKardexEntry = async (req: Request, res: Response) => {
       latitude,
       longitude,
       assignmentId: assignmentId ? Number(assignmentId) : undefined,
+      roundId: roundId != null ? Number(roundId) : undefined,
+      clientRef: clientRef ? String(clientRef) : undefined,
+      timestamp: timestamp ? new Date(String(timestamp)) : undefined,
     });
 
     return res.status(201).json(createTResult(entry));
