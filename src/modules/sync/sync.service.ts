@@ -237,6 +237,7 @@ export const getChangelogForGuard = async (
     removed: [],
   };
   for (const t of typeRecords) {
+    if (t.category.type === "CASA_CLUB") continue;
     const summary = toTypeSummary(t);
     const target =
       summary.categoryType === "MAINTENANCE" ? maintenanceTypes : incidentTypes;

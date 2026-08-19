@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { getIncidentsPdf } from "./incident-report.controller";
+import { getClubPdf, getIncidentsPdf } from "./incident-report.controller";
 import authenticate from "../../core/middlewares/token-validator.middleware";
 
 /**
@@ -23,5 +23,18 @@ router.use(authenticate);
  * @response 500 - Error inesperado
  */
 router.get("/incidents/pdf", getIncidentsPdf);
+
+/**
+ * GET /reports/club/pdf
+ * @description Genera un PDF con el detalle de los reportes de casa club
+ * filtrados por rango de fecha y, opcionalmente, por IDs específicos.
+ * @queryParam {string} startDate - Fecha inicio (ISO 8601).
+ * @queryParam {string} endDate - Fecha fin (ISO 8601).
+ * @queryParam {string} [ids] - IDs separados por coma.
+ * @response 200 - application/pdf (binario)
+ * @response 400 - Validación
+ * @response 500 - Error inesperado
+ */
+router.get("/club/pdf", getClubPdf);
 
 export default router;

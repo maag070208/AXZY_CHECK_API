@@ -128,6 +128,20 @@ export const IncidentCategoryRepository = {
     },
 
     /**
+     * @description Borrado físico de la categoría (y sus tipos) de la base de datos.
+     * Debe ejecutarse en una transacción y sólo cuando la categoría esté inactiva
+     * y no tenga registros asociados. La validación de negocio vive en el servicio.
+     * @param id Identificador de la categoría.
+     * @returns Categoría eliminada (LA.
+     */
+    async hardDelete(id: number) {
+        return prismaClient.$transaction(async (tx) => {
+            await tx.incidentType.deleteMany({ where: { categoryId: id } });
+            return tx.incidentCategory.delete({ where: { id } });
+        });
+    },
+
+    /**
      * @description Soft delete: marca la categoría como inactiva sin eliminar la fila.
      * @param id Identificador.
      * @returns Categoría con active=false.
@@ -324,6 +338,26 @@ export const IncidentTypeRepository = {
                 categoryId: true,
                 active: true,
             },
+        });
+    },
+
+    /**
+     * @description Borrado físico de un tipo de la base de datos.
+     * Debe ejecutarse sólo cuando el tipo esté inactivo y sin registros asociados.
+     * @param id Identificador del tipo.
+     * @returns Tipo eliminado.
+     */
+    async hardDelete(id: number) {
+        return prismaClient.incidentType.delete({ where: { id } });
+    },
+
+    /**
+     * @description Borrado físico en bloque de todos los tipos hijos de una categoría.
+     * @param categoryId Identificador de la categoría padre.
+     */
+    async hardDeleteByCategory(categoryId: number): Promise<{ count: number }> {
+        return prismaClient.incidentType.deleteMany({
+            where: { categoryId },
         });
     },
 

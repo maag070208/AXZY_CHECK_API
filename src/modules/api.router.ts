@@ -9,6 +9,7 @@ import kardexRoute from "./kardex/kardex.routes";
 import assignmentsRoute from "./assignments/assignment.routes";
 import recurringRoute from "./recurring/recurring.routes";
 import incidentRoute from "./incidents/incident.routes";
+import clubRoute from "./club/club.routes";
 import roundRoute from "./rounds/round.routes";
 import scheduleRoute from "./schedules/schedule.routes";
 import maintenanceRoute from "./maintenance/maintenance.routes";
@@ -21,6 +22,7 @@ import catalogManagementRoute from "./catalog-management/catalog.routes";
 import dashboardRoute from "./dashboard/dashboard.routes";
 import novedadRoute from "./novedades/novedades.routes";
 import syncRoute from "./sync/sync.routes";
+import shiftCheckRoute from "./shift-check/shift-check.routes";
 
 const apiRouter = Router();
 
@@ -33,6 +35,7 @@ apiRouter.use("/kardex", kardexRoute);
 apiRouter.use("/assignments", assignmentsRoute);
 apiRouter.use("/recurring", recurringRoute);
 apiRouter.use("/incidents", incidentRoute);
+apiRouter.use("/club", clubRoute);
 apiRouter.use("/rounds", roundRoute);
 apiRouter.use("/schedules", scheduleRoute);
 apiRouter.use("/maintenance", maintenanceRoute);
@@ -47,6 +50,7 @@ apiRouter.use("/catalog", catalogRoute);
 apiRouter.use("/dashboard", dashboardRoute);
 apiRouter.use("/novedades", novedadRoute);
 apiRouter.use("/sync", syncRoute);
+apiRouter.use("/shift-check", shiftCheckRoute);
 
 
 export default apiRouter;

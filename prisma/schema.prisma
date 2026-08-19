@@ -69,6 +69,12 @@ model User {
   schedule                 Schedule?                @relation(fields: [scheduleId], references: [id])
   recurringConfigurations  RecurringConfiguration[] @relation("RecurringAssignments")
   novedades                Novedad[]
+  shiftChecksCreated ShiftCheck[]            @relation("ShiftCheckCreator")
+  shiftChecksSigned  ShiftCheck[]            @relation("ShiftCheckSigner")
+  shiftChecksDelivered ShiftCheck[]          @relation("ShiftCheckDeliverer")
+  shiftChecksReceived  ShiftCheck[]          @relation("ShiftCheckReceiver")
+  shiftChecksEvaluated ShiftCheck[]          @relation("ShiftCheckSubject")
+  incidentsReplaced    Incident[]            @relation("IncidentReplacement")
 }
 
 model Novedad {
@@ -287,6 +293,7 @@ model IncidentType {
 model Incident {
   id           Int               @id @default(autoincrement())
   guardId      Int
+  kind         String            @default("INCIDENT")
   title        String
   description  String?
   media        Json?
@@ -301,10 +308,15 @@ model Incident {
   longitude    Float?
   clientRef    String?            @unique
   isSync       Boolean            @default(true)
+  severity     IncidentSeverity? @default(LEVE)
+  replacedById Int?
+  coverageStart DateTime?
+  coverageEnd   DateTime?
   category     IncidentCategory? @relation(fields: [categoryId], references: [id])
   guard        User              @relation(fields: [guardId], references: [id])
   resolvedBy   User?             @relation("IncidentResolver", fields: [resolvedById], references: [id])
   type         IncidentType?     @relation(fields: [typeId], references: [id])
+  replacedBy   User?             @relation("IncidentReplacement", fields: [replacedById], references: [id])
 }
 
 model Round {
@@ -371,6 +383,44 @@ model ResidentRelationship {
   updatedAt DateTime @updatedAt
 }
 
+// ShiftCheck: Verificación de Cambio de Turno (RF-01..05).
+// Un registro por (elemento evaluado, fecha, turno). La firma se realiza con
+// username+password (Opción A del PIN), reusando el endpoint de auth.
+// Offline-First: `clientRef` UUID permite idempotencia al sincronizar.
+model ShiftCheck {
+  id                String      @id @default(uuid())
+  clientRef         String      @unique
+  userId            Int
+  shiftDate         DateTime
+  shiftType         ShiftType
+  scheduledStartAt  DateTime
+  actualEntryAt     DateTime?
+  delayMinutes      Int         @default(0)
+  isLate            Boolean     @default(false)
+  isAbsent          Boolean     @default(false)
+  uniformCheck      Json?
+  handoverItems     Json?
+  observations      String?
+  status            ShiftStatus @default(DRAFT)
+  createdById       Int
+  signedById        Int?
+  signedAt          DateTime?
+  deliveredById     Int?
+  receivedById      Int?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  user          User @relation("ShiftCheckSubject", fields: [userId], references: [id])
+  createdBy     User @relation("ShiftCheckCreator", fields: [createdById], references: [id])
+  signedBy      User? @relation("ShiftCheckSigner", fields: [signedById], references: [id])
+  deliveredBy   User? @relation("ShiftCheckDeliverer", fields: [deliveredById], references: [id])
+  receivedBy    User? @relation("ShiftCheckReceiver", fields: [receivedById], references: [id])
+
+  @@index([userId, shiftDate])
+  @@index([shiftDate, shiftType])
+  @@index([createdById])
+}
+
 enum AssignmentStatus {
   PENDING
   CHECKING
@@ -406,4 +456,21 @@ enum RoundStatus {
 enum MaintenanceStatus {
   PENDING
   ATTENDED
+}
+
+enum ShiftType {
+  MATUTINO
+  NOCTURNO
+}
+
+enum ShiftStatus {
+  DRAFT
+  COMPLETED
+  SIGNED
+}
+
+enum IncidentSeverity {
+  LEVE
+  REINCIDENTE
+  GRAVE
 }

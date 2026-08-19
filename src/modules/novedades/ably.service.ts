@@ -32,7 +32,8 @@ export class AblyService {
    * @description Crea una solicitud de token (tokenRequest) firmada por el
    * servidor para que el cliente se autentique contra Ably sin exponer la
    * clave secreta. La capability está limitada a suscribirse al canal de
-   * novedades; la publicación la realiza exclusivamente la API.
+   * novedades y al canal de notificaciones del propio usuario; la publicación
+   * la realiza exclusivamente la API.
    * @param clientId Identificador del usuario (se usa su id de usuario).
    * @returns El tokenRequest listo para enviarse al cliente.
    * @throws Si la clave de Ably no está configurada.
@@ -46,6 +47,7 @@ export class AblyService {
       ttl: 60 * 60 * 1000,
       capability: {
         [NOVEDADES_CHANNEL]: ["subscribe"],
+        [`notifications.${clientId}`]: ["subscribe"],
       },
     });
   }
@@ -63,6 +65,13 @@ export class AblyService {
       return;
     }
     await this.rest.channels.get(NOVEDADES_CHANNEL).publish(NOVEDADES_EVENT, novedad);
+  }
+
+  /**
+   * @description Expone el cliente REST para uso por otros módulos.
+   */
+  getRest(): Ably.Rest {
+    return this.rest;
   }
 }
 

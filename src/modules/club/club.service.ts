@@ -2,13 +2,20 @@ import { prismaClient } from "@src/core/config/database";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 
-export const getDataTableIncidents = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
+/**
+ * @description Constante discriminadora para los registros de Casa Club.
+ * Los reportes de Casa Club comparten la tabla `Incident` pero se segregan
+ * mediante el campo `type = 'CASA_CLUB'`, igual que los incidentes usan
+ * `'INCIDENT'` y mantenimiento su propia tabla.
+ */
+const CLUB_TYPE = 'CASA_CLUB';
+
+export const getDataTableClub = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
     const prismaParams = getPrismaPaginationParams(params);
 
-    // Handle combined search (if any)
     const searchVal = String(params.filters.search || "").trim();
     if (searchVal.length > 0) {
-        delete prismaParams.where.search; // Remove generic search added by util
+        delete prismaParams.where.search;
         prismaParams.where.OR = [
             { title: { contains: searchVal, mode: 'insensitive' } },
             { description: { contains: searchVal, mode: 'insensitive' } },
@@ -17,19 +24,17 @@ export const getDataTableIncidents = async (params: ITDataTableFetchParams): Pro
         ];
     }
 
-    // Handle status enum (Prisma enums don't support 'contains')
     if (params.filters.status && params.filters.status !== 'ALL') {
         prismaParams.where.status = params.filters.status;
     }
 
-    // Only regular incidents (exclude Casa Club records).
     delete prismaParams.where.kind;
-    prismaParams.where.kind = 'INCIDENT';
+    prismaParams.where.kind = CLUB_TYPE;
 
     const [rows, total] = await Promise.all([
         prismaClient.incident.findMany({
             ...prismaParams,
-            include: { 
+            include: {
                 guard: true,
                 resolvedBy: true,
                 category: true,
@@ -45,9 +50,8 @@ export const getDataTableIncidents = async (params: ITDataTableFetchParams): Pro
     return { rows, total };
 };
 
-export const createIncident = async (data: {
+export const createClub = async (data: {
     guardId: number;
-    kind?: string;
     title: string;
     categoryId?: number;
     typeId?: number;
@@ -58,8 +62,6 @@ export const createIncident = async (data: {
     clientRef?: string;
     createdAt?: Date;
 }) => {
-    // Idempotencia: si el clientRef ya fue registrado, devolver la incidencia
-    // existente para evitar duplicados en reintentos de sincronización offline.
     if (data.clientRef) {
         const existing = await prismaClient.incident.findUnique({
             where: { clientRef: data.clientRef },
@@ -67,10 +69,10 @@ export const createIncident = async (data: {
         if (existing) return existing;
     }
 
-    const incident = await prismaClient.incident.create({
+    const club = await prismaClient.incident.create({
         data: {
             guardId: data.guardId,
-            kind: data.kind ?? 'INCIDENT',
+            kind: CLUB_TYPE,
             title: data.title,
             categoryId: data.categoryId,
             typeId: data.typeId,
@@ -83,59 +85,20 @@ export const createIncident = async (data: {
         }
     });
 
-    // Fire and forget EVERYTHING including relation fetching
-    setImmediate(async () => {
-        try {
-            const enrichedIncident = await prismaClient.incident.findUnique({
-                where: { id: incident.id },
-                include: {
-                    guard: true,
-                    category: true,
-                    type: true
-                }
-            });
-            if (enrichedIncident) {
-                console.log('[EMAIL:INCIDENT]', JSON.stringify({
-                    to: 'INCIDENT_EMAIL recipients',
-                    subject: `⚠️ Nuevo Incidente Reportado: ${enrichedIncident.title}`,
-                    guard: `${enrichedIncident.guard.name} ${enrichedIncident.guard.lastName || ''}`,
-                    category: enrichedIncident.category?.value,
-                    type: enrichedIncident.type?.value,
-                    description: enrichedIncident.description,
-                    mediaCount: Array.isArray(enrichedIncident.media) ? enrichedIncident.media.length : 0,
-                    timestamp: new Date().toISOString()
-                }));
-            }
-        } catch (error) {
-            console.error("Background incident processing error:", error);
-        }
-    });
-
-    return incident;
+    return club;
 };
 
-export const getIncidentsByGuard = async (guardId: number) => {
-    return prismaClient.incident.findMany({
-        where: { guardId },
-        orderBy: { createdAt: 'desc' }
-    });
-};
-
-export const getIncidents = async (filters: {
+export const getClubs = async (filters: {
     startDate?: Date;
     endDate?: Date;
     guardId?: number;
     category?: string;
     title?: string;
-    kind?: string;
 }) => {
-    const whereClause: any = {};
+    const whereClause: any = { kind: CLUB_TYPE };
 
     if (filters.startDate && filters.endDate) {
-        whereClause.createdAt = {
-            gte: filters.startDate,
-            lte: filters.endDate
-        };
+        whereClause.createdAt = { gte: filters.startDate, lte: filters.endDate };
     } else if (filters.startDate) {
         whereClause.createdAt = { gte: filters.startDate };
     }
@@ -143,11 +106,10 @@ export const getIncidents = async (filters: {
     if (filters.guardId) whereClause.guardId = filters.guardId;
     if (filters.category) whereClause.category = filters.category;
     if (filters.title) whereClause.title = { contains: filters.title, mode: 'insensitive' };
-    whereClause.kind = filters.kind ?? 'INCIDENT';
 
     return prismaClient.incident.findMany({
         where: whereClause,
-        include: { 
+        include: {
             guard: true,
             resolvedBy: true,
             category: true,
@@ -157,7 +119,7 @@ export const getIncidents = async (filters: {
     });
 };
 
-export const resolveIncident = async (id: number, userId: number) => {
+export const resolveClub = async (id: number, userId: number) => {
     return prismaClient.incident.update({
         where: { id },
         data: {
@@ -167,34 +129,36 @@ export const resolveIncident = async (id: number, userId: number) => {
         },
         include: {
             guard: true,
-            resolvedBy: true
+            resolvedBy: true,
+            category: true,
+            type: true
         }
     });
 };
 
-export const getPendingIncidentsCount = async () => {
+export const getPendingClubsCount = async () => {
     return prismaClient.incident.count({
         where: {
             status: 'PENDING',
-            kind: 'INCIDENT'
+            kind: CLUB_TYPE
         }
     });
 };
 
-export const getIncidentById = async (id: number) => {
-    return prismaClient.incident.findUnique({
-        where: { id },
+export const getClubById = async (id: number) => {
+    return prismaClient.incident.findFirst({
+        where: { id, kind: CLUB_TYPE },
         include: { guard: true }
     });
 };
 
-export const deleteIncident = async (id: number) => {
+export const deleteClub = async (id: number) => {
     return prismaClient.incident.delete({
         where: { id }
     });
 };
 
-export const updateIncidentMedia = async (id: number, media: any[]) => {
+export const updateClubMedia = async (id: number, media: any[]) => {
     return prismaClient.incident.update({
         where: { id },
         data: { media }

@@ -10,8 +10,9 @@ export const getIncidentsForReport = async (params: {
     startDate: Date;
     endDate: Date;
     ids?: number[];
+    kind?: string;
 }): Promise<IncidentReportItem[]> => {
-    const { startDate, endDate, ids } = params;
+    const { startDate, endDate, ids, kind = 'INCIDENT' } = params;
 
     // Ajuste de rango: cubrir día completo para endDate
     const rangeStart = new Date(startDate);
@@ -22,8 +23,10 @@ export const getIncidentsForReport = async (params: {
     const whereClause: {
         createdAt: { gte: Date; lte: Date };
         id?: { in: number[] };
+        kind?: string;
     } = {
         createdAt: { gte: rangeStart, lte: rangeEnd },
+        kind,
     };
 
     if (ids && ids.length > 0) {

@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client';
+import { prismaClient } from '@src/core/config/database';
 import { IncidentCategoryRepository, IncidentTypeRepository } from './catalog.repository';
 import {
     CreateCategoryInput,
@@ -105,6 +106,41 @@ export const IncidentCategoryService = {
         await this.getById(id);
         await IncidentTypeRepository.activateByCategory(id);
         return IncidentCategoryRepository.activate(id);
+    },
+
+    /**
+     * @description Borrado físico de una categoría y sus tipos. Requiere que la
+     * categoría esté previamente desactivada (active=false) y que no existan
+     * registros (incidencias/mantenimientos) asociados a ella o a sus tipos.
+     * @param id Identificador.
+     * @throws Error si no existe, si está activa o si tiene registros asociados.
+     * @returns Categoría física eliminada.
+     */
+    async hardDelete(id: number): Promise<IncidentCategoryDto> {
+        const category = await this.getById(id);
+        if (category.active) {
+            throw new Error('Debe desactivar la categoría antes de poder eliminarla');
+        }
+
+        const typeIds = await IncidentTypeRepository.findAllIncludingInactive({ categoryId: id });
+
+        const [incidentsByCat, maintenanceByCat] = await Promise.all([
+            prismaClient.incident.count({ where: { categoryId: id } }),
+            prismaClient.maintenance.count({ where: { categoryId: id } }),
+        ]);
+
+        const incidentsByType = typeIds.length > 0
+            ? await prismaClient.incident.count({ where: { typeId: { in: typeIds.map(t => t.id) } } })
+            : 0;
+        const maintenanceByType = typeIds.length > 0
+            ? await prismaClient.maintenance.count({ where: { typeId: { in: typeIds.map(t => t.id) } } })
+            : 0;
+
+        if (incidentsByCat > 0 || incidentsByType > 0 || maintenanceByCat > 0 || maintenanceByType > 0) {
+            throw new Error('No se puede eliminar la categoría porque tiene registros asociados');
+        }
+
+        return IncidentCategoryRepository.hardDelete(id);
     },
 };
 
@@ -222,5 +258,30 @@ export const IncidentTypeService = {
             throw new Error('No se puede activar un tipo cuya categoría está inactiva');
         }
         return IncidentTypeRepository.activate(id);
+    },
+
+    /**
+     * @description Borrado físico de un tipo. Requiere que el tipo esté
+     * previamente desactivado (active=false) y que no existan registros
+     * (incidencias/mantenimientos) asociados a él.
+     * @param id Identificador.
+     * @throws Error si no existe, si está activo o si tiene registros asociados.
+     * @returns Tipo físicamente eliminado.
+     */
+    async hardDelete(id: number): Promise<IncidentTypeDto> {
+        const existing = await this.getById(id);
+        if (existing.active) {
+            throw new Error('Debe desactivar el tipo antes de poder eliminarlo');
+        }
+
+        const [incidents, maintenances] = await Promise.all([
+            prismaClient.incident.count({ where: { typeId: id } }),
+            prismaClient.maintenance.count({ where: { typeId: id } }),
+        ]);
+        if (incidents > 0 || maintenances > 0) {
+            throw new Error('No se puede eliminar el tipo porque tiene registros asociados');
+        }
+
+        return IncidentTypeRepository.hardDelete(id);
     },
 };

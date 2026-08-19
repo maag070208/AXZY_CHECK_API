@@ -128,7 +128,7 @@ export const getDashboardMetrics = async (): Promise<{ success: boolean; data: I
       }),
       prismaClient.user.count({ where: { active: true, softDelete: false } }),
       prismaClient.round.count({ where: { status: 'IN_PROGRESS' } }),
-      prismaClient.incident.count({ where: { status: 'PENDING' } }),
+      prismaClient.incident.count({ where: { status: 'PENDING', kind: 'INCIDENT' } }),
       prismaClient.maintenance.count({ where: { status: 'PENDING' } }),
       prismaClient.assignment.count({ where: { status: { in: ['PENDING', 'CHECKING'] } } }),
       prismaClient.recurringConfiguration.count({ where: { active: true } }),

@@ -3,41 +3,37 @@ import PDFDocument from "pdfkit";
 import { getConfig } from "@src/core/utils/config";
 
 /**
- * @description Paleta ejecutiva minimalista: un solo color de acento, escala
- * de grises para todo lo demás. La jerarquía se construye con peso
- * tipográfico, espacio en blanco y líneas finas.
+ * @description Paleta corporativa moderna (Modern Slate & Teal).
  */
 const COLOR = {
-    ink: "#0f172a",
-    graphite: "#475569",
-    muted: "#94a3b8",
-    line: "#e2e8f0",
-    faint: "#f8fafc",
+    ink: "#0f172a",          // Slate 900 (Texto principal)
+    graphite: "#334155",     // Slate 700 (Texto secundario)
+    muted: "#64748b",        // Slate 500 (Etiquetas y captions)
+    faintMuted: "#94a3b8",   // Slate 400
+    line: "#e2e8f0",         // Slate 200 (Bordes y separadores)
+    cardBg: "#f8fafc",       // Slate 50 (Fondo de tarjetas y bloques)
     paper: "#ffffff",
-    accent: "#0f766e",
-    pending: "#b45309",
-    attended: "#0f766e",
+    accent: "#0d9488",       // Teal 600 (Color institucional primario)
+    accentLight: "#ccfbf1",  // Teal 100 (Fondo badges)
+    pending: "#d97706",      // Amber 600
+    pendingLight: "#fef3c7", // Amber 100
+    attended: "#059669",     // Emerald 600
+    attendedLight: "#d1fae5",// Emerald 100
 } as const;
 
-const PAGE_MARGIN = 56;
+const PAGE_MARGIN = 48;
 const PAGE_WIDTH = 595.28; // A4
 const PAGE_HEIGHT = 841.89;
 const CONTENT_WIDTH = PAGE_WIDTH - PAGE_MARGIN * 2;
+const HEADER_OFFSET = 75;  // Espacio protegido bajo el header en páginas 2+
+const FOOTER_OFFSET = 55;  // Espacio protegido antes del footer
 
-/**
- * @description Item de evidencia dentro de un registro para el PDF.
- */
 export interface PdfMediaItem {
     type: "IMAGE" | "VIDEO";
     url: string;
     key?: string;
 }
 
-/**
- * @description Interfaz genérica que un item del reporte debe implementar
- * para poder ser renderizado en el PDF ejecutivo. Tanto incidencias como
- * mantenimientos cumplen este contrato.
- */
 export interface PdfReportItem {
     id: number;
     title: string;
@@ -55,52 +51,28 @@ export interface PdfReportItem {
     media: PdfMediaItem[];
 }
 
-/**
- * @description Opciones de renderizado del PDF.
- */
 export interface PdfRenderOptions {
     includeImages: boolean;
     includeLocation: boolean;
 }
 
-/**
- * @description Configuración textual del documento. Permite generar el mismo
- * layout para distintos módulos (incidencias, mantenimientos, etc.).
- */
 export interface PdfDocumentConfig {
-    /** Etiqueta del módulo: "Incidencias", "Mantenimientos" */
     moduleLabel: string;
-    /** Título en versalitas de la portada: "REPORTE EJECUTIVO" */
     headerEyebrow: string;
-    /** Título principal de la portada */
     heroTitle: string;
-    /** Subtítulo corto junto al header */
     platformSubtitle: string;
-    /** Texto del título del documento PDF */
     docTitle: string;
-    /** Keywords para metadata del PDF */
     docKeywords: string;
-    /** Prefijo del nombre del archivo descargado */
     filePrefix: string;
-    /** Texto del "Resumen Ejecutivo" y su bullets */
-    singularNoun: string; // "incidencia" / "mantenimiento"
-    pluralNoun: string;   // "incidencias" / "mantenimientos"
-    /** Texto del CTA al final de la portada */
+    singularNoun: string;
+    pluralNoun: string;
     ctaText: string;
-    /** Texto del encabezado de la sección de detalle */
     detailSectionTitle: string;
-    /** Etiqueta "Categoría" en la sección de detalle */
-    singularDetailEntity: string; // "Incidencia" / "Mantenimiento"
-    /** Estado labels */
-    pendingLabel: string; // "PENDIENTE" / "PENDIENTE"
-    attendedLabel: string; // "ATENDIDA" / "ATENDIDO"
+    singularDetailEntity: string;
+    pendingLabel: string;
+    attendedLabel: string;
 }
 
-/**
- * @description Genera un PDF con look ejecutivo a partir de una lista de
- * items y los configura según `config`. Devuelve el stream ya pipeado al
- * `Response`. La función maneja errores 400/500/headers-sent.
- */
 export const streamModulePdf = async (
     res: import("express").Response,
     items: PdfReportItem[],
@@ -109,11 +81,11 @@ export const streamModulePdf = async (
     config: PdfDocumentConfig,
     options: PdfRenderOptions,
 ): Promise<void> => {
-    let appName = "AXZY CHECK";
+    let appName = "CHECK APP";
     try {
         appName = getConfig("APP_NAME");
     } catch {
-        /* keep default */
+        /* fallback */
     }
 
     const doc = new PDFDocument({
@@ -135,11 +107,18 @@ export const streamModulePdf = async (
 
     try {
         renderCover(doc, startDate, endDate, items, appName, options, config);
+        renderSummaryTable(doc, items, config);
         await renderDetailSection(doc, items, options, config);
         applyExecutiveChrome(doc, appName, config);
         doc.end();
     } catch (error: unknown) {
         const message = error instanceof Error ? error.message : "Error inesperado";
+
+        console.error("Error generando PDF:", error);
+
+        // Si PDFKit ya está conectado al response y comenzó a escribir,
+        // NO debemos llamar res.end(), porque PDFKit todavía puede emitir
+        // chunks y producir "ERR_STREAM_WRITE_AFTER_END".
         if (!res.headersSent) {
             res.status(500).json({
                 data: null,
@@ -147,7 +126,7 @@ export const streamModulePdf = async (
                 messages: [message],
             });
         } else {
-            res.end();
+            res.destroy(error instanceof Error ? error : undefined);
         }
     }
 };
@@ -168,41 +147,49 @@ const renderCover = (
     const refCode = buildRefCode(items);
     const ruleY = drawMasthead(doc, appName, refCode, config);
 
-    doc.y = ruleY + 30;
+    doc.y = ruleY + 24;
     doc.x = PAGE_MARGIN;
 
+    // Eyebrow badge/tag
     doc
-        .fillColor(COLOR.muted)
+        .fillColor(COLOR.accent)
         .font("Helvetica-Bold")
-        .fontSize(9)
-        .text(config.headerEyebrow.toUpperCase(), { characterSpacing: 2.5 });
+        .fontSize(8.5)
+        .text(config.headerEyebrow.toUpperCase(), { characterSpacing: 1.8 });
 
     doc
-        .moveDown(0.4)
+        .moveDown(0.3)
         .fillColor(COLOR.ink)
         .font("Helvetica-Bold")
-        .fontSize(30)
+        .fontSize(26)
         .text(config.heroTitle, { width: CONTENT_WIDTH });
 
+    // Date range with small icon dot
+    const dateY = doc.y + 4;
+    doc.circle(PAGE_MARGIN + 3, dateY + 4.5, 2.5).fillColor(COLOR.accent).fill();
     doc
-        .moveDown(0.15)
         .fillColor(COLOR.graphite)
         .font("Helvetica")
-        .fontSize(11)
-        .text(`${formatDate(startDate)}  —  ${formatDate(endDate)}`, { width: CONTENT_WIDTH });
+        .fontSize(10)
+        .text(`Periodo: ${formatDate(startDate)} — ${formatDate(endDate)}`, PAGE_MARGIN + 12, dateY);
 
-    doc.moveDown(1.1);
-    renderKpiBlock(doc, items, options, config);
+    doc.y = dateY + 22;
+    renderKpiCards(doc, items, options, config);
+
     doc.moveDown(0.8);
     renderExecutiveNarrative(doc, items, options, config);
-    doc.moveDown(0.6);
+
+    doc.moveDown(0.8);
     renderCategoryBreakdown(doc, items, config);
-    doc.moveDown(1.4);
-    doc
-        .fillColor(COLOR.muted)
-        .font("Helvetica-Oblique")
-        .fontSize(8.5)
-        .text(config.ctaText, PAGE_MARGIN, doc.y, { width: CONTENT_WIDTH, align: "center" });
+
+    if (config.ctaText) {
+        doc.moveDown(1.2);
+        doc
+            .fillColor(COLOR.muted)
+            .font("Helvetica-Oblique")
+            .fontSize(8)
+            .text(config.ctaText, PAGE_MARGIN, doc.y, { width: CONTENT_WIDTH, align: "center" });
+    }
 };
 
 const buildRefCode = (items: PdfReportItem[]): string => {
@@ -210,7 +197,7 @@ const buildRefCode = (items: PdfReportItem[]): string => {
     const first = items[0]?.id ?? 0;
     const last = items[items.length - 1]?.id ?? 0;
     const hash = ((first * 31 + last) % 9999) + 1;
-    return `REP-${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(hash).padStart(4, "0")}`;
+    return `REP-${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, "0")}-${String(hash).padStart(4, "0")}`;
 };
 
 const drawMasthead = (
@@ -219,43 +206,47 @@ const drawMasthead = (
     refCode: string,
     config: PdfDocumentConfig,
 ): number => {
-    const topY = 40;
+    const topY = 36;
 
+    // Logo / Nombre
     doc
         .fillColor(COLOR.ink)
         .font("Helvetica-Bold")
-        .fontSize(13)
-        .text(appName.toUpperCase(), PAGE_MARGIN, topY, { characterSpacing: 1.5 });
+        .fontSize(14)
+        .text(appName.toUpperCase(), PAGE_MARGIN, topY, { characterSpacing: 1.2 });
     doc
         .fillColor(COLOR.muted)
         .font("Helvetica")
-        .fontSize(8)
-        .text(config.platformSubtitle, PAGE_MARGIN, topY + 16);
+        .fontSize(8.5)
+        .text(config.platformSubtitle, PAGE_MARGIN, topY + 18);
 
+    // Meta Header (Derecha)
     doc
         .fillColor(COLOR.graphite)
         .font("Helvetica")
         .fontSize(8)
-        .text(`Emitido ${formatDateTime(new Date().toISOString())}`, PAGE_WIDTH - PAGE_MARGIN - 220, topY, {
-            width: 220,
+        .text(`Emitido: ${formatDateTime(new Date().toISOString())}`, PAGE_WIDTH - PAGE_MARGIN - 200, topY + 2, {
+            width: 200,
             align: "right",
         });
     doc
-        .fillColor(COLOR.muted)
-        .font("Helvetica")
+        .fillColor(COLOR.accent)
+        .font("Helvetica-Bold")
         .fontSize(8)
-        .text(`Ref. ${refCode}`, PAGE_WIDTH - PAGE_MARGIN - 220, topY + 12, {
-            width: 220,
+        .text(`REF: ${refCode}`, PAGE_WIDTH - PAGE_MARGIN - 200, topY + 16, {
+            width: 200,
             align: "right",
         });
 
-    const ruleY = topY + 34;
+    const ruleY = topY + 36;
     doc.rect(PAGE_MARGIN, ruleY, CONTENT_WIDTH, 1.5).fillColor(COLOR.accent).fill();
-
     return ruleY;
 };
 
-const renderKpiBlock = (
+/**
+ * KPI Cards con contenedor individual redondeado estilo Dashboard.
+ */
+const renderKpiCards = (
     doc: PDFKit.PDFDocument,
     items: PdfReportItem[],
     options: PdfRenderOptions,
@@ -264,61 +255,56 @@ const renderKpiBlock = (
     const pending = items.filter((i) => i.status === "PENDING").length;
     const attended = items.filter((i) => i.status === "ATTENDED").length;
     const withMedia = items.filter((i) => i.media.length > 0).length;
-    const withLocation = items.filter((i) => i.latitude !== null && i.longitude !== null).length;
     const total = items.length;
     const attendedPct = total > 0 ? Math.round((attended / total) * 100) : 0;
 
-    const cols: Array<{ label: string; value: string; sub: string }> = [
-        { label: "TOTAL", value: String(total), sub: config.pluralNoun },
-        { label: config.pendingLabel + "S", value: String(pending), sub: "por atender" },
-        { label: config.attendedLabel + "S", value: String(attended), sub: `${attendedPct}% del total` },
-        { label: "CON EVIDENCIA", value: String(withMedia), sub: "fotos / video" },
+    const cards = [
+        { label: "TOTAL REGISTROS", value: String(total), sub: config.pluralNoun, color: COLOR.ink },
+        { label: config.pendingLabel.toUpperCase(), value: String(pending), sub: "requieren acción", color: COLOR.pending },
+        { label: config.attendedLabel.toUpperCase(), value: String(attended), sub: `${attendedPct}% resueltos`, color: COLOR.attended },
+        { label: "EVIDENCIAS", value: String(withMedia), sub: "archivos adjuntos", color: COLOR.accent },
     ];
 
-    const colWidth = CONTENT_WIDTH / cols.length;
-    const startX = PAGE_MARGIN;
+    const gap = 10;
+    const cardWidth = (CONTENT_WIDTH - gap * (cards.length - 1)) / cards.length;
+    const cardHeight = 64;
     const startY = doc.y;
 
-    doc.rect(startX, startY, CONTENT_WIDTH, 1).fillColor(COLOR.line).fill();
+    cards.forEach((c, idx) => {
+        const cardX = PAGE_MARGIN + idx * (cardWidth + gap);
 
-    cols.forEach((c, idx) => {
-        const x = startX + idx * colWidth;
+        // Fondo y borde de la tarjeta
+        doc.roundedRect(cardX, startY, cardWidth, cardHeight, 6)
+            .fillColor(COLOR.cardBg)
+            .fillAndStroke(COLOR.cardBg, COLOR.line);
+
+        // Barra indicadora superior
+        doc.roundedRect(cardX, startY, cardWidth, 3, 2).fillColor(c.color).fill();
+
+        // Label
         doc
             .fillColor(COLOR.muted)
             .font("Helvetica-Bold")
-            .fontSize(7.5)
-            .text(c.label, x, startY + 12, { width: colWidth - 16, characterSpacing: 1.2 });
+            .fontSize(7)
+            .text(c.label, cardX + 10, startY + 12, { width: cardWidth - 20, characterSpacing: 0.8 });
+
+        // Valor
         doc
             .fillColor(COLOR.ink)
             .font("Helvetica-Bold")
-            .fontSize(24)
-            .text(c.value, x, startY + 24, { width: colWidth - 16 });
+            .fontSize(19)
+            .text(c.value, cardX + 10, startY + 24, { width: cardWidth - 20 });
+
+        // Subtítulo
         doc
             .fillColor(COLOR.graphite)
             .font("Helvetica")
-            .fontSize(8)
-            .text(c.sub, x, startY + 52, { width: colWidth - 16 });
-        if (idx > 0) {
-            doc.rect(x, startY + 10, 0.75, 52).fillColor(COLOR.line).fill();
-        }
+            .fontSize(7.5)
+            .text(c.sub, cardX + 10, startY + 48, { width: cardWidth - 20 });
     });
 
-    const blockBottom = startY + 68;
-    doc.rect(startX, blockBottom, CONTENT_WIDTH, 1).fillColor(COLOR.line).fill();
-
-    doc.y = blockBottom + 12;
+    doc.y = startY + cardHeight + 14;
     doc.x = PAGE_MARGIN;
-
-    if (withLocation > 0 && options.includeLocation) {
-        doc
-            .fillColor(COLOR.muted)
-            .font("Helvetica-Oblique")
-            .fontSize(8.5)
-            .text(
-                `${withLocation} ${config.singularNoun}${withLocation === 1 ? "" : "s"} registra${withLocation === 1 ? "" : "n"} coordenadas GPS en el periodo.`,
-            );
-        doc.moveDown(0.4);
-    }
 };
 
 const renderExecutiveNarrative = (
@@ -327,14 +313,14 @@ const renderExecutiveNarrative = (
     options: PdfRenderOptions,
     config: PdfDocumentConfig,
 ): void => {
-    drawSectionTitle(doc, "Resumen ejecutivo");
+    drawSectionTitle(doc, "Resumen Ejecutivo");
 
     if (items.length === 0) {
         doc
             .fillColor(COLOR.muted)
             .font("Helvetica-Oblique")
-            .fontSize(10)
-            .text(`No se encontraron ${config.pluralNoun} para los filtros seleccionados.`);
+            .fontSize(9.5)
+            .text(`No se encontraron registros de ${config.pluralNoun} para los filtros seleccionados.`);
         return;
     }
 
@@ -352,38 +338,34 @@ const renderExecutiveNarrative = (
         .sort((a, b) => b[1] - a[1])
         .slice(0, 3);
 
-    const bullets: string[] = [];
-    bullets.push(
-        `Se registraron ${total} ${config.singularNoun}${total === 1 ? "" : "es"} en el periodo, de las cuales ${attended} fueron ${config.attendedLabel.toLowerCase()}s (${resolutionRate}% de resolución).`,
-    );
+    const bullets: string[] = [
+        `Se registraron un total de **${total} ${config.singularNoun}${total === 1 ? "" : "es"}**, de las cuales **${attended}** han sido atendidas satisfactoriamente (tasa de resolución del **${resolutionRate}%**).`,
+    ];
+
     if (pending > 0) {
-        bullets.push(
-            `Quedan ${pending} ${config.singularNoun}${pending === 1 ? "" : "s"} pendiente${pending === 1 ? "" : "s"} de atención al cierre del periodo.`,
-        );
+        bullets.push(`Permanecen **${pending} caso(s) pendiente(s)** de atención técnica o administrativa.`);
     } else {
-        bullets.push(`El 100% de los ${config.pluralNoun} del periodo se encuentran ${config.attendedLabel.toLowerCase()}s.`);
+        bullets.push(`Se logró el **100% de atención** en todas las solicitudes del periodo.`);
     }
+
     if (top.length > 0) {
         const topText = top.map(([name, count]) => `${name} (${count})`).join(", ");
-        bullets.push(`Categorías con mayor reporte: ${topText}.`);
-    }
-    if (options.includeLocation) {
-        const withGps = items.filter((i) => i.latitude !== null && i.longitude !== null).length;
-        if (withGps > 0) {
-            bullets.push(`${withGps} reporte${withGps === 1 ? "" : "s"} incluye${withGps === 1 ? "" : "n"} coordenadas GPS verificables.`);
-        }
+        bullets.push(`Categorías con mayor volumen: ${topText}.`);
     }
 
     bullets.forEach((b) => {
         const y = doc.y;
-        doc.fillColor(COLOR.accent).font("Helvetica-Bold").fontSize(10).text("—", PAGE_MARGIN, y);
+        // Icono check/bullet estilizado
+        doc.circle(PAGE_MARGIN + 4, y + 4.5, 2.5).fillColor(COLOR.accent).fill();
+
+        // Render simple markdown **negrita**
+        const cleanText = b.replace(/\*\*/g, "");
         doc
             .fillColor(COLOR.graphite)
             .font("Helvetica")
-            .fontSize(10)
-            .text(b, PAGE_MARGIN + 16, y, { width: CONTENT_WIDTH - 16 });
-        doc.moveDown(0.4);
-        doc.x = PAGE_MARGIN;
+            .fontSize(9)
+            .text(cleanText, PAGE_MARGIN + 16, y, { width: CONTENT_WIDTH - 16, lineGap: 2 });
+        doc.y += 4;
     });
 };
 
@@ -393,7 +375,7 @@ const renderCategoryBreakdown = (
     config: PdfDocumentConfig,
 ): void => {
     if (items.length === 0) return;
-    drawSectionTitle(doc, "Distribución por categoría");
+    drawSectionTitle(doc, "Distribución por Categoría");
 
     const byCategory = new Map<string, { total: number; pending: number; attended: number }>();
     items.forEach((i) => {
@@ -407,74 +389,155 @@ const renderCategoryBreakdown = (
 
     const rows = Array.from(byCategory.entries())
         .sort((a, b) => b[1].total - a[1].total)
-        .slice(0, 6);
+        .slice(0, 5);
 
     const startX = PAGE_MARGIN;
     const startY = doc.y;
-    const colName = CONTENT_WIDTH * 0.42;
-    const colTotal = CONTENT_WIDTH * 0.1;
-    const colPending = CONTENT_WIDTH * 0.1;
-    const colAttended = CONTENT_WIDTH * 0.1;
+    const colName = CONTENT_WIDTH * 0.40;
+    const colTotal = CONTENT_WIDTH * 0.12;
+    const colPending = CONTENT_WIDTH * 0.12;
+    const colAttended = CONTENT_WIDTH * 0.12;
     const colBar = CONTENT_WIDTH - colName - colTotal - colPending - colAttended;
     const rowHeight = 22;
 
-    doc.fillColor(COLOR.muted).font("Helvetica-Bold").fontSize(7.5);
-    doc.text("CATEGORÍA", startX, startY, { width: colName, characterSpacing: 1 });
-    doc.text("TOTAL", startX + colName, startY, { width: colTotal, align: "center", characterSpacing: 1 });
-    doc.text("PEND.", startX + colName + colTotal, startY, { width: colPending, align: "center", characterSpacing: 1 });
-    doc.text("ATEND.", startX + colName + colTotal + colPending, startY, {
-        width: colAttended,
-        align: "center",
-        characterSpacing: 1,
-    });
-    doc.text("DISTRIBUCIÓN", startX + colName + colTotal + colPending + colAttended, startY, {
-        width: colBar,
-        characterSpacing: 1,
-    });
+    // Header de la tabla pequeña
+    doc.rect(startX, startY, CONTENT_WIDTH, 18).fillColor(COLOR.cardBg).fill();
+    doc.fillColor(COLOR.muted).font("Helvetica-Bold").fontSize(7);
+    doc.text("CATEGORÍA", startX + 8, startY + 6, { width: colName - 8, characterSpacing: 0.8 });
+    doc.text("TOTAL", startX + colName, startY + 6, { width: colTotal, align: "center", characterSpacing: 0.8 });
+    doc.text("PEND.", startX + colName + colTotal, startY + 6, { width: colPending, align: "center", characterSpacing: 0.8 });
+    doc.text("ATEND.", startX + colName + colTotal + colPending, startY + 6, { width: colAttended, align: "center", characterSpacing: 0.8 });
+    doc.text("PROGRESO", startX + colName + colTotal + colPending + colAttended, startY + 6, { width: colBar - 8, characterSpacing: 0.8 });
 
-    let rowY = startY + 16;
-    doc.rect(startX, rowY, CONTENT_WIDTH, 1).fillColor(COLOR.line).fill();
-    rowY += 8;
-
+    let rowY = startY + 22;
     const total = items.length;
-    rows.forEach(([name, counts]) => {
-        doc.fillColor(COLOR.ink).font("Helvetica").fontSize(9.5).text(name, startX, rowY, { width: colName - 8 });
-        doc
-            .fillColor(COLOR.ink)
-            .font("Helvetica-Bold")
-            .fontSize(9.5)
-            .text(String(counts.total), startX + colName, rowY, { width: colTotal, align: "center" });
-        doc
-            .fillColor(COLOR.pending)
-            .font("Helvetica-Bold")
-            .fontSize(9.5)
-            .text(String(counts.pending), startX + colName + colTotal, rowY, { width: colPending, align: "center" });
-        doc
-            .fillColor(COLOR.attended)
-            .font("Helvetica-Bold")
-            .fontSize(9.5)
-            .text(String(counts.attended), startX + colName + colTotal + colPending, rowY, {
-                width: colAttended,
-                align: "center",
-            });
+    const maxTotal = Math.max(...rows.map((r) => r[1].total), 1);
 
+    rows.forEach(([name, counts], index) => {
+        // Zebra striping muy sutil
+        if (index % 2 === 1) {
+            doc.rect(startX, rowY - 2, CONTENT_WIDTH, rowHeight).fillColor(COLOR.faintMuted).fillOpacity(0.06).fill();
+            doc.fillOpacity(1); // reset opacity
+        }
+
+        doc.fillColor(COLOR.ink).font("Helvetica").fontSize(8.5).text(name, startX + 8, rowY + 3, { width: colName - 12 });
+        doc.fillColor(COLOR.ink).font("Helvetica-Bold").fontSize(8.5).text(String(counts.total), startX + colName, rowY + 3, { width: colTotal, align: "center" });
+        doc.fillColor(COLOR.pending).font("Helvetica-Bold").fontSize(8.5).text(String(counts.pending), startX + colName + colTotal, rowY + 3, { width: colPending, align: "center" });
+        doc.fillColor(COLOR.attended).font("Helvetica-Bold").fontSize(8.5).text(String(counts.attended), startX + colName + colTotal + colPending, rowY + 3, { width: colAttended, align: "center" });
+
+        // Barra de progreso redondeada con porcentaje dinámico
+        const pct = total > 0 ? Math.round((counts.total / total) * 100) : 0;
         const barX = startX + colName + colTotal + colPending + colAttended;
-        const barY = rowY + 3;
-        const barWidth = colBar - 8;
-        doc.rect(barX, barY, barWidth, 3).fillColor(COLOR.faint).fill();
-        const filled = (counts.total / total) * barWidth;
-        doc.rect(barX, barY, filled, 3).fillColor(COLOR.accent).fill();
+        const barY = rowY + 6;
+        const pctTextW = 24;
+        const barMaxWidth = colBar - 12 - pctTextW;
+        doc.roundedRect(barX, barY, barMaxWidth, 5, 2.5).fillColor(COLOR.line).fill();
+
+        const fillW = Math.max((counts.total / maxTotal) * barMaxWidth, 4);
+        doc.roundedRect(barX, barY, fillW, 5, 2.5).fillColor(COLOR.accent).fill();
+
+        doc
+            .fillColor(COLOR.graphite)
+            .font("Helvetica-Bold")
+            .fontSize(7.5)
+            .text(`${pct}%`, barX + barMaxWidth + 4, barY - 3, { width: pctTextW, characterSpacing: 0.4 });
 
         rowY += rowHeight;
-        doc.rect(startX, rowY - 6, CONTENT_WIDTH, 0.5).fillColor(COLOR.line).fill();
     });
 
-    doc.y = rowY + 2;
+    doc.y = rowY + 6;
     doc.x = PAGE_MARGIN;
 };
 
 /* =========================================================================
- *  DETALLE
+ *  RESUMEN GENERAL (TABLA CON MEJOR PAGINACIÓN)
+ * ========================================================================= */
+
+const renderSummaryTable = (
+    doc: PDFKit.PDFDocument,
+    items: PdfReportItem[],
+    config: PdfDocumentConfig,
+): void => {
+    if (items.length === 0) return;
+
+    doc.addPage();
+    doc.y = HEADER_OFFSET;
+    drawSectionTitle(doc, "Resumen General de Registros");
+
+    const startX = PAGE_MARGIN;
+    const colIdx = 28;
+    const colDate = 70;
+    const colTime = 48;
+    const colUser = 130;
+    const colType = 125;
+    const colStatus = CONTENT_WIDTH - colIdx - colDate - colTime - colUser - colType;
+    const rowHeight = 24;
+
+    const drawHeaders = (y: number): void => {
+        doc.rect(startX, y, CONTENT_WIDTH, 18).fillColor(COLOR.cardBg).fill();
+        doc.fillColor(COLOR.muted).font("Helvetica-Bold").fontSize(7);
+        doc.text("#", startX + 6, y + 5, { width: colIdx - 8 });
+        doc.text("FECHA", startX + colIdx, y + 5, { width: colDate });
+        doc.text("HORA", startX + colIdx + colDate, y + 5, { width: colTime });
+        doc.text("USUARIO", startX + colIdx + colDate + colTime, y + 5, { width: colUser });
+        doc.text("TIPO / CATEGORÍA", startX + colIdx + colDate + colTime + colUser, y + 5, { width: colType });
+        doc.text("ESTADO", startX + colIdx + colDate + colTime + colUser + colType, y + 5, { width: colStatus, align: "right" });
+    };
+
+    let rowY = doc.y;
+    drawHeaders(rowY);
+    rowY += 22;
+
+    items.forEach((item, idx) => {
+        if (rowY + rowHeight > PAGE_HEIGHT - FOOTER_OFFSET) {
+            doc.addPage();
+            rowY = HEADER_OFFSET;
+            drawHeaders(rowY);
+            rowY += 22;
+        }
+
+        const d = new Date(item.createdAt);
+        const dateStr = Number.isNaN(d.getTime()) ? "—" : d.toLocaleDateString("es-MX", { year: "numeric", month: "2-digit", day: "2-digit" });
+        const timeStr = Number.isNaN(d.getTime()) ? "—" : d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", hour12: false });
+
+        const userName = (item.guardName || item.guardUsername || "—").trim();
+        const typeName = (item.typeName ?? item.categoryName ?? "General").trim();
+        const attended = item.status === "ATTENDED";
+        const statusLabel = attended ? config.attendedLabel : config.pendingLabel;
+        const statusColor = attended ? COLOR.attended : COLOR.pending;
+
+        // Fila zebra
+        if (idx % 2 === 1) {
+            doc.rect(startX, rowY - 2, CONTENT_WIDTH, rowHeight).fillColor(COLOR.cardBg).fill();
+        }
+
+        doc.fillColor(COLOR.muted).font("Helvetica").fontSize(8).text(String(idx + 1).padStart(2, "0"), startX + 6, rowY + 4, { width: colIdx - 8 });
+        doc.fillColor(COLOR.graphite).font("Helvetica").fontSize(8).text(dateStr, startX + colIdx, rowY + 4, { width: colDate });
+        doc.text(timeStr, startX + colIdx + colDate, rowY + 4, { width: colTime });
+        doc.fillColor(COLOR.ink).font("Helvetica-Bold").fontSize(8).text(userName, startX + colIdx + colDate + colTime, rowY + 4, { width: colUser - 10, lineBreak: false });
+        doc.fillColor(COLOR.graphite).font("Helvetica").fontSize(8).text(typeName, startX + colIdx + colDate + colTime + colUser, rowY + 4, { width: colType - 10, lineBreak: false });
+
+        // Status Badge en miniatura
+        const badgeW = 64;
+        const badgeH = 14;
+        const badgeX = startX + CONTENT_WIDTH - badgeW;
+        const badgeY = rowY + 2;
+        doc.roundedRect(badgeX, badgeY, badgeW, badgeH, 3)
+            .fillColor(attended ? COLOR.attendedLight : COLOR.pendingLight)
+            .fill();
+        doc.fillColor(statusColor)
+            .font("Helvetica-Bold")
+            .fontSize(7)
+            .text(statusLabel, badgeX, badgeY + 3.5, { width: badgeW, align: "center" });
+
+        rowY += rowHeight;
+    });
+
+    doc.y = rowY + 10;
+};
+
+/* =========================================================================
+ *  DETALLE DE REGISTROS (TARJETAS INDEPENDIENTES)
  * ========================================================================= */
 
 const renderDetailSection = async (
@@ -484,147 +547,93 @@ const renderDetailSection = async (
     config: PdfDocumentConfig,
 ): Promise<void> => {
     doc.addPage();
+    doc.y = HEADER_OFFSET;
     drawSectionTitle(doc, config.detailSectionTitle);
 
     if (items.length === 0) {
         doc
             .fillColor(COLOR.muted)
             .font("Helvetica-Oblique")
-            .fontSize(11)
-            .text(`No se encontraron ${config.pluralNoun} para los filtros seleccionados.`, { align: "center" });
+            .fontSize(10)
+            .text(`No se encontraron ${config.pluralNoun} para mostrar en el detalle.`, { align: "center" });
         return;
     }
 
     for (let index = 0; index < items.length; index++) {
-        await renderItemExecutive(doc, items[index], index + 1, items.length, options, config);
+        await renderItemCard(doc, items[index], index + 1, options, config);
     }
 };
 
-const renderItemExecutive = async (
+const renderItemCard = async (
     doc: PDFKit.PDFDocument,
     item: PdfReportItem,
     index: number,
-    total: number,
     options: PdfRenderOptions,
     config: PdfDocumentConfig,
 ): Promise<void> => {
     const estimatedHeight = estimateItemHeight(doc, item, options);
-    ensureSpace(doc, estimatedHeight + 24);
+    ensureSpace(doc, estimatedHeight + 8);
 
     const x = PAGE_MARGIN;
-    const y = doc.y;
-    const statusColor = item.status === "ATTENDED" ? COLOR.attended : COLOR.pending;
-    const statusLabel = item.status === "ATTENDED" ? config.attendedLabel : config.pendingLabel;
+    const startY = doc.y;
+    const isAttended = item.status === "ATTENDED";
+    const statusColor = isAttended ? COLOR.attended : COLOR.pending;
+    const statusBg = isAttended ? COLOR.attendedLight : COLOR.pendingLight;
+    const statusLabel = isAttended ? config.attendedLabel : config.pendingLabel;
 
-    doc
-        .fillColor(COLOR.muted)
-        .font("Helvetica-Bold")
-        .fontSize(9)
-        .text(`#${String(index).padStart(2, "0")}`, x, y, { width: 34 });
+    // Encabezado de la tarjeta
+    doc.roundedRect(x, startY, 26, 18, 4).fillColor(COLOR.cardBg).fill();
+    doc.fillColor(COLOR.muted).font("Helvetica-Bold").fontSize(8).text(`#${String(index).padStart(2, "0")}`, x, startY + 5, { width: 26, align: "center" });
 
-    doc
-        .fillColor(COLOR.ink)
-        .font("Helvetica-Bold")
-        .fontSize(12.5)
-        .text(item.title, x + 34, y, { width: CONTENT_WIDTH - 34 - 110 });
+    // Título
+    doc.fillColor(COLOR.ink).font("Helvetica-Bold").fontSize(11).text(item.title, x + 34, startY + 3, { width: CONTENT_WIDTH - 34 - 90 });
 
-    const statusX = x + CONTENT_WIDTH - 100;
-    doc.circle(statusX, y + 5, 2.5).fillColor(statusColor).fill();
-    doc
-        .fillColor(statusColor)
-        .font("Helvetica-Bold")
-        .fontSize(8)
-        .text(statusLabel, statusX + 8, y, { width: 92, characterSpacing: 0.6 });
+    // Badge de estado a la derecha
+    const badgeW = 80;
+    const badgeH = 18;
+    const badgeX = x + CONTENT_WIDTH - badgeW;
+    doc.roundedRect(badgeX, startY + 1, badgeW, badgeH, 4).fillColor(statusBg).fill();
+    doc.fillColor(statusColor).font("Helvetica-Bold").fontSize(7.5).text(statusLabel, badgeX, startY + 5.5, { width: badgeW, align: "center" });
 
-    let cursorY = y + 16;
+    let cursorY = startY + 24;
+
+    // Tags de categoría / tipo
     if (item.categoryName || item.typeName) {
-        const chips = [item.categoryName, item.typeName].filter(Boolean).join("   ·   ");
-        doc
-            .fillColor(COLOR.muted)
-            .font("Helvetica")
-            .fontSize(8.5)
-            .text(chips, x + 34, cursorY, { width: CONTENT_WIDTH - 34 });
+        const chips = [item.categoryName, item.typeName].filter(Boolean).join("  •  ");
+        doc.fillColor(COLOR.muted).font("Helvetica").fontSize(8).text(chips, x + 34, cursorY);
         cursorY += 14;
     }
 
+    cursorY += 4;
+    cursorY = renderMetaGrid(doc, item, x, cursorY, CONTENT_WIDTH);
     cursorY += 8;
-    cursorY = renderMetaGrid(doc, item, x, cursorY, CONTENT_WIDTH, config);
-    cursorY += 10;
 
+    // Descripción
     if (item.description) {
-        doc
-            .fillColor(COLOR.muted)
-            .font("Helvetica-Bold")
-            .fontSize(7.5)
-            .text("DESCRIPCIÓN", x, cursorY, { characterSpacing: 1 });
-        cursorY += 12;
-        doc
-            .fillColor(COLOR.graphite)
-            .font("Helvetica")
-            .fontSize(9.5)
-            .text(item.description, x, cursorY, { width: CONTENT_WIDTH });
+        doc.fillColor(COLOR.muted).font("Helvetica-Bold").fontSize(7).text("DESCRIPCIÓN", x, cursorY, { characterSpacing: 0.8 });
+        cursorY += 10;
+        doc.fillColor(COLOR.graphite).font("Helvetica").fontSize(8.5).text(item.description, x, cursorY, { width: CONTENT_WIDTH, lineGap: 2 });
         cursorY = doc.y + 8;
     }
 
+    // Ubicación GPS + Mapa
     if (options.includeLocation && item.latitude !== null && item.longitude !== null) {
-        const lat = item.latitude;
-        const lng = item.longitude;
-        const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
-        doc
-            .fillColor(COLOR.muted)
-            .font("Helvetica-Bold")
-            .fontSize(7.5)
-            .text("UBICACIÓN", x, cursorY, { characterSpacing: 1 });
-        cursorY += 12;
-        doc
-            .fillColor(COLOR.graphite)
-            .font("Helvetica")
-            .fontSize(9.5)
-            .text(`Lat ${lat.toFixed(6)}   Lng ${lng.toFixed(6)}`, x, cursorY);
-        cursorY = doc.y + 6;
-
-        const mapWidth = CONTENT_WIDTH;
-        const mapHeight = 90;
-        const staticUrl = buildStaticMapUrl(lat, lng, Math.round(mapWidth), Math.round(mapHeight));
-
-        if (staticUrl) {
-            ensureSpace(doc, mapHeight + 12);
-            const mapBuf = await fetchImageBuffer(staticUrl);
-            if (mapBuf) {
-                try {
-                    doc.rect(x, cursorY, mapWidth, 1.5).fillColor(COLOR.accent).fill();
-                    doc.image(mapBuf, x, cursorY + 1.5, { fit: [mapWidth, mapHeight - 1.5] });
-                    cursorY += mapHeight;
-                } catch {
-                    /* si falla, continuar con link */
-                }
-            }
-        }
-
-        doc
-            .fillColor(COLOR.accent)
-            .font("Helvetica")
-            .fontSize(8.5)
-            .text("Ver en Google Maps", x, cursorY, { link: mapsUrl, underline: true });
-        cursorY = doc.y + 8;
+        cursorY = await renderLocationBlock(doc, item.latitude, item.longitude, x, cursorY, CONTENT_WIDTH);
     }
 
+    // Evidencias (Fotos / Videos)
     if (options.includeImages && item.media.length > 0) {
-        doc
-            .fillColor(COLOR.muted)
-            .font("Helvetica-Bold")
-            .fontSize(7.5)
-            .text(`EVIDENCIA (${item.media.length})`, x, cursorY, { characterSpacing: 1 });
+        doc.fillColor(COLOR.muted).font("Helvetica-Bold").fontSize(7).text(`EVIDENCIA ADJUNTA (${item.media.length})`, x, cursorY, { characterSpacing: 0.8 });
         cursorY += 12;
         for (const m of item.media) {
             cursorY = await renderEvidenceLine(doc, m, x, cursorY, CONTENT_WIDTH);
         }
     }
 
-    const bottomY = Math.max(cursorY, y + estimatedHeight) + 6;
-    doc.rect(x, bottomY, CONTENT_WIDTH, 0.75).fillColor(COLOR.line).fill();
-
-    doc.y = bottomY + 18;
+    // Línea divisoria inferior
+    cursorY = ensureSpaceAt(doc, cursorY, 12);
+    doc.rect(x, cursorY + 4, CONTENT_WIDTH, 0.75).fillColor(COLOR.line).fill();
+    doc.y = cursorY + 16;
     doc.x = PAGE_MARGIN;
 };
 
@@ -634,37 +643,114 @@ const renderMetaGrid = (
     x: number,
     y: number,
     width: number,
-    _config: PdfDocumentConfig,
 ): number => {
     const fields: Array<{ label: string; value: string }> = [
-        { label: "Reportado", value: formatDateTime(item.createdAt.toISOString()) },
-        { label: "Por", value: item.guardName },
-        { label: "ID", value: `#${item.id}` },
+        { label: "FECHA / HORA", value: formatDateTime(item.createdAt.toISOString()) },
+        { label: "REPORTADO POR", value: item.guardName || item.guardUsername || "—" },
+        { label: "ID SISTEMA", value: `#${item.id}` },
     ];
     if (item.status === "ATTENDED" && item.resolvedByName) {
         fields.push({
-            label: "Atendido por",
-            value: `${item.resolvedByName}${item.resolvedAt ? " · " + formatDateTime(item.resolvedAt.toISOString()) : ""}`,
+            label: "ATENDIDO POR",
+            value: `${item.resolvedByName}${item.resolvedAt ? " (" + formatDateTime(item.resolvedAt.toISOString()) + ")" : ""}`,
         });
     }
 
     const colW = width / fields.length;
+
+    // Caja contenedora de metadatos
+    doc.roundedRect(x, y, width, 32, 4).fillColor(COLOR.cardBg).fill();
+
     fields.forEach((f, idx) => {
-        const colX = x + idx * colW;
+        const colX = x + idx * colW + 8;
         doc
             .fillColor(COLOR.muted)
             .font("Helvetica-Bold")
             .fontSize(6.5)
-            .text(f.label.toUpperCase(), colX, y, { width: colW - 10, characterSpacing: 0.8 });
+            .text(f.label, colX, y + 6, { width: colW - 12, characterSpacing: 0.6 });
         doc
             .fillColor(COLOR.ink)
             .font("Helvetica")
-            .fontSize(9.5)
-            .text(f.value, colX, y + 11, { width: colW - 10 });
+            .fontSize(8)
+            .text(f.value, colX, y + 17, { width: colW - 12, lineBreak: false });
     });
 
-    return y + 30;
+    return y + 36;
 };
+
+/* =========================================================================
+ *  UBICACIÓN (MAPA + BOTÓN)
+ * ========================================================================= */
+
+/**
+ * @description Renderiza el bloque de ubicación: coordenadas, mapa estático
+ * (o placeholder con pin si no hay API key / falla la descarga) y un botón
+ * tipo "pill" para abrir la ubicación en Google Maps. Usa una posición `y`
+ * explícita en vez de depender de `doc.y`, para que el flujo del layout no
+ * se desincronice tras un salto de página.
+ */
+const renderLocationBlock = async (
+    doc: PDFKit.PDFDocument,
+    lat: number,
+    lng: number,
+    x: number,
+    y: number,
+    width: number,
+): Promise<number> => {
+    y = ensureSpaceAt(doc, y, 40);
+
+    doc.fillColor(COLOR.muted).font("Helvetica-Bold").fontSize(7).text("UBICACIÓN REGISTRADA", x, y, { characterSpacing: 0.8 });
+    y += 11;
+    doc
+        .fillColor(COLOR.graphite)
+        .font("Helvetica")
+        .fontSize(8)
+        .text(`Lat ${lat.toFixed(6)}   Lng ${lng.toFixed(6)}`, x, y, { width });
+    y += 14;
+
+    const mapHeight = 100;
+    const staticUrl = buildStaticMapUrl(lat, lng, Math.round(width * 2), Math.round(mapHeight * 2));
+
+    let mapRendered = false;
+    if (staticUrl) {
+        y = ensureSpaceAt(doc, y, mapHeight + 30);
+        const mapBuf = await fetchImageBuffer(staticUrl);
+        if (mapBuf) {
+            try {
+                doc.save();
+                doc.roundedRect(x, y, width, mapHeight, 8).clip();
+                doc.image(mapBuf, x, y, { fit: [width, mapHeight], align: "center", valign: "center" });
+                doc.restore();
+                doc.roundedRect(x, y, width, mapHeight, 8).lineWidth(0.75).strokeColor(COLOR.line).stroke();
+                y += mapHeight + 10;
+                mapRendered = true;
+            } catch {
+                /* cae al placeholder abajo */
+            }
+        }
+    }
+
+    if (!mapRendered) {
+        const placeholderHeight = 44;
+        y = ensureSpaceAt(doc, y, placeholderHeight + 20);
+        doc.roundedRect(x, y, width, placeholderHeight, 6).fillColor(COLOR.cardBg).fill();
+        drawPinIcon(doc, x + 24, y + placeholderHeight / 2, 8, COLOR.accent);
+        doc
+            .fillColor(COLOR.muted)
+            .font("Helvetica")
+            .fontSize(8)
+            .text("Vista previa de mapa no disponible", x + 44, y + placeholderHeight / 2 - 5, { width: width - 60 });
+        y += placeholderHeight + 10;
+    }
+
+    const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
+    y = drawLinkPill(doc, x, y, "Abrir en Google Maps", mapsUrl, COLOR.accent, COLOR.accentLight);
+    return y + 10;
+};
+
+/* =========================================================================
+ *  EVIDENCIA (FOTO / VIDEO)
+ * ========================================================================= */
 
 const renderEvidenceLine = async (
     doc: PDFKit.PDFDocument,
@@ -673,71 +759,94 @@ const renderEvidenceLine = async (
     y: number,
     width: number,
 ): Promise<number> => {
-    const isVideo = item.type === "VIDEO";
-
-    if (isVideo) {
-        doc.circle(x + 3, y + 5, 2).fillColor(COLOR.accent).fill();
-        doc
-            .fillColor(COLOR.graphite)
-            .font("Helvetica-Bold")
-            .fontSize(8.5)
-            .text(`Video adjunto`, x + 12, y, { width: width - 12 });
-        doc
-            .fillColor(COLOR.accent)
-            .font("Helvetica")
-            .fontSize(8)
-            .text(item.url, x + 12, y + 11, { width: width - 12, link: item.url, underline: true });
-        return y + 24;
+    if (item.type === "VIDEO") {
+        return renderVideoEvidence(doc, item, x, y, width);
     }
+    return renderImageEvidence(doc, item, x, y, width);
+};
+
+const renderVideoEvidence = (
+    doc: PDFKit.PDFDocument,
+    item: PdfMediaItem,
+    x: number,
+    y: number,
+    width: number,
+): number => {
+    const cardHeight = 46;
+    y = ensureSpaceAt(doc, y, cardHeight + 12);
+
+    doc.roundedRect(x, y, width, cardHeight, 6).fillColor(COLOR.cardBg).fill();
+
+    // Icono de play dibujado (evita depender de glifos Unicode que no
+    // siempre existen en Helvetica y se ven como un cuadro vacío).
+    const iconCx = x + 26;
+    const iconCy = y + cardHeight / 2;
+    doc.circle(iconCx, iconCy, 12).fillColor(COLOR.accentLight).fill();
+    drawPlayIcon(doc, iconCx, iconCy, 6, COLOR.accent);
+
+    doc
+        .fillColor(COLOR.ink)
+        .font("Helvetica-Bold")
+        .fontSize(8.5)
+        .text("Video adjunto", x + 48, y + 10, { width: width - 140 });
+    doc
+        .fillColor(COLOR.muted)
+        .font("Helvetica")
+        .fontSize(7.5)
+        .text(item.url, x + 48, y + 23, { width: width - 140 });
+
+    drawLinkPill(doc, x + width - 108, y + (cardHeight - 20) / 2, "Reproducir", item.url, COLOR.accent, COLOR.accentLight, 108);
+
+    return y + cardHeight + 10;
+};
+
+const renderImageEvidence = async (
+    doc: PDFKit.PDFDocument,
+    item: PdfMediaItem,
+    x: number,
+    y: number,
+    width: number,
+): Promise<number> => {
+    const imgHeight = 150;
+    y = ensureSpaceAt(doc, y, imgHeight + 26);
 
     const buffer = await fetchImageBuffer(item.url);
     if (buffer) {
         try {
-            const imgHeight = 160;
+            doc.save();
+            doc.roundedRect(x, y, width, imgHeight, 6).clip();
+            doc.roundedRect(x, y, width, imgHeight, 6).fillColor(COLOR.cardBg).fill();
             doc.image(buffer, x, y, { fit: [width, imgHeight], align: "center", valign: "center" });
-            doc
-                .rect(x, y + imgHeight - 0.5, width, 0.5)
-                .fillColor(COLOR.accent)
-                .fill();
+            doc.restore();
+            doc.roundedRect(x, y, width, imgHeight, 6).lineWidth(0.75).strokeColor(COLOR.line).stroke();
+
             doc
                 .fillColor(COLOR.muted)
                 .font("Helvetica")
                 .fontSize(7.5)
-                .text("Imagen adjunta", x, y + imgHeight + 4, { width, characterSpacing: 0.6 });
-            doc
-                .fillColor(COLOR.accent)
-                .font("Helvetica")
-                .fontSize(7.5)
-                .text(item.url, x, y + imgHeight + 14, {
-                    width,
-                    link: item.url,
-                    underline: true,
-                });
-            return y + imgHeight + 28;
+                .text(item.url, x, y + imgHeight + 4, { width, link: item.url, underline: true });
+
+            return y + imgHeight + 18;
         } catch {
-            /* cae al placeholder */
+            /* cae al fallback */
         }
     }
 
-    const fallbackHeight = 64;
-    doc.rect(x, y, width, fallbackHeight).fillColor(COLOR.faint).fill();
-    doc.rect(x, y, width, 0.5).fillColor(COLOR.line).fill();
-    doc.rect(x, y + fallbackHeight - 0.5, width, 0.5).fillColor(COLOR.line).fill();
+    // Fallback si la imagen no descarga
+    const fallbackHeight = 40;
+    doc.roundedRect(x, y, width, fallbackHeight, 6).fillColor(COLOR.cardBg).fill();
     doc
         .fillColor(COLOR.muted)
         .font("Helvetica-Bold")
-        .fontSize(8.5)
-        .text("Imagen no disponible", x, y + 12, { width, align: "center" });
-    doc
-        .fillColor(COLOR.accent)
-        .font("Helvetica")
-        .fontSize(7.5)
-        .text(item.url, x, y + 28, { width, link: item.url, underline: true, align: "center" });
-    return y + fallbackHeight + 8;
+        .fontSize(8)
+        .text("Imagen no disponible", x + 14, y + 12, { width: width - 130 });
+    drawLinkPill(doc, x + width - 108, y + (fallbackHeight - 20) / 2, "Ver original", item.url, COLOR.accent, COLOR.accentLight, 108);
+
+    return y + fallbackHeight + 10;
 };
 
 /* =========================================================================
- *  CHROME (header/footer por página)
+ *  CHROME (HEADER & FOOTER)
  * ========================================================================= */
 
 const applyExecutiveChrome = (
@@ -746,32 +855,71 @@ const applyExecutiveChrome = (
     config: PdfDocumentConfig,
 ): void => {
     const range = doc.bufferedPageRange();
+
     for (let i = range.start; i < range.start + range.count; i++) {
         doc.switchToPage(i);
+
+        // Los elementos de header/footer se dibujan con coordenadas absolutas
+        // y save/restore para NO modificar el cursor de contenido (doc.y).
         if (i === range.start) {
             drawCoverFooter(doc, appName, config);
-            continue;
+        } else {
+            drawInternalHeader(doc, appName, config);
+            drawInternalFooter(
+                doc,
+                i - range.start + 1,
+                range.count,
+                appName,
+            );
         }
-        drawInternalHeader(doc, appName, config);
-        drawInternalFooter(doc, i - range.start + 1, range.count, appName, config);
     }
 };
 
-const drawInternalHeader = (doc: PDFKit.PDFDocument, appName: string, config: PdfDocumentConfig): void => {
+const drawInternalHeader = (
+    doc: PDFKit.PDFDocument,
+    appName: string,
+    config: PdfDocumentConfig,
+): void => {
+    doc.save();
+
+    const headerY = 30;
+
     doc
         .fillColor(COLOR.muted)
         .font("Helvetica-Bold")
-        .fontSize(8)
-        .text(appName.toUpperCase(), PAGE_MARGIN, 36, { characterSpacing: 1 });
+        .fontSize(7.5)
+        .text(
+            appName.toUpperCase(),
+            PAGE_MARGIN,
+            headerY,
+            {
+                width: 180,
+                characterSpacing: 1,
+                lineBreak: false,
+            },
+        );
+
     doc
         .fillColor(COLOR.muted)
         .font("Helvetica")
-        .fontSize(8)
-        .text(`${config.docTitle} · documento ejecutivo`, PAGE_WIDTH - PAGE_MARGIN - 260, 36, {
-            width: 260,
-            align: "right",
-        });
-    doc.rect(PAGE_MARGIN, 50, CONTENT_WIDTH, 0.75).fillColor(COLOR.line).fill();
+        .fontSize(7.5)
+        .text(
+            config.docTitle,
+            PAGE_WIDTH - PAGE_MARGIN - 250,
+            headerY,
+            {
+                width: 250,
+                align: "right",
+                lineBreak: false,
+            },
+        );
+
+    doc
+        .rect(PAGE_MARGIN, 44, CONTENT_WIDTH, 0.75)
+        .fillColor(COLOR.line)
+        .fill();
+
+    doc.restore();
 };
 
 const drawInternalFooter = (
@@ -779,144 +927,325 @@ const drawInternalFooter = (
     page: number,
     total: number,
     appName: string,
-    _config: PdfDocumentConfig,
 ): void => {
-    const y = PAGE_HEIGHT - PAGE_MARGIN + 12;
-    doc.rect(PAGE_MARGIN, y - 6, CONTENT_WIDTH, 0.75).fillColor(COLOR.line).fill();
+    doc.save();
+
+    // El footer debe quedar DENTRO del área imprimible.
+    // Con bottom margin = 48, el límite inferior es:
+    // 841.89 - 48 = 793.89
+    //
+    // Antes se utilizaba 841.89 - 36 = 805.89, provocando que PDFKit
+    // interpretara el texto como contenido fuera del área y agregara
+    // páginas en blanco.
+    const footerY = PAGE_HEIGHT - PAGE_MARGIN - 10;
+
+    doc
+        .rect(
+            PAGE_MARGIN,
+            footerY - 9,
+            CONTENT_WIDTH,
+            0.75,
+        )
+        .fillColor(COLOR.line)
+        .fill();
+
     doc
         .fillColor(COLOR.muted)
         .font("Helvetica")
-        .fontSize(8)
-        .text(`${appName}  ·  Confidencial`, PAGE_MARGIN, y, { width: 220 });
+        .fontSize(7.5)
+        .text(
+            `${appName}  •  Documento Confidencial`,
+            PAGE_MARGIN,
+            footerY,
+            {
+                width: 250,
+                lineBreak: false,
+            },
+        );
+
     doc
         .fillColor(COLOR.muted)
         .font("Helvetica")
-        .fontSize(8)
-        .text(`Página ${page} de ${total}`, PAGE_WIDTH - PAGE_MARGIN - 100, y, {
-            width: 100,
-            align: "right",
-        });
+        .fontSize(7.5)
+        .text(
+            `Página ${page} de ${total}`,
+            PAGE_WIDTH - PAGE_MARGIN - 100,
+            footerY,
+            {
+                width: 100,
+                align: "right",
+                lineBreak: false,
+            },
+        );
+
+    doc.restore();
 };
 
-const drawCoverFooter = (doc: PDFKit.PDFDocument, appName: string, config: PdfDocumentConfig): void => {
-    const y = PAGE_HEIGHT - PAGE_MARGIN + 12;
-    doc.rect(PAGE_MARGIN, y - 6, CONTENT_WIDTH, 0.75).fillColor(COLOR.line).fill();
+const drawCoverFooter = (
+    doc: PDFKit.PDFDocument,
+    appName: string,
+    config: PdfDocumentConfig,
+): void => {
+    doc.save();
+
+    const footerY = PAGE_HEIGHT - PAGE_MARGIN - 10;
+
+    doc
+        .rect(
+            PAGE_MARGIN,
+            footerY - 9,
+            CONTENT_WIDTH,
+            0.75,
+        )
+        .fillColor(COLOR.line)
+        .fill();
+
     doc
         .fillColor(COLOR.muted)
         .font("Helvetica")
-        .fontSize(8)
-        .text(`${appName}  ·  ${config.docTitle}`, PAGE_MARGIN, y);
+        .fontSize(7.5)
+        .text(
+            `${appName}  •  ${config.docTitle}`,
+            PAGE_MARGIN,
+            footerY,
+            {
+                width: 250,
+                lineBreak: false,
+            },
+        );
+
     doc
         .fillColor(COLOR.muted)
         .font("Helvetica")
-        .fontSize(8)
-        .text(`Generado: ${formatDateTime(new Date().toISOString())}`, PAGE_WIDTH - PAGE_MARGIN - 200, y, {
-            width: 200,
-            align: "right",
-        });
+        .fontSize(7.5)
+        .text(
+            `Generado: ${formatDateTime(new Date().toISOString())}`,
+            PAGE_WIDTH - PAGE_MARGIN - 200,
+            footerY,
+            {
+                width: 200,
+                align: "right",
+                lineBreak: false,
+            },
+        );
+
+    doc.restore();
 };
 
 /* =========================================================================
- *  UTILIDADES
+ *  UTILIDADES Y HELPERS DE RENDERIZADO
  * ========================================================================= */
 
 const drawSectionTitle = (doc: PDFKit.PDFDocument, title: string): void => {
-    if (doc.y + 34 > PAGE_HEIGHT - PAGE_MARGIN) {
-        doc.addPage();
-    }
+    ensureSpace(doc, 36);
     const y = doc.y;
-    doc.rect(PAGE_MARGIN, y + 3, 14, 2).fillColor(COLOR.accent).fill();
+    doc.rect(PAGE_MARGIN, y, 3, 12).fillColor(COLOR.accent).fill();
     doc
         .fillColor(COLOR.ink)
         .font("Helvetica-Bold")
         .fontSize(11)
-        .text(title.toUpperCase(), PAGE_MARGIN + 22, y, { characterSpacing: 1.2 });
-    doc.y = y + 24;
-    doc.x = PAGE_MARGIN;
+        .text(title, PAGE_MARGIN + 8, y + 1);
+    doc.y += 10;
+};
+
+const ensureSpace = (
+    doc: PDFKit.PDFDocument,
+    neededHeight: number,
+): void => {
+    if (doc.y + neededHeight > PAGE_HEIGHT - FOOTER_OFFSET) {
+        doc.addPage();
+        doc.x = PAGE_MARGIN;
+        doc.y = HEADER_OFFSET;
+    }
+};
+
+/**
+ * @description Variante de `ensureSpace` que trabaja sobre una posición `y`
+ * explícita (no sobre `doc.y`) y devuelve la posición ya corregida. Se usa
+ * en los bloques de mapa y evidencia para que el flujo de layout nunca se
+ * desincronice del cursor real de PDFKit tras un salto de página.
+ */
+const ensureSpaceAt = (
+    doc: PDFKit.PDFDocument,
+    y: number,
+    neededHeight: number,
+): number => {
+    if (y + neededHeight > PAGE_HEIGHT - FOOTER_OFFSET) {
+        doc.addPage();
+        doc.x = PAGE_MARGIN;
+        doc.y = HEADER_OFFSET;
+        return HEADER_OFFSET;
+    }
+
+    return y;
+};
+
+/**
+ * @description Dibuja un botón tipo "pill" con fondo tenue y área clicable
+ * (`doc.link`), usado para "Abrir en Google Maps" / "Reproducir video".
+ * Reemplaza el patrón anterior de texto inline con `continued: true`
+ * mezclando fuentes, que se veía desalineado.
+ */
+const drawLinkPill = (
+    doc: PDFKit.PDFDocument,
+    x: number,
+    y: number,
+    label: string,
+    url: string,
+    color: string,
+    bg: string,
+    fixedWidth?: number,
+): number => {
+    const height = 20;
+    const paddingX = 10;
+    doc.font("Helvetica-Bold").fontSize(7.5);
+    const textWidth = doc.widthOfString(label);
+    const width = fixedWidth ?? textWidth + paddingX * 2 + 12;
+
+    doc.roundedRect(x, y, width, height, height / 2).fillColor(bg).fill();
+    doc
+        .fillColor(color)
+        .font("Helvetica-Bold")
+        .fontSize(7.5)
+        .text(label, x, y + 6.5, { width: width - 14, align: "center", characterSpacing: 0.3 });
+    drawExternalLinkIcon(doc, x + width - 12, y + height / 2, 3.5, color);
+
+    doc.link(x, y, width, height, url);
+    return y + height;
+};
+
+/**
+ * @description Icono de "abrir enlace externo" dibujado con líneas, sin
+ * depender de glifos Unicode.
+ */
+const drawExternalLinkIcon = (doc: PDFKit.PDFDocument, cx: number, cy: number, size: number, color: string): void => {
+    doc
+        .save()
+        .lineWidth(1)
+        .strokeColor(color)
+        .rect(cx - size / 2, cy - size / 2 + 1, size * 0.75, size * 0.75)
+        .stroke()
+        .moveTo(cx - size / 4, cy - size / 2)
+        .lineTo(cx + size / 2, cy - size / 2)
+        .lineTo(cx + size / 2, cy + size / 4)
+        .stroke()
+        .restore();
+};
+
+/**
+ * @description Triángulo de "play" dibujado como vector, centrado en (cx,cy).
+ */
+const drawPlayIcon = (doc: PDFKit.PDFDocument, cx: number, cy: number, size: number, color: string): void => {
+    doc
+        .save()
+        .moveTo(cx - size * 0.5, cy - size * 0.65)
+        .lineTo(cx - size * 0.5, cy + size * 0.65)
+        .lineTo(cx + size * 0.75, cy)
+        .closePath()
+        .fillColor(color)
+        .fill()
+        .restore();
+};
+
+/**
+ * @description Pin de ubicación dibujado como vector (círculo + gota),
+ * usado en el placeholder cuando no hay preview de mapa disponible.
+ */
+const drawPinIcon = (doc: PDFKit.PDFDocument, cx: number, cy: number, size: number, color: string): void => {
+    doc.save();
+    doc
+        .moveTo(cx, cy + size)
+        .quadraticCurveTo(cx - size, cy - size * 0.2, cx, cy - size)
+        .quadraticCurveTo(cx + size, cy - size * 0.2, cx, cy + size)
+        .closePath()
+        .fillColor(color)
+        .fill();
+    doc.circle(cx, cy - size * 0.15, size * 0.35).fillColor(COLOR.paper).fill();
+    doc.restore();
 };
 
 const estimateItemHeight = (
-    _doc: PDFKit.PDFDocument,
+    doc: PDFKit.PDFDocument,
     item: PdfReportItem,
     options: PdfRenderOptions,
 ): number => {
-    const header = 16 + (item.categoryName || item.typeName ? 14 : 0) + 8;
-    const meta = 40;
-    const desc = item.description ? Math.min(70, Math.ceil(item.description.length / 100) * 13 + 20) : 0;
-    const loc = options.includeLocation && item.latitude !== null && item.longitude !== null ? 46 + 100 : 0;
-    const ev =
-        options.includeImages && item.media.length > 0
-            ? 12 +
-              item.media.reduce((acc, m) => {
-                  if (m.type === "VIDEO") return acc + 24;
-                  return acc + 195;
-              }, 0)
-            : 0;
-    return header + meta + desc + loc + ev;
-};
+    // Estimación conservadora. No debe reservar espacio de más porque eso
+    // provoca saltos de página antes de tiempo.
+    let height = 72;
 
-const ensureSpace = (doc: PDFKit.PDFDocument, needed: number): void => {
-    const bottomLimit = PAGE_HEIGHT - PAGE_MARGIN;
-    if (doc.y + needed > bottomLimit) {
-        doc.addPage();
-    }
-};
-
-const IMAGE_FETCH_TIMEOUT_MS = 5000;
-
-/**
- * @description Descarga una imagen remota. Retorna null si falla.
- */
-const fetchImageBuffer = async (url: string): Promise<Buffer | null> => {
-    try {
-        const res = await axios.get<ArrayBuffer>(url, {
-            responseType: "arraybuffer",
-            timeout: IMAGE_FETCH_TIMEOUT_MS,
-            maxContentLength: 10 * 1024 * 1024,
+    if (item.description) {
+        const descriptionHeight = doc.heightOfString(item.description, {
+            width: CONTENT_WIDTH,
+            lineGap: 2,
         });
-        const buf = Buffer.from(res.data);
-        if (buf.length === 0) return null;
-        return buf;
-    } catch {
-        return null;
+
+        height += Math.min(descriptionHeight, 120) + 16;
     }
+
+    if (
+        options.includeLocation &&
+        item.latitude !== null &&
+        item.longitude !== null
+    ) {
+        // Coordenadas + mapa/placeholder + enlace.
+        height += 145;
+    }
+
+    if (options.includeImages && item.media.length > 0) {
+        height += item.media.reduce(
+            (acc, media) => acc + (media.type === "VIDEO" ? 58 : 172),
+            10,
+        );
+    }
+
+    return height;
+};
+
+const formatDate = (dStr: string): string => {
+    const d = new Date(dStr);
+    return Number.isNaN(d.getTime()) ? dStr : d.toLocaleDateString("es-MX", { day: "2-digit", month: "short", year: "numeric" });
+};
+
+const formatDateTime = (dStr: string): string => {
+    const d = new Date(dStr);
+    return Number.isNaN(d.getTime())
+        ? dStr
+        : `${d.toLocaleDateString("es-MX", { day: "2-digit", month: "2-digit", year: "numeric" })} ${d.toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit", hour12: false })}`;
 };
 
 /**
- * @description Construye URL de Google Static Maps (zoom 15, vista de calle).
- * El marcador usa `size:small` para no saturar visualmente y `color:emerald`
- * alineado con la paleta del proyecto.
+ * @description Construye la URL de Google Static Maps. Requiere la
+ * variable de entorno `GOOGLE_MAPS_API_KEY`. Si no está configurada,
+ * retorna `null` y el llamador usa el placeholder con pin.
  */
 const buildStaticMapUrl = (lat: number, lng: number, width: number, height: number): string | null => {
     const key = process.env.GOOGLE_MAPS_API_KEY;
     if (!key) return null;
     const params = new URLSearchParams({
         center: `${lat},${lng}`,
-        zoom: "15",
-        size: `${width}x${height}`,
-        scale: "1",
+        zoom: "16",
+        size: `${Math.min(width, 1280)}x${Math.min(height, 1280)}`,
+        scale: "2",
         maptype: "roadmap",
-        markers: `size:small|color:0x0f766e|${lat},${lng}`,
+        markers: `size:mid|color:0x0d9488|${lat},${lng}`,
         key,
     });
     return `https://maps.googleapis.com/maps/api/staticmap?${params.toString()}`;
 };
 
-const formatDate = (iso: string): string => {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleDateString("es-MX", { year: "numeric", month: "long", day: "2-digit" });
-};
+const IMAGE_FETCH_TIMEOUT_MS = 5000;
 
-const formatDateTime = (iso: string): string => {
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return iso;
-    return d.toLocaleString("es-MX", {
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-    });
+const fetchImageBuffer = async (url: string): Promise<Buffer | null> => {
+    try {
+        const response = await axios.get<ArrayBuffer>(url, {
+            responseType: "arraybuffer",
+            timeout: IMAGE_FETCH_TIMEOUT_MS,
+            maxContentLength: 10 * 1024 * 1024,
+        });
+        const buf = Buffer.from(response.data);
+        if (buf.length === 0) return null;
+        return buf;
+    } catch {
+        return null;
+    }
 };

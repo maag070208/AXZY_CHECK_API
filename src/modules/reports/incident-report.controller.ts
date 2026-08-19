@@ -20,6 +20,23 @@ const INCIDENT_PDF_CONFIG: PdfDocumentConfig = {
     attendedLabel: "ATENDIDA",
 };
 
+const CLUB_PDF_CONFIG: PdfDocumentConfig = {
+    moduleLabel: "Casa Club",
+    headerEyebrow: "REPORTE EJECUTIVO",
+    heroTitle: "Reportes de Casa Club",
+    platformSubtitle: "Plataforma de control operativo",
+    docTitle: "Reporte Ejecutivo de Casa Club",
+    docKeywords: "casa club, reporte, ejecutivo",
+    filePrefix: "reporte-casa-club",
+    singularNoun: "reporte",
+    pluralNoun: "reportes",
+    ctaText: "El detalle de cada reporte se encuentra en las páginas siguientes.",
+    detailSectionTitle: "Detalle de reportes",
+    singularDetailEntity: "Reporte",
+    pendingLabel: "PENDIENTE",
+    attendedLabel: "ATENDIDO",
+};
+
 /**
  * @description Endpoint que devuelve un PDF con el detalle de las incidencias
  * filtradas por rango de fecha y, opcionalmente, por IDs seleccionados
@@ -51,6 +68,54 @@ export const getIncidentsPdf = async (req: Request, res: Response): Promise<void
             startDate,
             endDate,
             INCIDENT_PDF_CONFIG,
+            { includeImages, includeLocation },
+        );
+    } catch (error: unknown) {
+        const message = error instanceof Error ? error.message : "Error inesperado";
+        if (!res.headersSent) {
+            res.status(500).json({
+                data: null,
+                success: false,
+                messages: [message],
+            });
+        } else {
+            res.end();
+        }
+    }
+};
+
+/**
+ * @description Endpoint que devuelve un PDF con el detalle de los reportes de
+ * casa club filtrados por rango de fecha y, opcionalmente, por IDs seleccionados
+ * desde la UI.
+ */
+export const getClubPdf = async (req: Request, res: Response): Promise<void> => {
+    const parsed = incidentPdfQuerySchema.safeParse({ query: req.query });
+    if (!parsed.success) {
+        res.status(400).json({
+            data: null,
+            success: false,
+            messages: parsed.error.issues.map((i) => i.message),
+        });
+        return;
+    }
+
+    const { startDate, endDate, ids, includeImages, includeLocation } = parsed.data.query;
+
+    try {
+        const items = (await getIncidentsForReport({
+            startDate: new Date(startDate),
+            endDate: new Date(endDate),
+            ids: ids.length > 0 ? ids : undefined,
+            kind: 'CASA_CLUB',
+        })) as PdfReportItem[];
+
+        await streamModulePdf(
+            res,
+            items,
+            startDate,
+            endDate,
+            CLUB_PDF_CONFIG,
             { includeImages, includeLocation },
         );
     } catch (error: unknown) {

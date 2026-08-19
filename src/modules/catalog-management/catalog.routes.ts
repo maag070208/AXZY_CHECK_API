@@ -10,6 +10,8 @@ import {
     deleteType,
     getCategory,
     getType,
+    hardDeleteCategory,
+    hardDeleteType,
     listCategories,
     listTypes,
     updateCategory,
@@ -53,6 +55,12 @@ router.put('/incident-categories/:id', authenticate, requireRole('ADMIN'), updat
 router.delete('/incident-categories/:id', authenticate, requireRole('ADMIN'), deleteCategory);
 
 /**
+ * DELETE /catalog/incident-categories/:id/hard
+ * Borrado físico. Solo ADMIN. Sólo permitido si la categoría está desactivada y sin registros.
+ */
+router.delete('/incident-categories/:id/hard', authenticate, requireRole('ADMIN'), hardDeleteCategory);
+
+/**
  * PATCH /catalog/incident-categories/:id/activate
  * Reactiva una categoría. Solo ADMIN.
  */
@@ -91,6 +99,12 @@ router.put('/incident-types/:id', authenticate, requireRole('ADMIN'), updateType
  * Soft delete. Solo ADMIN.
  */
 router.delete('/incident-types/:id', authenticate, requireRole('ADMIN'), deleteType);
+
+/**
+ * DELETE /catalog/incident-types/:id/hard
+ * Borrado físico. Solo ADMIN. Sólo permitido si el tipo está desactivado y sin registros.
+ */
+router.delete('/incident-types/:id/hard', authenticate, requireRole('ADMIN'), hardDeleteType);
 
 /**
  * PATCH /catalog/incident-types/:id/activate

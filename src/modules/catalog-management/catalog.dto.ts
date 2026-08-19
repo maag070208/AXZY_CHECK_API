@@ -5,7 +5,7 @@ import { z } from 'zod';
  * - INCIDENT: asociada a reportes de incidencia.
  * - MAINTENANCE: asociada a reportes de mantenimiento.
  */
-export const CATEGORY_TYPES = ['INCIDENT', 'MAINTENANCE'] as const;
+export const CATEGORY_TYPES = ['INCIDENT', 'MAINTENANCE', 'CASA_CLUB'] as const;
 export type CategoryType = (typeof CATEGORY_TYPES)[number];
 
 /**

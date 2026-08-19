@@ -133,6 +133,26 @@ export const activateCategory = async (req: Request, res: Response): Promise<Res
     }
 };
 
+/**
+ * @description Borrado físico de una categoría (sólo si está desactivada y sin
+ * registros asociados).
+ * DELETE /catalog/incident-categories/:id/hard (ADMIN)
+ */
+export const hardDeleteCategory = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const id = parseId(req.params.id);
+        if (!id) return fail(res, 'ID inválido');
+        const data = await IncidentCategoryService.hardDelete(id);
+        return ok(res, data);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Error al eliminar categoría';
+        let status = 400;
+        if (message === 'Categoría no encontrada') status = 404;
+        else if (message.includes('registros asociados')) status = 409;
+        return fail(res, message, status);
+    }
+};
+
 // =============================================================================
 // Controladores de Tipos
 // =============================================================================
@@ -244,6 +264,26 @@ export const activateType = async (req: Request, res: Response): Promise<Respons
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Error al activar tipo';
         const status = message === 'Tipo no encontrado' ? 404 : 500;
+        return fail(res, message, status);
+    }
+};
+
+/**
+ * @description Borrado físico de un tipo (sólo si está desactivado y sin
+ * registros asociados).
+ * DELETE /catalog/incident-types/:id/hard (ADMIN)
+ */
+export const hardDeleteType = async (req: Request, res: Response): Promise<Response> => {
+    try {
+        const id = parseId(req.params.id);
+        if (!id) return fail(res, 'ID inválido');
+        const data = await IncidentTypeService.hardDelete(id);
+        return ok(res, data);
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Error al eliminar tipo';
+        let status = 400;
+        if (message === 'Tipo no encontrado') status = 404;
+        else if (message.includes('registros asociados')) status = 409;
         return fail(res, message, status);
     }
 };
