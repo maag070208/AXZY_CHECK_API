@@ -5,8 +5,7 @@ import { NOTIFICATIONS_EVENT_SHIFT_INCIDENT, notificationsChannel } from "./noti
 /**
  * @description Publica una notificación push por Ably a todos los usuarios con
  * rol ADMIN/SHIFT cuando se generan incidencias automáticas por un ShiftCheck.
- * RF-12.
- */
+ * */
 export const publishShiftIncident = async (params: {
     actorId: number;
     shiftCheckId: string;
@@ -50,7 +49,7 @@ export const publishShiftIncident = async (params: {
 
 /**
  * @description Stub de email (Resend) — no se envía por defecto. Se cableará
- * cuando RESEND_API_KEY esté configurada en el entorno. RF-12 (alternativa
+ * cuando RESEND_API_KEY esté configurada en el entorno.  (alternativa
  * email).
  */
 export const sendEmailNotification = async (params: {

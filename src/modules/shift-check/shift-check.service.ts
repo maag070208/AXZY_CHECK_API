@@ -21,7 +21,7 @@ const parseScheduleTime = (shiftDate: Date, time: string): Date | null => {
 
 /**
  * @description Calcula delayMinutes, isLate a partir de scheduledStartAt y actualEntryAt.
- * RF-02: marca retardo si la hora real supera la oficial.
+ * marca retardo si la hora real supera la oficial.
  */
 const computePuntuality = (
     scheduledStartAt: Date,
@@ -35,7 +35,7 @@ const computePuntuality = (
 
 /**
  * @description Genera Incidents automáticas a partir de un ShiftCheck
- * recién creado. RF-07/08/09.
+ * recién creado. /08/09.
  *  - Falta (isAbsent) → 1 Incident tipo SHIFT_FALTA.
  *  - Retardo (isLate) → 1 Incident tipo SHIFT_RETARDO (severidad según minutos).
  *  - Uniforme no cumplido → 1 Incident tipo SHIFT_UNIFORME por cada ítem fallido.
@@ -56,7 +56,7 @@ const generateIncidentsFromShiftCheck = async (
     const findType = async (name: string) =>
         prismaClient.incidentType.findUnique({ where: { name } });
 
-    // 1. Falta (RF-07).
+    // 1. Falta.
     if (data.isAbsent) {
         const cat = await findCategory("SHIFT_FALTA");
         const type = await findType("FALTA_INJUSTIFICADA");
@@ -82,7 +82,7 @@ const generateIncidentsFromShiftCheck = async (
         }
     }
 
-    // 2. Retardo (RF-07).
+    // 2. Retardo.
     if (!data.isAbsent && delayMinutes > 0) {
         const cat = await findCategory("SHIFT_RETARDO");
         const typeName = delayMinutes >= 15 ? "RETARDO_GRAVE" : "RETARDO_LEVE";
@@ -104,7 +104,7 @@ const generateIncidentsFromShiftCheck = async (
         }
     }
 
-    // 3. Uniforme no cumplido (RF-09).
+    // 3. Uniforme no cumplido.
     if (data.uniformCheck) {
         const cat = await findCategory("SHIFT_UNIFORME");
         const type = await findType("UNIFORME_INCOMPLETO");
@@ -164,7 +164,7 @@ const generateIncidentsFromShiftCheck = async (
         }
     }
 
-    // Notificación Ably (RF-12) — se hace tras crear las incidencias.
+    // Notificación Ably () — se hace tras crear las incidencias.
     if (createdIds.length > 0) {
         try {
             await publishShiftIncident({
@@ -182,7 +182,7 @@ const generateIncidentsFromShiftCheck = async (
 };
 
 /**
- * @description Lista ShiftCheck para datatable con paginación y filtros (RF-11).
+ * @description Lista ShiftCheck para datatable con paginación y filtros ().
  */
 export const getDataTableShiftChecks = async (
     params: ITDataTableFetchParams,
@@ -190,7 +190,7 @@ export const getDataTableShiftChecks = async (
     const prismaParams = getPrismaPaginationParams(params);
     const where = prismaParams.where as Record<string, any>;
 
-    const searchVal = String(params.filters.search || "").trim();
+    const searchVal = String(params.filters?.search || "").trim();
     if (searchVal.length > 0) {
         delete where.search;
         where.OR = [
@@ -219,7 +219,7 @@ export const getDataTableShiftChecks = async (
 };
 
 /**
- * @description Crea un ShiftCheck (RF-01..RF-04).
+ * @description Crea un ShiftCheck ().
  * - Calcula scheduledStartAt a partir del User.scheduleId (Schedule.startTime).
  * - Calcula delayMinutes/isLate.
  * - Idempotente por clientRef (Offline-First).
@@ -238,7 +238,7 @@ export const createShiftCheck = async (
     const shiftDate = new Date(data.shiftDate);
     const actualEntryAt = data.actualEntryAt ? new Date(data.actualEntryAt) : null;
 
-    // Resolver scheduledStartAt desde el Schedule del elemento (RF-02).
+    // Resolver scheduledStartAt desde el Schedule del elemento.
     let scheduledStartAt = new Date(shiftDate);
     const user = await prismaClient.user.findUnique({
         where: { id: data.userId },
@@ -262,14 +262,13 @@ export const createShiftCheck = async (
             delayMinutes,
             isLate,
             isAbsent: data.isAbsent ?? false,
-            uniformCheck: data.uniformCheck ?? undefined,
             handoverItems: data.handoverItems ?? undefined,
             observations: data.observations ?? undefined,
             createdById: actorId,
         },
     });
 
-    // Genera Incidents automáticas (RF-07/08/09) y notifica por Ably.
+    // Genera Incidents automáticas (/08/09) y notifica por Ably.
     await generateIncidentsFromShiftCheck(shiftCheck.id, data, actorId, delayMinutes);
 
     return shiftCheck;
@@ -311,7 +310,6 @@ export const updateShiftCheck = async (
         data: {
             actualEntryAt: actualEntryAt ?? undefined,
             isAbsent: data.isAbsent ?? existing.isAbsent,
-            uniformCheck: data.uniformCheck ?? existing.uniformCheck,
             handoverItems: data.handoverItems ?? existing.handoverItems,
             observations: data.observations ?? existing.observations,
             delayMinutes,
@@ -323,13 +321,11 @@ export const updateShiftCheck = async (
 
 /**
  * @description Firma el ShiftCheck validando credenciales del que entrega y
- * del que recibe (RF-05, Opción A: reuso de User.password + bcrypt).
+ * del que recibe (Opción A: reuso de User.password + bcrypt).
  */
 export const signShiftCheck = async (
     id: string,
     creds: {
-        deliveredUsername: string;
-        deliveredPassword: string;
         receivedUsername: string;
         receivedPassword: string;
     },
@@ -340,36 +336,25 @@ export const signShiftCheck = async (
         throw new Error("El registro ya está firmado");
     }
 
-    const [delivered, received] = await Promise.all([
-        prismaClient.user.findUnique({ where: { username: creds.deliveredUsername } }),
-        prismaClient.user.findUnique({ where: { username: creds.receivedUsername } }),
-    ]);
+    const received = await prismaClient.user.findUnique({ where: { username: creds.receivedUsername } });
 
-    if (!delivered || !received) {
-        throw new Error("Usuario entregador o receptor no encontrado");
-    }
-    if (!delivered.active || delivered.softDelete) {
-        throw new Error("El usuario entregador está inactivo");
+    if (!received) {
+        throw new Error("Usuario receptor no encontrado");
     }
     if (!received.active || received.softDelete) {
         throw new Error("El usuario receptor está inactivo");
     }
 
-    const [deliveredOk, receivedOk] = await Promise.all([
-        comparePassword(creds.deliveredPassword, delivered.password),
-        comparePassword(creds.receivedPassword, received.password),
-    ]);
-
-    if (!deliveredOk) throw new Error("Credenciales del entregador inválidas");
+    const receivedOk = await comparePassword(creds.receivedPassword, received.password);
     if (!receivedOk) throw new Error("Credenciales del receptor inválidas");
 
     return prismaClient.shiftCheck.update({
         where: { id },
         data: {
             status: "SIGNED",
-            signedById: delivered.id,
+            signedById: received.id,
             signedAt: new Date(),
-            deliveredById: delivered.id,
+            deliveredById: received.id,
             receivedById: received.id,
         },
     });
@@ -392,7 +377,7 @@ export const getShiftCheckById = async (id: string) => {
 };
 
 /**
- * @description Lista turnos del día (RF-04 + RF-14): qué schedules hay y si
+ * @description Lista turnos del día (): qué schedules hay y si
  * ya tienen ShiftCheck capturado. Útil para el dashboard y para los
  * recordatorios de las 7am/7pm.
  */
@@ -416,7 +401,7 @@ export const getShiftDayOverview = async (date: Date) => {
 };
 
 /**
- * @description Histórico por elemento (RF-11): filtros por userId y rango.
+ * @description Histórico por elemento (): filtros por userId y rango.
  */
 export const getShiftCheckHistoryByUser = async (
     userId: number,

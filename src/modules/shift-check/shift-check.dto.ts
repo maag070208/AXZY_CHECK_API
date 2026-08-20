@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /**
- * Items cerrados del checklist de uniforme/aseo (RF-01).
+ * Items cerrados del checklist de uniforme/aseo.
  * Lista fija en backend para S1; puede migrarse a catálogo dinámico después.
  */
 export const UNIFORM_ITEMS = [
@@ -19,7 +19,7 @@ export const UNIFORM_ITEMS = [
 export type UniformItemKey = (typeof UNIFORM_ITEMS)[number]["key"];
 
 /**
- * Ítems del checklist de entrega de turno (RF-04).
+ * Ítems del checklist de entrega de turno.
  */
 export const HANDOVER_ITEMS = [
     { key: "caseta", label: "Caseta" },
@@ -65,8 +65,8 @@ const handoverItemsSchema = z
 
 /**
  * @description Esquema Zod para crear un ShiftCheck.
- * RF-01..RF-04. La firma (RF-05) se hace en un endpoint separado (`/sign`).
- * RF-08: replacedById + coverageStart + coverageEnd.
+ * La firma () se hace en un endpoint separado (`/sign`).
+ * replacedById + coverageStart + coverageEnd.
  */
 export const createShiftCheckSchema = z.object({
     body: z.object({
@@ -104,17 +104,12 @@ export const updateShiftCheckSchema = z.object({
 });
 
 /**
- * @description Esquema Zod para firmar (RF-05). Reusa credenciales (Opción A).
+ * @description Esquema Zod para firmar (). Reusa credenciales (Opción A).
  */
 export const signShiftCheckSchema = z.object({
     body: z.object({
         /**
-         * Credenciales del que ENTREGA. Reusa el flujo de auth (bcrypt).
-         */
-        deliveredUsername: z.string().min(1),
-        deliveredPassword: z.string().min(1),
-        /**
-         * Credenciales del que RECIBE.
+         * Credenciales del que RECIBE (Opción A del PIN).
          */
         receivedUsername: z.string().min(1),
         receivedPassword: z.string().min(1),
@@ -125,7 +120,7 @@ export const signShiftCheckSchema = z.object({
 });
 
 /**
- * @description Query params para el datatable/listado (RF-11).
+ * @description Query params para el datatable/listado ().
  */
 export const shiftCheckQuerySchema = z.object({
     query: z.object({

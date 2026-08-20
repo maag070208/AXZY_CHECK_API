@@ -23,7 +23,7 @@ export const createShiftCheck = async (req: Request, res: Response) => {
         if (!parsed.success) {
             return res
                 .status(400)
-                .json(createTResult(null, parsed.error.issues.map((i) => i.message)));
+                .json(createTResult(null, parsed.error.issues.map((i: any) => i.message)));
         }
         // @ts-ignore
         const actorId = Number(req.user?.id);
@@ -42,7 +42,7 @@ export const updateShiftCheck = async (req: Request, res: Response) => {
         if (!parsed.success) {
             return res
                 .status(400)
-                .json(createTResult(null, parsed.error.issues.map((i) => i.message)));
+                .json(createTResult(null, parsed.error.issues.map((i: any) => i.message)));
         }
         const result = await shiftCheckService.updateShiftCheck(
             String(req.params.id),
@@ -61,7 +61,7 @@ export const signShiftCheck = async (req: Request, res: Response) => {
         if (!parsed.success) {
             return res
                 .status(400)
-                .json(createTResult(null, parsed.error.issues.map((i) => i.message)));
+                .json(createTResult(null, parsed.error.issues.map((i: any) => i.message)));
         }
         const result = await shiftCheckService.signShiftCheck(
             String(req.params.id),
@@ -115,7 +115,7 @@ export const listShiftChecks = async (req: Request, res: Response) => {
         if (!parsed.success) {
             return res
                 .status(400)
-                .json(createTResult(null, parsed.error.issues.map((i) => i.message)));
+                .json(createTResult(null, parsed.error.issues.map((i: any) => i.message)));
         }
         const { startDate, endDate, shiftType, status, userId, createdById } = parsed.data.query;
         const where: any = {};

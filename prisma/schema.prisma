@@ -74,6 +74,8 @@ model User {
   shiftChecksDelivered ShiftCheck[]          @relation("ShiftCheckDeliverer")
   shiftChecksReceived  ShiftCheck[]          @relation("ShiftCheckReceiver")
   shiftChecksEvaluated ShiftCheck[]          @relation("ShiftCheckSubject")
+  uniformChecksTarget  UniformCheck[]        @relation("UniformCheckTarget")
+  uniformChecksAuthor  UniformCheck[]        @relation("UniformCheckAuthor")
   incidentsReplaced    Incident[]            @relation("IncidentReplacement")
 }
 
@@ -398,9 +400,11 @@ model ShiftCheck {
   delayMinutes      Int         @default(0)
   isLate            Boolean     @default(false)
   isAbsent          Boolean     @default(false)
-  uniformCheck      Json?
   handoverItems     Json?
   observations      String?
+  credentialsCount  Int?
+  tarjetonesCount   Int?
+  novedadesCaseta   String?
   status            ShiftStatus @default(DRAFT)
   createdById       Int
   signedById        Int?
@@ -415,10 +419,49 @@ model ShiftCheck {
   signedBy      User? @relation("ShiftCheckSigner", fields: [signedById], references: [id])
   deliveredBy   User? @relation("ShiftCheckDeliverer", fields: [deliveredById], references: [id])
   receivedBy    User? @relation("ShiftCheckReceiver", fields: [receivedById], references: [id])
+  uniformChecks UniformCheck[]
 
   @@index([userId, shiftDate])
   @@index([shiftDate, shiftType])
   @@index([createdById])
+}
+
+model UniformCheck {
+  id           String            @id @default(uuid())
+  clientRef    String            @unique
+  userId       Int
+  checkedAt    DateTime          @default(now())
+  items        Json
+  severity     UniformCompliance @default(EXCELENTE)
+  failedCount  Int
+  observations String?
+  checkedById  Int
+  context      UniformContext    @default(SHIFT)
+  shiftCheckId String?
+  shiftCheck   ShiftCheck?       @relation(fields: [shiftCheckId], references: [id])
+  incidentIds  Json?
+  user         User              @relation("UniformCheckTarget", fields: [userId], references: [id])
+  checkedBy    User              @relation("UniformCheckAuthor", fields: [checkedById], references: [id])
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@unique([userId, checkedAt])
+  @@index([userId, checkedAt])
+  @@index([shiftCheckId])
+  @@index([checkedById])
+}
+
+enum UniformContext {
+  SHIFT
+  ROUND
+  SPOT
+  OTHER
+}
+
+enum UniformCompliance {
+  EXCELENTE
+  MEDIO
+  MALO
 }
 
 enum AssignmentStatus {

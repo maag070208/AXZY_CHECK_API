@@ -23,6 +23,7 @@ import dashboardRoute from "./dashboard/dashboard.routes";
 import novedadRoute from "./novedades/novedades.routes";
 import syncRoute from "./sync/sync.routes";
 import shiftCheckRoute from "./shift-check/shift-check.routes";
+import uniformCheckRoute from "./uniform-check/uniform-check.routes";
 
 const apiRouter = Router();
 
@@ -51,6 +52,7 @@ apiRouter.use("/dashboard", dashboardRoute);
 apiRouter.use("/novedades", novedadRoute);
 apiRouter.use("/sync", syncRoute);
 apiRouter.use("/shift-check", shiftCheckRoute);
+apiRouter.use("/uniform-check", uniformCheckRoute);
 
 
 export default apiRouter;
