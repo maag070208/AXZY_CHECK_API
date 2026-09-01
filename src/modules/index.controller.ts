@@ -4,7 +4,7 @@ import { Request, Response } from "express";
 export const helloWorld = async (req: Request, res: Response) => {
   res.json(
     createTResult({
-      message: "Hello World v1.0.1",
+      message: "Hello World v1.0.2",
     }),
   );
 };
