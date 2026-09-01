@@ -249,6 +249,9 @@ model IncidentCategory {
   color        String?
   icon         String?
   type         String         @default("INCIDENT")
+  active       Boolean        @default(true)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
   incidents    Incident[]
   types        IncidentType[]
   maintenances Maintenance[]
@@ -259,6 +262,9 @@ model IncidentType {
   categoryId   Int
   name         String           @unique
   value        String
+  active       Boolean          @default(true)
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
   incidents    Incident[]
   category     IncidentCategory @relation(fields: [categoryId], references: [id])
   maintenances Maintenance[]
@@ -267,6 +273,7 @@ model IncidentType {
 model Incident {
   id           Int               @id @default(autoincrement())
   guardId      Int
+  kind         String            @default("INCIDENT")
   title        String
   description  String?
   media        Json?
@@ -279,6 +286,7 @@ model Incident {
   typeId       Int?
   latitude     Float?
   longitude    Float?
+  clientRef    String?           @unique
   category     IncidentCategory? @relation(fields: [categoryId], references: [id])
   guard        User              @relation(fields: [guardId], references: [id])
   resolvedBy   User?             @relation("IncidentResolver", fields: [resolvedById], references: [id])

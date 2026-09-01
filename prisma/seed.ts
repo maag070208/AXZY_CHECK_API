@@ -8,6 +8,7 @@ import { propertiesSeed } from "./seeds/properties";
 import { relationshipsSeed } from "./seeds/relationships";
 import { incidentCatalogsSeed } from "./seeds/incidents";
 import { maintenanceCatalogsSeed } from "./seeds/maintenance";
+import { clubCatalogsSeed } from "./seeds/club";
 
 import { hackerLog } from "./seeds/logger";
 
@@ -18,6 +19,7 @@ async function main() {
   
   await catalogsSeed(prisma);
   await incidentCatalogsSeed(prisma);
+  await clubCatalogsSeed(prisma);
   await maintenanceCatalogsSeed(prisma);
   await schedulesSeed(prisma);
   await securitySeed(prisma);

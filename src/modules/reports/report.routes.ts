@@ -1,11 +1,13 @@
-
 import { Router } from 'express';
 import * as ReportController from './report.controller';
 import authenticate from '../../core/middlewares/token-validator.middleware';
+import incidentReportRouter from './incident-report.routes';
 
 const router = Router();
 
 router.use(authenticate);
+
+router.use(incidentReportRouter);
 
 router.get('/guards/stats', ReportController.getGuardStats);
 router.get('/guards/top-performance', ReportController.getTopPerformance);

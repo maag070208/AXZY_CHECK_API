@@ -10,7 +10,9 @@ export enum CatalogKey {
     INVITATION_STATUS = 'invitation_status',
     GUARD = 'guard',
     INCIDENT_CATEGORY = 'incident_category',
-    INCIDENT_TYPE = 'incident_type'
+    INCIDENT_TYPE = 'incident_type',
+    CLUB_CATEGORY = 'club_category',
+    CLUB_TYPE = 'club_type'
 }
 
 export const getCatalog = async (key: string) => {
@@ -43,6 +45,18 @@ export const getCatalog = async (key: string) => {
         case CatalogKey.INCIDENT_TYPE:
             return prismaClient.incidentType.findMany({ 
                 select: { ...selectFields, categoryId: true } 
+            });
+        case CatalogKey.CLUB_CATEGORY:
+            return prismaClient.incidentCategory.findMany({ 
+                where: { type: 'CASA_CLUB' },
+                select: { ...selectFields, color: true, icon: true, type: true },
+                orderBy: { value: 'asc' }
+            });
+        case CatalogKey.CLUB_TYPE:
+            return prismaClient.incidentType.findMany({ 
+                where: { category: { type: 'CASA_CLUB' } },
+                select: { ...selectFields, categoryId: true },
+                orderBy: { value: 'asc' }
             });
         case CatalogKey.PROPERTY:
             const properties = await prismaClient.property.findMany({ 
