@@ -1,6 +1,7 @@
 import { prismaClient } from "@src/core/config/database";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
+import { ABLY_CHANNELS, publishToChannel } from "@src/core/config/ably";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import timezone from "dayjs/plugin/timezone";
@@ -76,6 +77,11 @@ export const createShiftHandover = async (data: CreateShiftHandoverInput) => {
     }
 
     return tx.shiftHandover.findUnique({ where: { id: handover.id }, include: detailInclude });
+  }).then((result) => {
+    // Live dashboard (Home de WEB): al entregarse el turno, la alerta de
+    // "entrega pendiente" debe desaparecer sin esperar al polling.
+    publishToChannel(ABLY_CHANNELS.DASHBOARD_LIVE, 'refresh', { reason: 'shift-handover-created' });
+    return result;
   });
 };
 

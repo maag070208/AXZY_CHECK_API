@@ -3,6 +3,7 @@ import { prismaClient } from "@src/core/config/database";
 import { TResult } from '@src/core/dto/TResult';
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
+import { ABLY_CHANNELS, publishToChannel } from "@src/core/config/ably";
 
 const prisma = prismaClient;
 
@@ -190,6 +191,10 @@ export const startRound = async (guardId: number, recurringConfigId?: number): P
       include: { guard: true, recurringConfiguration: true }
     });
 
+    // Live dashboard (Home de WEB): avisa a los clientes que vuelvan a
+    // pedir /dashboard/live. Nunca bloquea ni puede romper esta respuesta.
+    publishToChannel(ABLY_CHANNELS.DASHBOARD_LIVE, 'refresh', { reason: 'round-started', roundId: newRound.id });
+
     return {
       success: true,
       messages: ['Ronda iniciada correctamente'],
@@ -225,6 +230,8 @@ export const endRound = async (roundId: number): Promise<TResult<any>> => {
         endTime: new Date(),
       },
     });
+
+    publishToChannel(ABLY_CHANNELS.DASHBOARD_LIVE, 'refresh', { reason: 'round-ended', roundId: updatedRound.id });
 
     return {
       success: true,

@@ -22,6 +22,7 @@ import chatRoute from "./chat/chat.routes";
 import realtimeRoute from "./realtime/realtime.routes";
 import shiftHandoverRoute from "./shift-handover/shift-handover.routes";
 import uniformRoute from "./uniform/uniform.routes";
+import dashboardRoute from "./dashboard/dashboard.routes";
 
 
 const apiRouter = Router();
@@ -48,6 +49,7 @@ apiRouter.use("/chat", chatRoute);
 apiRouter.use("/realtime", realtimeRoute);
 apiRouter.use("/shift-handover", shiftHandoverRoute);
 apiRouter.use("/uniform", uniformRoute);
+apiRouter.use("/dashboard", dashboardRoute);
 
 
 export default apiRouter;

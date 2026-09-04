@@ -42,6 +42,8 @@ tags:
     description: "Entrega de turno — ajustes/bonaterra_ajuste_2.md punto 4.2"
   - name: uniform
     description: "Checklist de uniformidad y aseo — ajustes/bonaterra_ajuste_2.md punto 4.3"
+  - name: dashboard
+    description: "Dashboard administrativo en vivo del Home de WEB (ADMIN/SHIFT): rondas activas, guardias en turno y alertas operativas en tiempo real"
 
 
 
@@ -993,6 +995,23 @@ paths:
           in: path
           required: true
           schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+
+  /dashboard/live:
+    get:
+      tags: [dashboard]
+      summary: Foto en vivo del estado operativo (rondas activas, guardias en turno, alertas, mapa)
+      description: >
+        A diferencia de /reports (histórico por rango de fechas), este endpoint
+        siempre refleja el momento actual. Los clientes se suscriben además al
+        canal de Ably "dashboard:live-ops" (evento "refresh") vía /realtime/token
+        para saber cuándo volver a pedir este endpoint; también hay polling de
+        respaldo. Solo ADMIN/SHIFT.
       responses:
         "200":
           description: OK

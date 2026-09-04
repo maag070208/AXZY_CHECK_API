@@ -8,6 +8,7 @@ import Ably from "ably";
 export const ABLY_CHANNELS = {
   CHAT_TEAM: "chat:team",
   SHIFT_ALERTS: "shift-handover:alerts",
+  DASHBOARD_LIVE: "dashboard:live-ops",
 } as const;
 
 /**
@@ -30,7 +31,7 @@ const getAblyClient = (): Ably.Rest | null => {
   const apiKey = process.env.ABLY_KEY;
   if (!apiKey) {
     console.warn(
-      "[Ably] ABLY_KEY no configurada. Las funciones en vivo (chat, alertas de turno) " +
+      "[Ably] ABLY_KEY no configurada. Las funciones en vivo (chat, alertas de turno, dashboard) " +
         "quedarán deshabilitadas; los endpoints REST siguen funcionando normalmente.",
     );
     ablyInitFailed = true;
@@ -96,6 +97,7 @@ export const createSubscribeTokenRequest = async (
       capability: {
         [ABLY_CHANNELS.CHAT_TEAM]: ["subscribe"],
         [ABLY_CHANNELS.SHIFT_ALERTS]: ["subscribe"],
+        [ABLY_CHANNELS.DASHBOARD_LIVE]: ["subscribe"],
       },
     });
   } catch (error) {

@@ -1,5 +1,6 @@
 import { prismaClient } from "@src/core/config/database";
 import { AssignmentStatus, ScanType } from "@prisma/client";
+import { ABLY_CHANNELS, publishToChannel } from "@src/core/config/ably";
 
 // New Core Logic: Register Check with Automatic Classification
 export const registerCheck = async (data: {
@@ -53,7 +54,7 @@ export const registerCheck = async (data: {
   }
 
   // Create the Kardex Record
-  return prismaClient.kardex.create({
+  const created = await prismaClient.kardex.create({
     data: {
         userId: data.userId,
         locationId: data.locationId,
@@ -65,6 +66,12 @@ export const registerCheck = async (data: {
         scanType: finalScanType
     },
   });
+
+  // Live dashboard (Home de WEB): un nuevo escaneo puede mover el progreso
+  // de una ronda activa o su "última ubicación" en el mapa.
+  publishToChannel(ABLY_CHANNELS.DASHBOARD_LIVE, 'refresh', { reason: 'scan', kardexId: created.id });
+
+  return created;
 };
 
 // Deprecated or Internal Use
