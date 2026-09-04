@@ -17,6 +17,10 @@ export interface LiveDashboardAlert {
   severity: "high" | "medium";
   message: string;
   refId?: number;
+  /** Cuándo pasó lo que originó la alerta (para mostrar "hace X min" en WEB).
+   *  Ausente cuando no hay un momento puntual que tenga sentido mostrar
+   *  (p. ej. entrega de turno pendiente, que se evalúa en cada request). */
+  at?: Date;
 }
 
 export const getLiveDashboard = async () => {
@@ -109,6 +113,7 @@ export const getLiveDashboard = async () => {
         severity: "high",
         message: `${round.guard.name} ${round.guard.lastName ?? ""} sin escanear hace ${minutesSinceLastScan} min (ronda: ${round.recurringConfiguration?.title ?? "Sin ruta"})`,
         refId: round.id,
+        at: lastScan ? lastScan.timestamp : round.startTime,
       });
     }
 
@@ -189,6 +194,7 @@ export const getLiveDashboard = async () => {
       severity: "medium",
       message: `Incidencia sin atender: ${incident.title}`,
       refId: incident.id,
+      at: incident.createdAt,
     });
   }
 
