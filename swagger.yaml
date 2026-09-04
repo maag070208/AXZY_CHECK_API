@@ -32,6 +32,16 @@ tags:
     description: Gestión de casas y departamentos
   - name: residents
     description: Gestión de perfiles de residentes y sus accesos
+  - name: catalog-admin
+    description: "CRUD de administración de catálogos (Incidencias / Mantenimiento / Casa Club) — ajustes/bonaterra_ajuste_2.md punto 3"
+  - name: chat
+    description: "Chat grupal del equipo operativo — ajustes/bonaterra_ajuste_2.md punto 4.1"
+  - name: realtime
+    description: Emisión de tokens de Ably (solo-suscripción) para clientes WEB/APP
+  - name: shift-handover
+    description: "Entrega de turno — ajustes/bonaterra_ajuste_2.md punto 4.2"
+  - name: uniform
+    description: "Checklist de uniformidad y aseo — ajustes/bonaterra_ajuste_2.md punto 4.3"
 
 
 
@@ -548,8 +558,457 @@ paths:
               schema:
                 $ref: '#/components/schemas/TResultResident'
 
+  ###########################################################################
+  # CATALOG ADMIN — "3. CRUD de administración de catálogos" (solo ADMIN)
+  ###########################################################################
+  /catalog-admin/categories:
+    get:
+      tags: [catalog-admin]
+      summary: Lista categorías de un catálogo (INCIDENT / MAINTENANCE / CASA_CLUB), incluidas inactivas
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema: { type: string, enum: [INCIDENT, MAINTENANCE, CASA_CLUB] }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+    post:
+      tags: [catalog-admin]
+      summary: Crea una categoría
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, value, type]
+              properties:
+                name: { type: string }
+                value: { type: string }
+                type: { type: string, enum: [INCIDENT, MAINTENANCE, CASA_CLUB] }
+                color: { type: string }
+                icon: { type: string }
+      responses:
+        "201":
+          description: Creada
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+
+  /catalog-admin/categories/reorder:
+    put:
+      tags: [catalog-admin]
+      summary: Reordena categorías (arreglo de ids en el nuevo orden)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids: { type: array, items: { type: integer } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+
+  /catalog-admin/categories/{id}/pin:
+    put:
+      tags: [catalog-admin]
+      summary: "Fija una categoría al inicio (acceso rápido)"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+
+  /catalog-admin/categories/{id}:
+    put:
+      tags: [catalog-admin]
+      summary: Actualiza una categoría
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                value: { type: string }
+                color: { type: string }
+                icon: { type: string }
+                active: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+    delete:
+      tags: [catalog-admin]
+      summary: Elimina una categoría (se desactiva si tiene historial asociado)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+
+  /catalog-admin/types:
+    get:
+      tags: [catalog-admin]
+      summary: Lista tipos de una categoría, incluidos inactivos
+      parameters:
+        - name: categoryId
+          in: query
+          required: false
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+    post:
+      tags: [catalog-admin]
+      summary: Crea un tipo de incidencia bajo una categoría
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, value, categoryId]
+              properties:
+                name: { type: string }
+                value: { type: string }
+                categoryId: { type: integer }
+      responses:
+        "201":
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+
+  /catalog-admin/types/reorder:
+    put:
+      tags: [catalog-admin]
+      summary: Reordena tipos dentro de una categoría (arreglo de ids en el nuevo orden)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ids]
+              properties:
+                ids: { type: array, items: { type: integer } }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+
+  /catalog-admin/types/{id}/pin:
+    put:
+      tags: [catalog-admin]
+      summary: "Fija un tipo al inicio de su categoría (acceso rápido)"
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+
+  /catalog-admin/types/{id}:
+    put:
+      tags: [catalog-admin]
+      summary: Actualiza un tipo (nombre, valor, categoría, activo)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: { type: string }
+                value: { type: string }
+                categoryId: { type: integer }
+                active: { type: boolean }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+    delete:
+      tags: [catalog-admin]
+      summary: Elimina un tipo (se desactiva si tiene historial asociado)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+
+  ###########################################################################
+  # CHAT — "4.1 Chat grupal" (ADMIN, GUARD, SHIFT, MAINT)
+  ###########################################################################
+  /chat/messages:
+    get:
+      tags: [chat]
+      summary: Historial de mensajes, paginado por cursor (más recientes primero)
+      parameters:
+        - name: cursor
+          in: query
+          required: false
+          schema: { type: integer }
+        - name: limit
+          in: query
+          required: false
+          schema: { type: integer, default: 30 }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+    post:
+      tags: [chat]
+      summary: Envía un mensaje al canal grupal del equipo operativo
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [message]
+              properties:
+                message: { type: string }
+      responses:
+        "201":
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+
+  ###########################################################################
+  # REALTIME — tokens de Ably (solo-suscripción)
+  ###########################################################################
+  /realtime/token:
+    get:
+      tags: [realtime]
+      summary: Emite un TokenRequest de Ably (solo-suscripción) para el usuario autenticado
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+        "503":
+          description: Ably no configurado/disponible
+
+  ###########################################################################
+  # SHIFT HANDOVER — "4.2 Entrega de turno" (ADMIN, SHIFT)
+  ###########################################################################
+  /shift-handover:
+    post:
+      tags: [shift-handover]
+      summary: Crea un reporte de entrega de turno con sus elementos (guardias)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [shiftType, handoverDate, reportedToAdmin]
+              properties:
+                shiftType: { type: string, enum: [MATUTINO, NOCTURNO] }
+                handoverDate: { type: string, format: date }
+                credentialsCount: { type: integer }
+                tarjetonesCount: { type: integer }
+                novedades: { type: string }
+                checklistPhones: { type: boolean }
+                checklistTablet: { type: boolean }
+                checklistRadios: { type: boolean }
+                checklistKeys: { type: boolean }
+                checklistLogbook: { type: boolean }
+                checklistConsignas: { type: boolean }
+                reportedToAdmin: { type: boolean }
+                elements:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      guardId: { type: integer }
+                      entryTime: { type: string }
+                      punctual: { type: boolean }
+                      observations: { type: string }
+      responses:
+        "201":
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+
+  /shift-handover/datatable:
+    post:
+      tags: [shift-handover]
+      summary: Lista paginada de reportes de entrega de turno (WEB)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DataTableFetchParams' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultDataTable' }
+
+  /shift-handover/pending:
+    get:
+      tags: [shift-handover]
+      summary: Indica si el reporte de turno del día está pendiente de enviarse
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+
+  /shift-handover/{id}:
+    get:
+      tags: [shift-handover]
+      summary: Detalle de un reporte de entrega de turno
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+
+  ###########################################################################
+  # UNIFORM — "4.3 Uniforme" (ADMIN, SHIFT)
+  ###########################################################################
+  /uniform:
+    post:
+      tags: [uniform]
+      summary: Registra un checklist de uniformidad/aseo para un guardia
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [guardId]
+              properties:
+                guardId: { type: integer }
+                pantalon: { type: boolean }
+                botas: { type: boolean }
+                cinturon: { type: boolean }
+                camisa: { type: boolean }
+                pluma: { type: boolean }
+                gorra: { type: boolean }
+                unas: { type: boolean }
+                orejas: { type: boolean }
+                desodorante: { type: boolean }
+                afeitado: { type: boolean }
+                peinado: { type: boolean }
+                notes: { type: string }
+      responses:
+        "201":
+          description: Creado
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+
+  /uniform/datatable:
+    post:
+      tags: [uniform]
+      summary: Lista paginada de checklists de uniforme (WEB)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/DataTableFetchParams' }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultDataTable' }
+
+  /uniform/by-guard/{guardId}:
+    get:
+      tags: [uniform]
+      summary: Historial de checklists de uniforme de un guardia
+      parameters:
+        - name: guardId
+          in: path
+          required: true
+          schema: { type: integer }
+      responses:
+        "200":
+          description: OK
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TResultGeneric' }
+
 components:
   schemas:
+    TResultGeneric:
+      type: object
+      properties:
+        success: { type: boolean }
+        data: { type: object, additionalProperties: true, nullable: true }
+        messages: { type: array, items: { type: string } }
+
     DataTableFetchParams:
       type: object
       properties:

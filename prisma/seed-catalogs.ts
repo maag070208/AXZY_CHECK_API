@@ -85,6 +85,21 @@ async function main() {
     }
     hackerLog.success('CATALOG', 'User Roles synced');
 
+    hackerLog.info('CATALOG', 'Seeding Shift Alert SysConfig');
+    const sysConfigDefaults = [
+        { key: 'SHIFT_ALERT_MORNING_TIME', value: '07:00' },
+        { key: 'SHIFT_ALERT_EVENING_TIME', value: '19:00' },
+        { key: 'SHIFT_ALERT_TIMEZONE', value: 'America/Tijuana' }
+    ];
+    for (const item of sysConfigDefaults) {
+        await prisma.sysConfig.upsert({
+            where: { key: item.key },
+            update: {},
+            create: { key: item.key, value: item.value },
+        });
+    }
+    hackerLog.success('CATALOG', 'Shift Alert SysConfig synced');
+
     hackerLog.divider();
     hackerLog.success('SYSTEM', 'Catalogs seeded successfully');
 }

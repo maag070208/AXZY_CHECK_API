@@ -17,6 +17,11 @@ import propertiesRoute from "./properties/properties.routes";
 import residentsRoute from "./residents/residents.routes";
 import invitationsRoute from "./invitations/invitations.routes";
 import catalogRoute from "./catalog/catalog.routes";
+import catalogAdminRoute from "./catalog-admin/catalog-admin.routes";
+import chatRoute from "./chat/chat.routes";
+import realtimeRoute from "./realtime/realtime.routes";
+import shiftHandoverRoute from "./shift-handover/shift-handover.routes";
+import uniformRoute from "./uniform/uniform.routes";
 
 
 const apiRouter = Router();
@@ -38,6 +43,11 @@ apiRouter.use("/properties", propertiesRoute);
 apiRouter.use("/residents", residentsRoute);
 apiRouter.use("/invitations", invitationsRoute);
 apiRouter.use("/catalog", catalogRoute);
+apiRouter.use("/catalog-admin", catalogAdminRoute);
+apiRouter.use("/chat", chatRoute);
+apiRouter.use("/realtime", realtimeRoute);
+apiRouter.use("/shift-handover", shiftHandoverRoute);
+apiRouter.use("/uniform", uniformRoute);
 
 
 export default apiRouter;
