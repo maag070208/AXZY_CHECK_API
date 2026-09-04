@@ -68,13 +68,32 @@ export const getLiveDashboard = async () => {
     new Set([...activeRoundsRaw.map((r) => r.guardId), ...onShiftUsers.map((u) => u.id)]),
   );
 
-  // One query for every guard's most recent scans (bounded to the last 24h
-  // so the table stays small); grouped in memory per guard below.
+  // Ventana de escaneos "recientes" a consultar. Por default las últimas
+  // 24h alcanzan de sobra, pero si una ronda quedó ABIERTA más tiempo que
+  // eso (un guardia que nunca la cerró, como el caso que reportaron: 40+
+  // horas activa) sus escaneos son más viejos que esa ventana y se
+  // perdían por completo — la ronda se veía "sin avance" en el dashboard
+  // aunque sí tuviera escaneos (y el detalle de la ronda, que no tiene
+  // este límite, sí los mostraba). Por eso la ventana se extiende hasta el
+  // inicio de la ronda activa más antigua, con un tope de 7 días para no
+  // disparar una consulta gigante si algo quedó abierto por semanas.
+  const MAX_KARDEX_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+  const defaultKardexSince = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+  const earliestActiveRoundStart = activeRoundsRaw.length
+    ? activeRoundsRaw.reduce((min, r) => (r.startTime < min ? r.startTime : min), activeRoundsRaw[0].startTime)
+    : null;
+  const kardexSince =
+    earliestActiveRoundStart && earliestActiveRoundStart < defaultKardexSince
+      ? new Date(Math.max(earliestActiveRoundStart.getTime(), now.getTime() - MAX_KARDEX_LOOKBACK_MS))
+      : defaultKardexSince;
+
+  // One query for every guard's most recent scans, grouped in memory per
+  // guard below.
   const recentKardex = guardIds.length
     ? await prismaClient.kardex.findMany({
         where: {
           userId: { in: guardIds },
-          timestamp: { gte: new Date(now.getTime() - 24 * 60 * 60 * 1000) },
+          timestamp: { gte: kardexSince },
         },
         include: { location: { select: { name: true } } },
         orderBy: { timestamp: "desc" },
