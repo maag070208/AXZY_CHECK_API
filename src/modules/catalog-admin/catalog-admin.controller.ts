@@ -51,14 +51,14 @@ export const updateCategory = async (req: Request, res: Response) => {
   }
 };
 
-/** @description DELETE /catalog-admin/categories/:id — soft-disables if in use. */
+/** @description DELETE /catalog-admin/categories/:id — 1st call soft-disables, 2nd call deletes permanently. */
 export const deleteCategory = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const result = await catalogAdminService.deleteCategory(Number(id));
     const message = result.softDeleted
-      ? "La categoría tiene historial asociado: se desactivó en lugar de eliminarse"
-      : "Categoría eliminada";
+      ? "La categoría se desactivó. Elimínala de nuevo para borrarla permanentemente"
+      : "La categoría se eliminó permanentemente";
     return res.status(200).json(createTResult({ ...result, message }));
   } catch (error: any) {
     return res.status(500).json(createTResult(null, [error.message]));
@@ -132,14 +132,14 @@ export const updateType = async (req: Request, res: Response) => {
   }
 };
 
-/** @description DELETE /catalog-admin/types/:id — soft-disables if in use. */
+/** @description DELETE /catalog-admin/types/:id — 1st call soft-disables, 2nd call deletes permanently. */
 export const deleteType = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const result = await catalogAdminService.deleteType(Number(id));
     const message = result.softDeleted
-      ? "El tipo tiene historial asociado: se desactivó en lugar de eliminarse"
-      : "Tipo eliminado";
+      ? "El tipo se desactivó. Elimínalo de nuevo para borrarlo permanentemente"
+      : "El tipo se eliminó permanentemente";
     return res.status(200).json(createTResult({ ...result, message }));
   } catch (error: any) {
     return res.status(500).json(createTResult(null, [error.message]));

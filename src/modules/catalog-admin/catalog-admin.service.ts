@@ -9,8 +9,9 @@ export const CATALOG_TYPES = ["INCIDENT", "MAINTENANCE", "CASA_CLUB"] as const;
 export type CatalogAdminType = (typeof CATALOG_TYPES)[number];
 
 /**
- * @description Lists categories for a catalog (all, including inactive ones,
- * for the admin screen), with a count of how many types each one has.
+ * @description Lists categories for a catalog (all, including soft-deleted
+ * `active:false` ones so the admin can permanently delete them), with a count
+ * of how many types each one has.
  * @param type Optional filter — one of `CATALOG_TYPES`.
  */
 export const getCategories = async (type?: string) => {
@@ -70,25 +71,26 @@ export const updateCategory = async (
 };
 
 /**
- * @description Deletes a category. If it has historical incidents/maintenance
- * records or still has types under it, it's soft-disabled (`active:false`)
- * instead, to protect referential integrity and historical reports.
+ * @description Two-step deletion for a category. First call soft-deletes it
+ * (`active:false`) so history is preserved. A second call on the already
+ * inactive category removes it permanently, along with its types.
  */
 export const deleteCategory = async (id: number) => {
-  const [incidentCount, maintenanceCount, typeCount] = await Promise.all([
-    prismaClient.incident.count({ where: { categoryId: id } }),
-    prismaClient.maintenance.count({ where: { categoryId: id } }),
-    prismaClient.incidentType.count({ where: { categoryId: id } }),
-  ]);
+  const category = await prismaClient.incidentCategory.findUnique({ where: { id } });
+  if (!category) {
+    throw new Error("Categoría no encontrada");
+  }
 
-  const inUse = incidentCount > 0 || maintenanceCount > 0 || typeCount > 0;
-  if (inUse) {
+  if (category.active) {
     await prismaClient.incidentCategory.update({ where: { id }, data: { active: false } });
     return { softDeleted: true };
   }
 
-  await prismaClient.incidentCategory.delete({ where: { id } });
-  return { softDeleted: false };
+  await prismaClient.$transaction([
+    prismaClient.incidentType.deleteMany({ where: { categoryId: id } }),
+    prismaClient.incidentCategory.delete({ where: { id } }),
+  ]);
+  return { hardDeleted: true };
 };
 
 /**
@@ -116,8 +118,8 @@ export const pinCategory = async (id: number) => {
 // ---------------------------------------------------------------------------
 
 /**
- * @description Lists incident types for a category (all, including inactive
- * ones, for the admin screen).
+ * @description Lists incident types for a category (all, including
+ * soft-deleted `active:false` ones so the admin can permanently delete them).
  */
 export const getTypes = async (categoryId?: number) => {
   return prismaClient.incidentType.findMany({
@@ -157,19 +159,18 @@ export const updateType = async (
  * records, it's soft-disabled (`active:false`) instead.
  */
 export const deleteType = async (id: number) => {
-  const [incidentCount, maintenanceCount] = await Promise.all([
-    prismaClient.incident.count({ where: { typeId: id } }),
-    prismaClient.maintenance.count({ where: { typeId: id } }),
-  ]);
+  const type = await prismaClient.incidentType.findUnique({ where: { id } });
+  if (!type) {
+    throw new Error("Tipo no encontrado");
+  }
 
-  const inUse = incidentCount > 0 || maintenanceCount > 0;
-  if (inUse) {
+  if (type.active) {
     await prismaClient.incidentType.update({ where: { id }, data: { active: false } });
     return { softDeleted: true };
   }
 
   await prismaClient.incidentType.delete({ where: { id } });
-  return { softDeleted: false };
+  return { hardDeleted: true };
 };
 
 /**
