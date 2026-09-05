@@ -85,6 +85,24 @@ async function main() {
     }
     hackerLog.success('CATALOG', 'User Roles synced');
 
+    hackerLog.info('CATALOG', 'Seeding Shift Alert SysConfig');
+    const sysConfigDefaults = [
+        { key: 'SHIFT_ALERT_MORNING_TIME', value: '07:00' },
+        { key: 'SHIFT_ALERT_EVENING_TIME', value: '19:00' },
+        { key: 'SHIFT_ALERT_TIMEZONE', value: 'America/Tijuana' },
+        // Dashboard en vivo (Home de WEB): minutos sin escanear antes de
+        // marcar una ronda activa como "estancada" en las alertas.
+        { key: 'DASHBOARD_STALE_MINUTES', value: '20' }
+    ];
+    for (const item of sysConfigDefaults) {
+        await prisma.sysConfig.upsert({
+            where: { key: item.key },
+            update: {},
+            create: { key: item.key, value: item.value },
+        });
+    }
+    hackerLog.success('CATALOG', 'Shift Alert SysConfig synced');
+
     hackerLog.divider();
     hackerLog.success('SYSTEM', 'Catalogs seeded successfully');
 }

@@ -11,6 +11,9 @@ import { createTResult } from "@src/core/mappers/tresult.mapper";
 //router
 import apiRouter from "@src/modules/api.router";
 
+//jobs
+import { registerShiftAlertCron } from "@src/core/jobs/shift-alert.cron";
+
 //server
 const app = express();
 
@@ -58,9 +61,8 @@ app.use(
   }
 );
 
-// cron.schedule("15 8 * * *", () => {
-//   console.log("⏳ Tarea programada ejecutada.");
-// });
+// Entrega de turno: alertas automáticas 7:00 AM / 7:00 PM (ajustes/bonaterra_ajuste_2.md, 4.2)
+registerShiftAlertCron();
 
 const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server is running on port ${PORT}`);

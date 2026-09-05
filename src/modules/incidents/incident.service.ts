@@ -1,6 +1,7 @@
 import { prismaClient } from "@src/core/config/database";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
+import { ABLY_CHANNELS, publishToChannel } from "@src/core/config/ably";
 
 export const getDataTableIncidents = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
     const prismaParams = getPrismaPaginationParams(params);
@@ -83,6 +84,10 @@ export const createIncident = async (data: {
             console.error("Background incident processing error:", error);
         }
     });
+
+    // Live dashboard (Home de WEB): una incidencia nueva puede entrar a la
+    // lista de alertas ("incidencias abiertas").
+    publishToChannel(ABLY_CHANNELS.DASHBOARD_LIVE, 'refresh', { reason: 'incident-created', incidentId: incident.id });
 
     return incident;
 };

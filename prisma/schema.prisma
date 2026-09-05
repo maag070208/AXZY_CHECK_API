@@ -68,6 +68,11 @@ model User {
   role                     Role                     @relation(fields: [roleId], references: [id])
   schedule                 Schedule?                @relation(fields: [scheduleId], references: [id])
   recurringConfigurations  RecurringConfiguration[] @relation("RecurringAssignments")
+  chatMessages              ChatMessage[]            @relation("ChatMessages")
+  createdShiftHandovers     ShiftHandover[]          @relation("ShiftHandoverCreator")
+  shiftHandoverAppearances  ShiftHandoverElement[]   @relation("ShiftHandoverGuard")
+  uniformChecksReceived     UniformCheck[]           @relation("UniformGuard")
+  uniformChecksPerformed    UniformCheck[]           @relation("UniformEvaluator")
 }
 
 model Schedule {
@@ -250,6 +255,7 @@ model IncidentCategory {
   icon         String?
   type         String         @default("INCIDENT")
   active       Boolean        @default(true)
+  order        Int            @default(0)
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
   incidents    Incident[]
@@ -263,6 +269,7 @@ model IncidentType {
   name         String           @unique
   value        String
   active       Boolean          @default(true)
+  order        Int              @default(0)
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
   incidents    Incident[]
@@ -352,6 +359,78 @@ model ResidentRelationship {
   updatedAt DateTime @updatedAt
 }
 
+model ChatMessage {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  message   String
+  createdAt DateTime @default(now())
+  user      User     @relation("ChatMessages", fields: [userId], references: [id])
+
+  @@index([createdAt])
+}
+
+model ShiftHandover {
+  id                 Int                    @id @default(autoincrement())
+  shiftType          ShiftType
+  handoverDate       DateTime               @db.Date
+  credentialsCount   Int?
+  tarjetonesCount    Int?
+  novedades          String?
+  checklistPhones    Boolean                @default(false)
+  checklistTablet    Boolean                @default(false)
+  checklistRadios    Boolean                @default(false)
+  checklistKeys      Boolean                @default(false)
+  checklistLogbook   Boolean                @default(false)
+  checklistConsignas Boolean                @default(false)
+  reportedToAdmin    Boolean                @default(false)
+  createdById        Int
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+  createdBy          User                   @relation("ShiftHandoverCreator", fields: [createdById], references: [id])
+  elements           ShiftHandoverElement[]
+
+  @@unique([shiftType, handoverDate])
+  @@index([handoverDate])
+}
+
+model ShiftHandoverElement {
+  id              Int           @id @default(autoincrement())
+  shiftHandoverId Int
+  guardId         Int
+  entryTime       String
+  punctual        Boolean       @default(true)
+  observations    String?
+  shiftHandover   ShiftHandover @relation(fields: [shiftHandoverId], references: [id])
+  guard           User          @relation("ShiftHandoverGuard", fields: [guardId], references: [id])
+
+  @@index([shiftHandoverId])
+  @@index([guardId])
+}
+
+model UniformCheck {
+  id            Int      @id @default(autoincrement())
+  guardId       Int
+  evaluatedById Int
+  pantalon      Boolean  @default(false)
+  botas         Boolean  @default(false)
+  cinturon      Boolean  @default(false)
+  camisa        Boolean  @default(false)
+  pluma         Boolean  @default(false)
+  gorra         Boolean  @default(false)
+  unas          Boolean  @default(false)
+  orejas        Boolean  @default(false)
+  desodorante   Boolean  @default(false)
+  afeitado      Boolean  @default(false)
+  peinado       Boolean  @default(false)
+  notes         String?
+  createdAt     DateTime @default(now())
+  guard         User     @relation("UniformGuard", fields: [guardId], references: [id])
+  evaluatedBy   User     @relation("UniformEvaluator", fields: [evaluatedById], references: [id])
+
+  @@index([createdAt])
+  @@index([guardId])
+}
+
 enum AssignmentStatus {
   PENDING
   CHECKING
@@ -387,4 +466,9 @@ enum RoundStatus {
 enum MaintenanceStatus {
   PENDING
   ATTENDED
+}
+
+enum ShiftType {
+  MATUTINO
+  NOCTURNO
 }

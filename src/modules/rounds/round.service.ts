@@ -3,6 +3,7 @@ import { prismaClient } from "@src/core/config/database";
 import { TResult } from '@src/core/dto/TResult';
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
+import { ABLY_CHANNELS, publishToChannel } from "@src/core/config/ably";
 
 const prisma = prismaClient;
 
@@ -58,7 +59,11 @@ export const getDataTableRounds = async (params: ITDataTableFetchParams): Promis
                 guard: {
                     select: { id: true, name: true, lastName: true }
                 },
-                recurringConfiguration: true
+                recurringConfiguration: {
+                    include: {
+                        recurringLocations: { where: { active: true } }
+                    }
+                }
             },
             orderBy: prismaParams.orderBy || { startTime: 'desc' }
         }),
@@ -67,7 +72,68 @@ export const getDataTableRounds = async (params: ITDataTableFetchParams): Promis
         })
     ]);
 
-    return { rows, total };
+    const rowsWithProgress = await attachRoundProgress(rows);
+
+    return { rows: rowsWithProgress, total };
+};
+
+/**
+ * "Avance" y "Desempeño" en el Historial de Recorridos: cuántos puntos de
+ * la ruta escaneó el guardia en cada ronda (terminada o en curso) y un
+ * status MALO/MEDIO/ALTO/EXCELENTE según qué tanto de la ruta cubrió —
+ * igual de útil en rondas ya finalizadas (¿la terminó de verdad o solo la
+ * cerró?) que en las que siguen en curso.
+ */
+const PROGRESS_STATUS_THRESHOLDS = { medio: 1 / 3, alto: 2 / 3 };
+
+const progressStatusFor = (percent: number | null): "MALO" | "MEDIO" | "ALTO" | "EXCELENTE" | null => {
+    if (percent === null) return null;
+    if (percent >= 100) return "EXCELENTE";
+    if (percent >= PROGRESS_STATUS_THRESHOLDS.alto * 100) return "ALTO";
+    if (percent >= PROGRESS_STATUS_THRESHOLDS.medio * 100) return "MEDIO";
+    return "MALO";
+};
+
+const attachRoundProgress = async (rows: any[]) => {
+    if (rows.length === 0) return rows;
+
+    const guardIds = Array.from(new Set(rows.map((r) => r.guardId)));
+    const now = new Date();
+    const windowStart = new Date(Math.min(...rows.map((r: any) => new Date(r.startTime).getTime())));
+
+    const kardex = await prisma.kardex.findMany({
+        where: { userId: { in: guardIds }, timestamp: { gte: windowStart, lte: now } },
+        select: { userId: true, locationId: true, timestamp: true },
+    });
+
+    return rows.map((round: any) => {
+        const totalLocations = round.recurringConfiguration?.recurringLocations?.length ?? null;
+        const start = new Date(round.startTime).getTime();
+        const end = round.endTime ? new Date(round.endTime).getTime() : now.getTime();
+
+        const scannedLocationIds = new Set(
+            kardex
+                .filter((k) => {
+                    const t = new Date(k.timestamp).getTime();
+                    return k.userId === round.guardId && t >= start && t <= end;
+                })
+                .map((k) => k.locationId),
+        );
+
+        const scannedCount = scannedLocationIds.size;
+        const progressPercent =
+            totalLocations && totalLocations > 0
+                ? Math.min(100, Math.round((scannedCount / totalLocations) * 100))
+                : null;
+
+        return {
+            ...round,
+            scannedCount,
+            totalLocations,
+            progressPercent,
+            progressStatus: progressStatusFor(progressPercent),
+        };
+    });
 };
 
 export const startRound = async (guardId: number, recurringConfigId?: number): Promise<TResult<any>> => {
@@ -190,6 +256,10 @@ export const startRound = async (guardId: number, recurringConfigId?: number): P
       include: { guard: true, recurringConfiguration: true }
     });
 
+    // Live dashboard (Home de WEB): avisa a los clientes que vuelvan a
+    // pedir /dashboard/live. Nunca bloquea ni puede romper esta respuesta.
+    publishToChannel(ABLY_CHANNELS.DASHBOARD_LIVE, 'refresh', { reason: 'round-started', roundId: newRound.id });
+
     return {
       success: true,
       messages: ['Ronda iniciada correctamente'],
@@ -225,6 +295,8 @@ export const endRound = async (roundId: number): Promise<TResult<any>> => {
         endTime: new Date(),
       },
     });
+
+    publishToChannel(ABLY_CHANNELS.DASHBOARD_LIVE, 'refresh', { reason: 'round-ended', roundId: updatedRound.id });
 
     return {
       success: true,

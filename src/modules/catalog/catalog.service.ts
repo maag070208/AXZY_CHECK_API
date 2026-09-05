@@ -40,23 +40,27 @@ export const getCatalog = async (key: string) => {
             return prismaClient.role.findMany({ select: selectFields });
         case CatalogKey.INCIDENT_CATEGORY:
             return prismaClient.incidentCategory.findMany({ 
-                select: { ...selectFields, color: true, icon: true, type: true } 
+                where: { active: true },
+                select: { ...selectFields, color: true, icon: true, type: true, order: true },
+                orderBy: [{ order: 'asc' }, { value: 'asc' }]
             });
         case CatalogKey.INCIDENT_TYPE:
             return prismaClient.incidentType.findMany({ 
-                select: { ...selectFields, categoryId: true } 
+                where: { active: true },
+                select: { ...selectFields, categoryId: true, order: true },
+                orderBy: [{ order: 'asc' }, { value: 'asc' }]
             });
         case CatalogKey.CLUB_CATEGORY:
             return prismaClient.incidentCategory.findMany({ 
-                where: { type: 'CASA_CLUB' },
-                select: { ...selectFields, color: true, icon: true, type: true },
-                orderBy: { value: 'asc' }
+                where: { type: 'CASA_CLUB', active: true },
+                select: { ...selectFields, color: true, icon: true, type: true, order: true },
+                orderBy: [{ order: 'asc' }, { value: 'asc' }]
             });
         case CatalogKey.CLUB_TYPE:
             return prismaClient.incidentType.findMany({ 
-                where: { category: { type: 'CASA_CLUB' } },
-                select: { ...selectFields, categoryId: true },
-                orderBy: { value: 'asc' }
+                where: { category: { type: 'CASA_CLUB' }, active: true },
+                select: { ...selectFields, categoryId: true, order: true },
+                orderBy: [{ order: 'asc' }, { value: 'asc' }]
             });
         case CatalogKey.PROPERTY:
             const properties = await prismaClient.property.findMany({ 
