@@ -23,6 +23,38 @@ export interface LiveDashboardAlert {
   at?: Date;
 }
 
+/**
+ * @description Convierte una duración en minutos a un texto legible en
+ * español usando años / meses / días / horas / minutos, omitiendo las
+ * unidades más grandes que valgan cero. Evita frases confusas como
+ * "3060 min" cuando una ronda lleva días abierta.
+ * @example formatDurationSpanish(3060) -> "2 días 3 horas"
+ */
+export const formatDurationSpanish = (minutes: number): string => {
+  const total = Math.floor(Math.max(0, minutes));
+  if (total === 0) return "menos de 1 min";
+
+  const MIN = 1;
+  const HOUR = 60 * MIN;
+  const DAY = 24 * HOUR;
+  const MONTH = 30 * DAY;
+  const YEAR = 365 * DAY;
+
+  const years = Math.floor(total / YEAR);
+  const months = Math.floor((total % YEAR) / MONTH);
+  const days = Math.floor((total % MONTH) / DAY);
+  const hours = Math.floor((total % DAY) / HOUR);
+  const mins = Math.floor((total % HOUR) / MIN);
+
+  const parts: string[] = [];
+  if (years > 0) parts.push(`${years} ${years === 1 ? "año" : "años"}`);
+  if (months > 0) parts.push(`${months} ${months === 1 ? "mes" : "meses"}`);
+  if (days > 0) parts.push(`${days} ${days === 1 ? "día" : "días"}`);
+  if (hours > 0) parts.push(`${hours} ${hours === 1 ? "hora" : "horas"}`);
+  if (mins > 0) parts.push(`${mins} ${mins === 1 ? "minuto" : "minutos"}`);
+  return parts.join(" ");
+};
+
 export const getLiveDashboard = async () => {
   const now = new Date();
   const staleMinutes = Number(await getSysConfig("DASHBOARD_STALE_MINUTES", "20")) || 20;
@@ -130,7 +162,7 @@ export const getLiveDashboard = async () => {
       alerts.push({
         type: "ROUND_STALLED",
         severity: "high",
-        message: `${round.guard.name} ${round.guard.lastName ?? ""} sin escanear hace ${minutesSinceLastScan} min (ronda: ${round.recurringConfiguration?.title ?? "Sin ruta"})`,
+        message: `${round.guard.name} ${round.guard.lastName ?? ""} sin escanear hace ${formatDurationSpanish(minutesSinceLastScan)} (ronda: ${round.recurringConfiguration?.title ?? "Sin ruta"})`,
         refId: round.id,
         at: lastScan ? lastScan.timestamp : round.startTime,
       });
