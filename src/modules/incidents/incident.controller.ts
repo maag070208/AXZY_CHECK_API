@@ -16,7 +16,7 @@ const storageService = new StorageService();
 
 export const createIncident = async (req: Request, res: Response) => {
   try {
-    const { title, categoryId, typeId, description, media, latitude, longitude } = req.body;
+    const { title, categoryId, typeId, description, media, latitude, longitude, clientRef, createdAt } = req.body;
     // @ts-ignore
     const guardId = req.user?.id;
 
@@ -36,9 +36,31 @@ export const createIncident = async (req: Request, res: Response) => {
       media: mediaFiles.length > 0 ? mediaFiles : undefined,
       latitude: latitude ? Number(latitude) : undefined,
       longitude: longitude ? Number(longitude) : undefined,
+      clientRef: clientRef ? String(clientRef) : undefined,
+      createdAt: createdAt ? new Date(String(createdAt)) : undefined,
     });
 
     return res.status(201).json(createTResult(result));
+  } catch (error: any) {
+    return res.status(500).json(createTResult(null, error.message));
+  }
+};
+
+export const appendMedia = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { media } = req.body;
+
+    if (!Array.isArray(media) || media.length === 0) {
+      return res.status(400).json(createTResult(null, ["Falta 'media' (array)"]));
+    }
+
+    const result = await incidentService.appendIncidentMedia(Number(id), media);
+    if (!result) {
+      return res.status(404).json(createTResult(null, ["Incidencia no encontrada"]));
+    }
+
+    return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return res.status(500).json(createTResult(null, error.message));
   }

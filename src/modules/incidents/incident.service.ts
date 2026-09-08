@@ -65,7 +65,21 @@ export const createIncident = async (data: {
     media?: any;
     latitude?: number;
     longitude?: number;
+    /** Idempotency key generado en el cliente (offline-first). */
+    clientRef?: string;
+    /** Hora original del evento en el dispositivo del guardia (offline-first). */
+    createdAt?: Date;
 }) => {
+    // Idempotencia: si el clientRef ya fue registrado (reintento de sync
+    // offline), regresamos el registro existente en vez de duplicarlo.
+    if (data.clientRef) {
+        const existing = await prismaClient.incident.findUnique({
+            where: { clientRef: data.clientRef },
+            include: { guard: true, category: true, type: true },
+        });
+        if (existing) return existing;
+    }
+
     const incident = await prismaClient.incident.create({
         data: {
             kind: INCIDENT_KIND,
@@ -76,7 +90,9 @@ export const createIncident = async (data: {
             description: data.description,
             media: data.media,
             latitude: data.latitude,
-            longitude: data.longitude
+            longitude: data.longitude,
+            clientRef: data.clientRef,
+            createdAt: data.createdAt ?? undefined,
         }
     });
 
@@ -186,5 +202,28 @@ export const updateIncidentMedia = async (id: number, media: any[]) => {
     return prismaClient.incident.update({
         where: { id },
         data: { media }
+    });
+};
+
+/**
+ * @description Anexa evidencia subida después de crear el registro (flujo
+ * "guardar y subir después": el guardia crea la incidencia offline sin
+ * fotos, y cuando recupera conexión sube cada foto y la anexa aquí).
+ * Deduplica por `key` para que reintentos de subida no dupliquen archivos.
+ */
+export const appendIncidentMedia = async (id: number, newMedia: any[]) => {
+    const incident = await prismaClient.incident.findUnique({ where: { id } });
+    if (!incident) return null;
+
+    const current: any[] = Array.isArray(incident.media) ? (incident.media as any[]) : [];
+    const existingKeys = new Set(current.map((m: any) => m?.key).filter(Boolean));
+    const merged = [
+        ...current,
+        ...newMedia.filter((m: any) => !m?.key || !existingKeys.has(m.key)),
+    ];
+
+    return prismaClient.incident.update({
+        where: { id },
+        data: { media: merged },
     });
 };

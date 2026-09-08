@@ -12,6 +12,7 @@ router.get("/pending-count", authenticate, maintenanceController.getPendingCount
 router.put("/:id/resolve", authenticate, maintenanceController.resolveMaintenance);
 router.delete("/:id", authenticate, maintenanceController.deleteMaintenance);
 router.delete("/:id/media", authenticate, maintenanceController.deleteMedia);
+router.patch("/:id/media", authenticate, maintenanceController.appendMedia);
 
 router.use(maintenanceReportRouter);
 

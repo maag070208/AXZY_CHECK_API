@@ -23,6 +23,7 @@ import realtimeRoute from "./realtime/realtime.routes";
 import shiftHandoverRoute from "./shift-handover/shift-handover.routes";
 import uniformRoute from "./uniform/uniform.routes";
 import dashboardRoute from "./dashboard/dashboard.routes";
+import syncRoute from "./sync/sync.routes";
 
 
 const apiRouter = Router();
@@ -50,6 +51,7 @@ apiRouter.use("/realtime", realtimeRoute);
 apiRouter.use("/shift-handover", shiftHandoverRoute);
 apiRouter.use("/uniform", uniformRoute);
 apiRouter.use("/dashboard", dashboardRoute);
+apiRouter.use("/sync", syncRoute);
 
 
 export default apiRouter;

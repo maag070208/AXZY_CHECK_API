@@ -136,8 +136,30 @@ const attachRoundProgress = async (rows: any[]) => {
     });
 };
 
-export const startRound = async (guardId: number, recurringConfigId?: number): Promise<TResult<any>> => {
+export const startRound = async (
+  guardId: number,
+  recurringConfigId?: number,
+  clientRef?: string,
+  startTime?: Date,
+): Promise<TResult<any>> => {
   try {
+    // Idempotencia: si el clientRef ya fue usado (reintento de sync offline),
+    // regresamos la ronda existente sin re-ejecutar las validaciones de
+    // "1 ronda activa"/"ruta ocupada" (ya se ejecutaron la primera vez).
+    if (clientRef) {
+      const existingByRef = await prisma.round.findUnique({
+        where: { clientRef },
+        include: { guard: true, recurringConfiguration: true },
+      });
+      if (existingByRef) {
+        return {
+          success: true,
+          messages: ['Ronda ya registrada (idempotente)'],
+          data: existingByRef,
+        };
+      }
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -250,8 +272,9 @@ export const startRound = async (guardId: number, recurringConfigId?: number): P
       data: {
         guardId,
         status: 'IN_PROGRESS',
-        startTime: new Date(),
-        recurringConfigurationId: recurringConfigId
+        startTime: startTime ?? new Date(),
+        recurringConfigurationId: recurringConfigId,
+        clientRef: clientRef ?? undefined,
       },
       include: { guard: true, recurringConfiguration: true }
     });
@@ -274,25 +297,32 @@ export const startRound = async (guardId: number, recurringConfigId?: number): P
   }
 };
 
-export const endRound = async (roundId: number): Promise<TResult<any>> => {
+export const endRound = async (
+  identifier: { id?: number; clientRef?: string },
+  endTime?: Date,
+): Promise<TResult<any>> => {
   try {
-    const round = await prisma.round.findUnique({
-      where: { id: roundId },
-    });
+    const round = identifier.id
+      ? await prisma.round.findUnique({ where: { id: identifier.id } })
+      : identifier.clientRef
+        ? await prisma.round.findUnique({ where: { clientRef: identifier.clientRef } })
+        : null;
 
     if (!round) {
       return { success: false, data: null, messages: ['Ronda no encontrada'] };
     }
 
     if (round.status === 'COMPLETED') {
-        return { success: false, data: null, messages: ['Esta ronda ya ha finalizado'] };
+        // Idempotente: si un reintento de sincronización offline llega
+        // después de que la ronda ya se cerró, no lo tratamos como error.
+        return { success: true, data: round, messages: ['La ronda ya estaba finalizada'] };
     }
 
     const updatedRound = await prisma.round.update({
-      where: { id: roundId },
+      where: { id: round.id },
       data: {
         status: 'COMPLETED',
-        endTime: new Date(),
+        endTime: endTime ?? new Date(),
       },
     });
 

@@ -13,7 +13,7 @@ export const getDataTable = async (req: Request, res: Response) => {
 
 export const createMaintenance = async (req: Request, res: Response) => {
   try {
-    const { title, category, description, media, latitude, longitude, categoryId, typeId } = req.body;
+    const { title, category, description, media, latitude, longitude, categoryId, typeId, clientRef, createdAt } = req.body;
     // @ts-ignore
     const guardId = req.user?.id;
 
@@ -34,6 +34,8 @@ export const createMaintenance = async (req: Request, res: Response) => {
       media: mediaFiles.length > 0 ? mediaFiles : undefined,
       latitude: latitude ? Number(latitude) : undefined,
       longitude: longitude ? Number(longitude) : undefined,
+      clientRef: clientRef ? String(clientRef) : undefined,
+      createdAt: createdAt ? new Date(String(createdAt)) : undefined,
     });
 
     return res.status(201).json(createTResult(result));
@@ -127,4 +129,24 @@ export const deleteMedia = async (req: Request, res: Response) => {
     } catch (error: any) {
         return res.status(500).json(createTResult(null, error.message));
     }
+};
+
+export const appendMedia = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { media } = req.body;
+
+    if (!Array.isArray(media) || media.length === 0) {
+      return res.status(400).json(createTResult(null, ["Falta 'media' (array)"]));
+    }
+
+    const result = await maintenanceService.appendMaintenanceMedia(Number(id), media);
+    if (!result) {
+      return res.status(404).json(createTResult(null, ["Mantenimiento no encontrado"]));
+    }
+
+    return res.status(200).json(createTResult(result));
+  } catch (error: any) {
+    return res.status(500).json(createTResult(null, error.message));
+  }
 };

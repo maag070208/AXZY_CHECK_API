@@ -164,3 +164,24 @@ export const updateClubMedia = async (id: number, media: any[]) => {
         data: { media }
     });
 };
+
+/**
+ * @description Anexa evidencia subida después de crear el registro (flujo
+ * "guardar y subir después" para offline). Deduplica por `key`.
+ */
+export const appendClubMedia = async (id: number, newMedia: any[]) => {
+    const club = await prismaClient.incident.findUnique({ where: { id } });
+    if (!club) return null;
+
+    const current: any[] = Array.isArray(club.media) ? (club.media as any[]) : [];
+    const existingKeys = new Set(current.map((m: any) => m?.key).filter(Boolean));
+    const merged = [
+        ...current,
+        ...newMedia.filter((m: any) => !m?.key || !existingKeys.has(m.key)),
+    ];
+
+    return prismaClient.incident.update({
+        where: { id },
+        data: { media: merged },
+    });
+};

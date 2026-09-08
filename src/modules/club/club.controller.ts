@@ -140,3 +140,23 @@ export const deleteMedia = async (req: Request, res: Response) => {
         return res.status(500).json(createTResult(null, error.message));
     }
 };
+
+export const appendMedia = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { media } = req.body;
+
+    if (!Array.isArray(media) || media.length === 0) {
+      return res.status(400).json(createTResult(null, ["Falta 'media' (array)"]));
+    }
+
+    const result = await clubService.appendClubMedia(Number(id), media);
+    if (!result) {
+      return res.status(404).json(createTResult(null, ["Registro no encontrado"]));
+    }
+
+    return res.status(200).json(createTResult(result));
+  } catch (error: any) {
+    return res.status(500).json(createTResult(null, error.message));
+  }
+};

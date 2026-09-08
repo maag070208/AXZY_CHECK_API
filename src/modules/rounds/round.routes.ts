@@ -8,6 +8,7 @@ router.use(authenticate);
 
 router.post('/start', roundController.startRound);
 router.put('/:id/end', roundController.endRound);
+router.put('/end', roundController.endRoundBySync); // offline-first: cierre por clientRef
 router.get('/current', roundController.getCurrentRound);
 // Web Endpoints
 router.post('/datatable', roundController.getDataTable);

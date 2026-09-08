@@ -1,13 +1,13 @@
 import { Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
-import { registerCheck, getKardex, getKardexById, updateKardex, getDataTableKardex, deleteKardex, updateKardexMedia } from "./kardex.service";
+import { registerCheck, getKardex, getKardexById, updateKardex, getDataTableKardex, deleteKardex, updateKardexMedia, appendKardexMedia } from "./kardex.service";
 import { StorageService } from "../storage/storage.service";
 
 const storageService = new StorageService();
 
 export const createKardexEntry = async (req: Request, res: Response) => {
   try {
-    const { userId, locationId, notes, media, latitude, longitude, assignmentId } = req.body;
+    const { userId, locationId, notes, media, latitude, longitude, assignmentId, roundId, roundClientRef, clientRef, timestamp } = req.body;
 
     if (!userId || !locationId) {
       return res.status(400).json(createTResult(null, ["userId and locationId are required"]));
@@ -21,6 +21,10 @@ export const createKardexEntry = async (req: Request, res: Response) => {
       latitude,
       longitude,
       assignmentId: assignmentId ? Number(assignmentId) : undefined,
+      roundId: roundId != null ? Number(roundId) : undefined,
+      roundClientRef: roundClientRef ? String(roundClientRef) : undefined,
+      clientRef: clientRef ? String(clientRef) : undefined,
+      timestamp: timestamp ? new Date(String(timestamp)) : undefined,
     });
 
     return res.status(201).json(createTResult(entry));
@@ -159,6 +163,26 @@ export const deleteMedia = async (req: Request, res: Response) => {
     await updateKardexMedia(Number(id), updatedMedia);
 
     return res.status(200).json(createTResult(true));
+  } catch (error: any) {
+    return res.status(500).json(createTResult(null, error.message));
+  }
+};
+
+export const appendMedia = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { media } = req.body;
+
+    if (!Array.isArray(media) || media.length === 0) {
+      return res.status(400).json(createTResult(null, ["Falta 'media' (array)"]));
+    }
+
+    const result = await appendKardexMedia(Number(id), media);
+    if (!result) {
+      return res.status(404).json(createTResult(null, ["Registro no encontrado"]));
+    }
+
+    return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return res.status(500).json(createTResult(null, error.message));
   }

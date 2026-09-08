@@ -33,7 +33,20 @@ export const createMaintenance = async (data: {
     media?: any;
     latitude?: number;
     longitude?: number;
+    /** Idempotency key generado en el cliente (offline-first). */
+    clientRef?: string;
+    /** Hora original del evento en el dispositivo del guardia (offline-first). */
+    createdAt?: Date;
 }) => {
+    // Idempotencia: si el clientRef ya fue registrado (reintento de sync
+    // offline), regresamos el registro existente en vez de duplicarlo.
+    if (data.clientRef) {
+        const existing = await prismaClient.maintenance.findUnique({
+            where: { clientRef: data.clientRef },
+        });
+        if (existing) return existing;
+    }
+
     const maintenance = await prismaClient.maintenance.create({
         data: {
             guardId: data.guardId,
@@ -44,7 +57,9 @@ export const createMaintenance = async (data: {
             description: data.description,
             media: data.media,
             latitude: data.latitude,
-            longitude: data.longitude
+            longitude: data.longitude,
+            clientRef: data.clientRef,
+            createdAt: data.createdAt ?? undefined,
         }
     });
 
@@ -151,5 +166,26 @@ export const updateMaintenanceMedia = async (id: number, media: any) => {
     return prismaClient.maintenance.update({
         where: { id },
         data: { media }
+    });
+};
+
+/**
+ * @description Anexa evidencia subida después de crear el registro (flujo
+ * "guardar y subir después" para offline). Deduplica por `key`.
+ */
+export const appendMaintenanceMedia = async (id: number, newMedia: any[]) => {
+    const maintenance = await prismaClient.maintenance.findUnique({ where: { id } });
+    if (!maintenance) return null;
+
+    const current: any[] = Array.isArray(maintenance.media) ? (maintenance.media as any[]) : [];
+    const existingKeys = new Set(current.map((m: any) => m?.key).filter(Boolean));
+    const merged = [
+        ...current,
+        ...newMedia.filter((m: any) => !m?.key || !existingKeys.has(m.key)),
+    ];
+
+    return prismaClient.maintenance.update({
+        where: { id },
+        data: { media: merged },
     });
 };

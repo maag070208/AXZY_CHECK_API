@@ -12,20 +12,47 @@ export const getDataTable = async (req: Request, res: Response) => {
 };
 
 export const startRound = async (req: Request, res: Response) => {
-  const { guardId, recurringConfigId } = req.body;
+  const { guardId, recurringConfigId, clientRef, startTime } = req.body;
   // If coming from middleware, we might use req.user.id, but let's support body for flexibility or confirm middleware usage later.
   // Assuming req.user exists if authenticated.
   const userId = (req as any).user?.id || guardId;
 
   const configId = recurringConfigId ? Number(recurringConfigId) : undefined;
 
-  const result = await roundService.startRound(Number(userId), configId);
+  const result = await roundService.startRound(
+    Number(userId),
+    configId,
+    clientRef ? String(clientRef) : undefined,
+    startTime ? new Date(String(startTime)) : undefined,
+  );
   return res.status(result.success ? 200 : 400).json(result);
 };
 
 export const endRound = async (req: Request, res: Response) => {
   const { id } = req.params;
-  const result = await roundService.endRound(Number(id));
+  const result = await roundService.endRound({ id: Number(id) });
+  return res.status(result.success ? 200 : 400).json(result);
+};
+
+/**
+ * @description Cierra una ronda por su clientRef (offline-first): el
+ * guardia pudo terminar la ronda sin conexión, antes de tener el id
+ * numérico que el servidor asigna al sincronizar el inicio.
+ */
+export const endRoundBySync = async (req: Request, res: Response) => {
+  const { roundId, roundClientRef, endTime } = req.body;
+
+  if (!roundId && !roundClientRef) {
+    return res.status(400).json({ success: false, data: null, messages: ["Falta roundId o roundClientRef"] });
+  }
+
+  const result = await roundService.endRound(
+    {
+      id: roundId ? Number(roundId) : undefined,
+      clientRef: roundClientRef ? String(roundClientRef) : undefined,
+    },
+    endTime ? new Date(String(endTime)) : undefined,
+  );
   return res.status(result.success ? 200 : 400).json(result);
 };
 

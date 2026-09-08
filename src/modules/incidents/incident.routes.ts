@@ -11,5 +11,6 @@ router.get("/pending-count", authenticate, incidentController.getPendingCount);
 router.put("/:id/resolve", authenticate, incidentController.resolveIncident);
 router.delete("/:id", authenticate, incidentController.deleteIncident);
 router.delete("/:id/media", authenticate, incidentController.deleteMedia);
+router.patch("/:id/media", authenticate, incidentController.appendMedia);
 
 export default router;

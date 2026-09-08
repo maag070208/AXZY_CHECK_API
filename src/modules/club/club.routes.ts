@@ -11,5 +11,6 @@ router.get("/pending-count", authenticate, clubController.getPendingCount);
 router.put("/:id/resolve", authenticate, clubController.resolveClub);
 router.delete("/:id", authenticate, clubController.deleteClub);
 router.delete("/:id/media", authenticate, clubController.deleteMedia);
+router.patch("/:id/media", authenticate, clubController.appendMedia);
 
 export default router;

@@ -11,7 +11,29 @@ export const registerCheck = async (data: {
   latitude?: number;
   longitude?: number;
   assignmentId?: number; // Optional manual override
+  roundId?: number; // Id numérico de la ronda (si ya se conoce)
+  roundClientRef?: string; // clientRef de la ronda (offline-first: la ronda pudo no tener id numérico aún)
+  clientRef?: string; // Idempotency key generado en el cliente (offline-first)
+  timestamp?: Date; // Hora original del evento en el dispositivo (offline-first)
 }) => {
+  // Idempotencia: si el clientRef ya fue registrado (reintento de sync
+  // offline), regresamos el registro existente en vez de duplicarlo.
+  if (data.clientRef) {
+    const existing = await prismaClient.kardex.findUnique({
+      where: { clientRef: data.clientRef },
+    });
+    if (existing) return existing;
+  }
+
+  // Resolver la ronda por clientRef si aún no tenemos su id numérico
+  // (puede pasar si la ronda se inició offline y se sincronizó justo antes
+  // que este escaneo, en el mismo lote).
+  let finalRoundId = data.roundId;
+  if (!finalRoundId && data.roundClientRef) {
+    const round = await prismaClient.round.findUnique({ where: { clientRef: data.roundClientRef } });
+    finalRoundId = round?.id;
+  }
+
   let finalScanType: ScanType = ScanType.FREE;
   let finalAssignmentId = data.assignmentId;
 
@@ -63,7 +85,10 @@ export const registerCheck = async (data: {
         latitude: data.latitude,
         longitude: data.longitude,
         assignmentId: finalAssignmentId,
-        scanType: finalScanType
+        scanType: finalScanType,
+        roundId: finalRoundId,
+        clientRef: data.clientRef,
+        timestamp: data.timestamp ?? undefined,
     },
   });
 
@@ -265,5 +290,26 @@ export const updateKardexMedia = async (id: number, media: any[]) => {
     return prismaClient.kardex.update({
         where: { id },
         data: { media }
+    });
+};
+
+/**
+ * @description Anexa evidencia subida después de crear el registro (flujo
+ * "guardar y subir después" para offline). Deduplica por `key`.
+ */
+export const appendKardexMedia = async (id: number, newMedia: any[]) => {
+    const kardex = await prismaClient.kardex.findUnique({ where: { id } });
+    if (!kardex) return null;
+
+    const current: any[] = Array.isArray(kardex.media) ? (kardex.media as any[]) : [];
+    const existingKeys = new Set(current.map((m: any) => m?.key).filter(Boolean));
+    const merged = [
+        ...current,
+        ...newMedia.filter((m: any) => !m?.key || !existingKeys.has(m.key)),
+    ];
+
+    return prismaClient.kardex.update({
+        where: { id },
+        data: { media: merged },
     });
 };
