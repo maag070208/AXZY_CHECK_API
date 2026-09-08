@@ -34,8 +34,12 @@ export const getGuardGeneralStats = async (filters: IGuardReportFilters): Promis
         end.setHours(23, 59, 59, 999);
 
         const [incidentCount, maintenanceCount, scans, rounds] = await Promise.all([
+            // "Incidencia" y "Casa Club" comparten la tabla `Incident` — sin
+            // el filtro por `kind` los reportes de Casa Club se contaban
+            // también aquí como incidencias.
             prisma.incident.count({
                 where: {
+                    kind: "INCIDENT",
                     ...(guardId ? { guardId } : {}),
                     createdAt: { gte: start, lte: end }
                 }
@@ -171,7 +175,7 @@ export const getWorkloadComparison = async (filters: IGuardReportFilters): Promi
             }),
             prisma.incident.groupBy({
                 by: ['guardId'],
-                where: { guardId: { in: guardIds }, createdAt: { gte: start, lte: end } },
+                where: { guardId: { in: guardIds }, kind: "INCIDENT", createdAt: { gte: start, lte: end } },
                 _count: { _all: true }
             }),
             prisma.maintenance.groupBy({

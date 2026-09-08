@@ -82,13 +82,16 @@ export const getLiveDashboard = async () => {
       }),
       // Capped list just to populate the alerts feed (see below); the KPI
       // uses the separate `count()` so it's never wrong even past the cap.
+      // "Incidencia" y "Casa Club" comparten la tabla `Incident` (ver
+      // incident.service.ts) — sin este filtro, un reporte de Casa Club
+      // pendiente se contaba/alertaba aquí como si fuera una incidencia.
       prismaClient.incident.findMany({
-        where: { status: "PENDING" },
+        where: { status: "PENDING", kind: "INCIDENT" },
         select: { id: true, title: true, createdAt: true, guardId: true },
         orderBy: { createdAt: "desc" },
         take: 10,
       }),
-      prismaClient.incident.count({ where: { status: "PENDING" } }),
+      prismaClient.incident.count({ where: { status: "PENDING", kind: "INCIDENT" } }),
       prismaClient.recurringConfiguration.findMany({
         where: { active: true },
         select: { id: true, title: true },

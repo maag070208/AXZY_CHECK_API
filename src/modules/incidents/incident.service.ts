@@ -3,8 +3,21 @@ import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datat
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 import { ABLY_CHANNELS, publishToChannel } from "@src/core/config/ably";
 
+/**
+ * "Incidencia" y "Casa Club" comparten la misma tabla `Incident`,
+ * distinguidas por `kind` (Casa Club usa `kind: 'CASA_CLUB'`, ver
+ * club.service.ts). Antes NINGUNA consulta de este archivo filtraba por
+ * `kind`, así que un reporte de Casa Club aparecía también en Incidencias
+ * (y se contaba en sus KPIs/analytics). Todo lo de aquí debe filtrar por
+ * este valor.
+ */
+const INCIDENT_KIND = "INCIDENT";
+
 export const getDataTableIncidents = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
     const prismaParams = getPrismaPaginationParams(params);
+
+    delete prismaParams.where.kind;
+    prismaParams.where.kind = INCIDENT_KIND;
 
     // Handle combined search (if any)
     const searchVal = String(params.filters.search || "").trim();
@@ -55,6 +68,7 @@ export const createIncident = async (data: {
 }) => {
     const incident = await prismaClient.incident.create({
         data: {
+            kind: INCIDENT_KIND,
             guardId: data.guardId,
             title: data.title,
             categoryId: data.categoryId,
@@ -94,7 +108,7 @@ export const createIncident = async (data: {
 
 export const getIncidentsByGuard = async (guardId: number) => {
     return prismaClient.incident.findMany({
-        where: { guardId },
+        where: { guardId, kind: INCIDENT_KIND },
         orderBy: { createdAt: 'desc' }
     });
 };
@@ -106,7 +120,7 @@ export const getIncidents = async (filters: {
     category?: string;
     title?: string;
 }) => {
-    const whereClause: any = {};
+    const whereClause: any = { kind: INCIDENT_KIND };
 
     if (filters.startDate && filters.endDate) {
         whereClause.createdAt = {
@@ -149,14 +163,15 @@ export const resolveIncident = async (id: number, userId: number) => {
 export const getPendingIncidentsCount = async () => {
     return prismaClient.incident.count({
         where: {
-            status: 'PENDING'
+            status: 'PENDING',
+            kind: INCIDENT_KIND
         }
     });
 };
 
 export const getIncidentById = async (id: number) => {
-    return prismaClient.incident.findUnique({
-        where: { id },
+    return prismaClient.incident.findFirst({
+        where: { id, kind: INCIDENT_KIND },
         include: { guard: true }
     });
 };
