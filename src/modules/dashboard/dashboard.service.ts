@@ -55,11 +55,140 @@ export const formatDurationSpanish = (minutes: number): string => {
   return parts.join(" ");
 };
 
+
+export interface LiveTimelineEvent {
+  type: "ROUND_STARTED" | "ROUND_COMPLETED" | "INCIDENT_CREATED" | "INCIDENT_ATTENDED";
+  message: string;
+  at: Date;
+}
+
+const dayKey = (d: Date) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+const fullName = (u: { name: string; lastName: string | null }) => `${u.name} ${u.lastName ?? ""}`.trim();
+
+const average = (values: number[]) =>
+  values.length ? Math.round(values.reduce((a, b) => a + b, 0) / values.length) : null;
+
+/**
+ * Métricas históricas cortas (últimos 7 días) que complementan la foto en
+ * vivo: comparativo hoy vs ayer, tendencia diaria de rondas, incidencias por
+ * categoría y por hora, y una línea de tiempo de la actividad reciente.
+ * Todo se calcula en memoria sobre dos consultas acotadas a 7 días.
+ */
+export const getLiveInsights = async (now: Date) => {
+  const todayStart = new Date(now);
+  todayStart.setHours(0, 0, 0, 0);
+  const since = new Date(todayStart);
+  since.setDate(since.getDate() - 6);
+
+  const [rounds, incidents] = await Promise.all([
+    prismaClient.round.findMany({
+      where: { startTime: { gte: since } },
+      select: {
+        id: true,
+        startTime: true,
+        endTime: true,
+        status: true,
+        guard: { select: { name: true, lastName: true } },
+        recurringConfiguration: { select: { title: true } },
+      },
+    }),
+    prismaClient.incident.findMany({
+      where: { kind: "INCIDENT", createdAt: { gte: since } },
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        status: true,
+        resolvedAt: true,
+        category: { select: { name: true } },
+      },
+    }),
+  ]);
+
+  const days: string[] = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(since);
+    d.setDate(since.getDate() + i);
+    days.push(dayKey(d));
+  }
+
+  const roundsByDay = days.map((date) => {
+    const ofDay = rounds.filter((r) => dayKey(r.startTime) === date);
+    return { date, started: ofDay.length, completed: ofDay.filter((r) => r.status === "COMPLETED").length };
+  });
+  const incidentsByDay = days.map((date) => ({
+    date,
+    count: incidents.filter((i) => dayKey(i.createdAt) === date).length,
+  }));
+
+  const completedDurations = rounds
+    .filter((r) => r.status === "COMPLETED" && r.endTime)
+    .map((r) => Math.round((r.endTime!.getTime() - r.startTime.getTime()) / 60000))
+    // Descarta rondas que quedaron abiertas días y se cerraron después: distorsionan el promedio.
+    .filter((m) => m >= 0 && m <= 12 * 60);
+
+  const resolutionMinutes = incidents
+    .filter((i) => i.status === "ATTENDED" && i.resolvedAt)
+    .map((i) => Math.round((i.resolvedAt!.getTime() - i.createdAt.getTime()) / 60000))
+    .filter((m) => m >= 0);
+
+  const byCategory = new Map<string, number>();
+  for (const i of incidents) {
+    const name = i.category?.name ?? "Sin categoría";
+    byCategory.set(name, (byCategory.get(name) ?? 0) + 1);
+  }
+  const incidentsByCategory = [...byCategory.entries()]
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 6);
+
+  const incidentsByHour = Array.from({ length: 24 }, (_, hour) => ({ hour, count: 0 }));
+  for (const i of incidents) incidentsByHour[i.createdAt.getHours()].count++;
+
+  const events: LiveTimelineEvent[] = [];
+  for (const r of rounds) {
+    const route = r.recurringConfiguration?.title ?? "Sin ruta";
+    events.push({ type: "ROUND_STARTED", message: `${fullName(r.guard)} inició ronda (${route})`, at: r.startTime });
+    if (r.status === "COMPLETED" && r.endTime) {
+      events.push({ type: "ROUND_COMPLETED", message: `${fullName(r.guard)} completó ronda (${route})`, at: r.endTime });
+    }
+  }
+  for (const i of incidents) {
+    events.push({ type: "INCIDENT_CREATED", message: `Incidencia reportada: ${i.title}`, at: i.createdAt });
+    if (i.status === "ATTENDED" && i.resolvedAt) {
+      events.push({ type: "INCIDENT_ATTENDED", message: `Incidencia atendida: ${i.title}`, at: i.resolvedAt });
+    }
+  }
+  events.sort((a, b) => b.at.getTime() - a.at.getTime());
+
+  const today = roundsByDay[6];
+  const yesterday = roundsByDay[5];
+  return {
+    today: {
+      roundsStarted: today.started,
+      roundsCompleted: today.completed,
+      incidentsCreated: incidentsByDay[6].count,
+      yesterdayRoundsStarted: yesterday.started,
+      yesterdayRoundsCompleted: yesterday.completed,
+      yesterdayIncidentsCreated: incidentsByDay[5].count,
+    },
+    avgRoundMinutes: average(completedDurations),
+    avgResolutionMinutes: average(resolutionMinutes),
+    roundsByDay,
+    incidentsByDay,
+    incidentsByCategory,
+    incidentsByHour,
+    timeline: events.slice(0, 12),
+  };
+};
+
 export const getLiveDashboard = async () => {
   const now = new Date();
   const staleMinutes = Number(await getSysConfig("DASHBOARD_STALE_MINUTES", "20")) || 20;
 
-  const [activeRoundsRaw, onShiftUsers, openIncidents, openIncidentsCount, activeRoutes, pendingHandover] =
+  const [activeRoundsRaw, onShiftUsers, openIncidents, openIncidentsCount, activeRoutes, pendingHandover, insights] =
     await Promise.all([
       prismaClient.round.findMany({
         where: { status: "IN_PROGRESS" },
@@ -97,6 +226,7 @@ export const getLiveDashboard = async () => {
         select: { id: true, title: true },
       }),
       getPendingShiftHandover(),
+      getLiveInsights(now),
     ]);
 
   const guardIds = Array.from(
@@ -271,5 +401,6 @@ export const getLiveDashboard = async () => {
     guardsOnShift,
     alerts,
     uncoveredRoutes,
+    insights,
   };
 };
