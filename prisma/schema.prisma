@@ -101,6 +101,7 @@ model User {
   uniformChecksPerformed   UniformCheck[]           @relation("UniformEvaluator")
   mediaFiles               MediaFile[]
   notifications            Notification[]
+  auditLogs                AuditLog[]
   pushDevices              PushDevice[]
 
   @@index([roleId])
@@ -362,6 +363,22 @@ model AppSetting {
   description String?
   isSecret    Boolean  @default(false)
   updatedAt   DateTime @updatedAt
+}
+
+/// Bitácora de cambios administrativos (T-F0-12). Solo se agrega; nunca se edita.
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  actorId   Int?
+  actor     User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action    String
+  entity    String
+  entityId  String
+  before    Json?
+  after     Json?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([createdAt])
 }
 
 enum OutboxStatus {
