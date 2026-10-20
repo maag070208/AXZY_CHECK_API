@@ -301,6 +301,7 @@ model IncidentCategory {
   color        String?
   icon         String?
   type         String         @default("INCIDENT")
+  isSystem     Boolean        @default(false)
   active       Boolean        @default(true)
   order        Int            @default(0)
   createdAt    DateTime       @default(now())
@@ -315,6 +316,7 @@ model IncidentType {
   categoryId   Int
   name         String           @unique
   value        String
+  isSystem     Boolean          @default(false)
   active       Boolean          @default(true)
   order        Int              @default(0)
   createdAt    DateTime         @default(now())

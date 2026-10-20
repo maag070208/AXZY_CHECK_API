@@ -17,7 +17,9 @@ import { recordAudit } from "@src/core/audit/audit";
 export interface CatalogDefinition {
   key: string;
   label: string;
-  model: "propertyType" | "propertyStatus" | "invitationType" | "residentRelationship";
+  model: "propertyType" | "propertyStatus" | "invitationType" | "residentRelationship" | "incidentCategory" | "incidentType";
+  /** Catálogo hijo: cada valor pertenece a un padre (p. ej. tipo de incidente → categoría). */
+  parentField?: "categoryId";
 }
 
 const CODE = z
@@ -47,6 +49,10 @@ const conflict = (res: Response, message: string) =>
  */
 export const createCatalogRouter = (def: CatalogDefinition) => {
   const router = Router();
+  const parent = def.parentField;
+  const createSchema = parent ? createBody.extend({ [parent]: positiveId }) : createBody;
+  const updateSchema = parent ? updateBody.extend({ [parent]: positiveId.optional() }) : updateBody;
+  const select = parent ? { ...SELECT, [parent]: true } : SELECT;
   const delegateOf = (client: Prisma.TransactionClient) => (client as any)[def.model];
   const ADMIN = requirePermission("catalogs.manage");
   const actorId = (req: Request): number => (req as any).user.id;
@@ -55,20 +61,28 @@ export const createCatalogRouter = (def: CatalogDefinition) => {
 
   router.get("/", async (req: Request, res: Response) => {
     const includeInactive = req.query.all === "true";
+    const where: Record<string, unknown> = includeInactive ? {} : { active: true };
+    if (parent && req.query[parent] !== undefined) where[parent] = Number(req.query[parent]);
     const rows = await delegateOf(prismaClient as any).findMany({
-      where: includeInactive ? {} : { active: true },
-      select: SELECT,
+      where,
+      select,
       orderBy: [{ order: "asc" }, { name: "asc" }],
     });
     return res.status(200).json(createTResult(rows));
   });
 
-  router.post("/", ADMIN, validate({ body: createBody }), async (req: Request, res: Response) => {
+  router.post("/", ADMIN, validate({ body: createSchema }), async (req: Request, res: Response) => {
     try {
       const row = await prismaClient.$transaction(async (tx) => {
         const created = await delegateOf(tx).create({
-          data: { name: req.body.name, value: req.body.value, order: req.body.order ?? 0, isSystem: false },
-          select: SELECT,
+          data: {
+            name: req.body.name,
+            value: req.body.value,
+            order: req.body.order ?? 0,
+            isSystem: false,
+            ...(parent ? { [parent]: req.body[parent] } : {}),
+          },
+          select,
         });
         await audit(req, "create", created.id, null, created, tx);
         return created;
@@ -76,6 +90,7 @@ export const createCatalogRouter = (def: CatalogDefinition) => {
       return res.status(201).json(createTResult(row));
     } catch (error: any) {
       if (error.code === "P2002") return conflict(res, "Ya existe un valor con ese código");
+      if (error.code === "P2003" && parent) return res.status(400).json(createTResult(null, ["El padre indicado no existe"]));
       throw error;
     }
   });
@@ -90,7 +105,7 @@ export const createCatalogRouter = (def: CatalogDefinition) => {
     return res.status(200).json(createTResult(true));
   });
 
-  router.put("/:id", ADMIN, validate({ params: idParam, body: updateBody }), async (req: Request, res: Response) => {
+  router.put("/:id", ADMIN, validate({ params: idParam, body: updateSchema }), async (req: Request, res: Response) => {
     const id = Number(req.params.id);
     try {
       const outcome = await prismaClient.$transaction(async (tx) => {
@@ -99,7 +114,7 @@ export const createCatalogRouter = (def: CatalogDefinition) => {
         if (current.isSystem && req.body.name !== undefined && req.body.name !== current.name) {
           return { error: "system-rename" as const };
         }
-        const row = await delegateOf(tx).update({ where: { id }, data: req.body, select: SELECT });
+        const row = await delegateOf(tx).update({ where: { id }, data: req.body, select });
         await audit(req, "update", id, { name: current.name, value: current.value, order: current.order, active: current.active }, row, tx);
         return { row };
       });
@@ -124,7 +139,7 @@ export const createCatalogRouter = (def: CatalogDefinition) => {
         if (current.isSystem) return { error: "system" as const };
 
         if (current.active) {
-          const row = await delegateOf(tx).update({ where: { id }, data: { active: false }, select: SELECT });
+          const row = await delegateOf(tx).update({ where: { id }, data: { active: false }, select });
           await audit(req, "deactivate", id, current, row, tx);
           return { deactivated: row };
         }
