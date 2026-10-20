@@ -7,6 +7,7 @@ import { validate } from "@src/core/validation/validate";
 import { emptyable } from "@src/core/validation/common";
 import { findDuplicates } from "@src/modules/residents/household.service";
 import { documentReadUrl, expiringDocuments, listDocuments, uploadDocument } from "./documents.service";
+import { createResidentAccount } from "./account.service";
 import { idParam, positiveId } from "@src/core/validation/common";
 
 const router = Router();
@@ -126,6 +127,15 @@ router.post("/:id/contacts", requirePermission("residents.manage"), validate({ p
       data: { personId: Number(req.params.id), name: req.body.name, phone: req.body.phone ?? null, email: req.body.email || null, relationship: req.body.relationship ?? null },
     });
     return res.status(201).json(createTResult(contact));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Cuenta de APP desde el residente (A2, T-A2-06).
+router.post("/:id/account", requirePermission("residents.manage"), validate({ params: idParam, body: z.object({ username: z.string().trim().min(3).max(50), password: z.string().min(6).max(100) }) }), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    return res.status(201).json(createTResult(await createResidentAccount(Number(req.params.id), req.body)));
   } catch (error) {
     return next(error);
   }
