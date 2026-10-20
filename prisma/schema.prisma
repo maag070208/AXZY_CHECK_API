@@ -990,6 +990,7 @@ model PropertyAuthorization {
   createdById Int?
   createdAt   DateTime           @default(now())
   revokedAt   DateTime?
+  passHash    String?            @unique
   property    Property           @relation(fields: [propertyId], references: [id])
   person      Person             @relation(fields: [personId], references: [id])
 
