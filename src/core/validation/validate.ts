@@ -10,7 +10,8 @@ type Part = keyof Schemas;
  * con la lista de campos y un código de validación. Si todo cumple, reemplaza
  * la parte validada por el valor ya parseado (tipos y valores por defecto).
  */
-export const validate = (schemas: Schemas) => (req: Request, res: Response, next: NextFunction) => {
+export const validate = (schemas: Schemas) => {
+  const middleware = (req: Request, res: Response, next: NextFunction) => {
   const issues: { path: string; message: string }[] = [];
   const parts: Part[] = ["params", "query", "body"];
 
@@ -35,4 +36,7 @@ export const validate = (schemas: Schemas) => (req: Request, res: Response, next
     });
   }
   return next();
+  };
+  // Marca para el inventario de rutas: prueba que toda escritura valida su entrada.
+  return Object.assign(middleware, { validates: true as const });
 };

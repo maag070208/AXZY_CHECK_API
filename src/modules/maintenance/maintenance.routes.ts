@@ -3,10 +3,12 @@ import { requirePermission } from "@src/modules/common/middlewares/require-permi
 import * as maintenanceController from "./maintenance.controller";
 import { authenticate } from "../common/middlewares/auth.middleware";
 import maintenanceReportRouter from "./maintenance-report.routes";
+import { validate } from "@src/core/validation/validate";
+import { createMaintenanceBody } from "./maintenance.schemas";
 
 const router = Router();
 
-router.post("/", authenticate, maintenanceController.createMaintenance);
+router.post("/", authenticate, validate({ body: createMaintenanceBody }), maintenanceController.createMaintenance);
 router.post("/datatable", maintenanceController.getDataTable);
 router.get("/", authenticate, maintenanceController.getMaintenances);
 router.get("/pending-count", authenticate, maintenanceController.getPendingCount);

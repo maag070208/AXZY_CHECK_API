@@ -11,6 +11,8 @@ export interface RouteEntry {
   path: string;
   /** Ruta con sus parámetros originales (p. ej. "/users/:id"). */
   pattern: string;
+  /** Tiene un middleware validate() (Zod) en su cadena. */
+  validated: boolean;
 }
 
 /** Convierte el regexp de montaje de Express 4 en un prefijo de ruta. */
@@ -29,10 +31,12 @@ const walk = (stack: any[], prefix: string, out: RouteEntry[]): void => {
       for (const method of Object.keys(layer.route.methods)) {
         if (!layer.route.methods[method]) continue;
         const full = `${prefix}${routePath}`.replace(/\/{2,}/g, "/") || "/";
+        const validated = (layer.route.stack ?? []).some((l: any) => l.handle?.validates === true);
         out.push({
           method: method as RouteEntry["method"],
           pattern: full,
           path: full.replace(/:[A-Za-z_]+/g, "1"),
+          validated,
         });
       }
     } else if (layer.name === "router" && layer.handle?.stack) {

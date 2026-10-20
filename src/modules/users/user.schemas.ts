@@ -36,3 +36,12 @@ export const updateUserBody = z
     password: z.string().optional(),
   })
   .passthrough();
+
+export const changePasswordBody = z.object({
+  oldPassword: z.string().min(1, "es obligatoria"),
+  newPassword: z.string().min(6, "debe tener al menos 6 caracteres"),
+});
+
+export const resetPasswordBody = z.object({
+  newPassword: z.string().min(6, "debe tener al menos 6 caracteres"),
+});

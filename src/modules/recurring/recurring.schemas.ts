@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { positiveId, idParam } from "@src/core/validation/common";
+import { flag, positiveId, idParam } from "@src/core/validation/common";
 
 const task = z.object({
   description: z.string().trim().min(1, "es obligatoria").max(300),
@@ -18,3 +18,7 @@ export const routeBody = z.object({
 });
 
 export const routeParams = idParam;
+
+export const toggleRecurringBody = z.object({ active: flag });
+
+export const assignGuardBody = z.object({ guardIds: z.array(positiveId) });

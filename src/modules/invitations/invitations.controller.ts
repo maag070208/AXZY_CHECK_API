@@ -13,8 +13,11 @@ export const datatable = async (req: Request, res: Response) => {
 
 export const create = async (req: Request, res: Response) => {
     try {
-        const { guestName, propertyId, validFrom, validUntil, notes, createdById, typeId } = req.body;
-        
+        const { guestName, propertyId, validFrom, validUntil, notes, typeId } = req.body;
+        // Quien invita es siempre el usuario autenticado, nunca un valor del body (S-03).
+        // @ts-ignore - req.user lo agrega `authenticate`
+        const createdById = req.user.id;
+
         const result = await invitationsService.createInvitation({
             guestName,
             propertyId: Number(propertyId),
