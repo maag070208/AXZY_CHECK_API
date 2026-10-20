@@ -20,5 +20,6 @@
     "strict": true,
     "skipLibCheck": true
   },
-  "exclude": ["node_modules", "dist", "tests", "jest.config.js", "**/*.spec.ts"]
+  "exclude": ["node_modules", "dist", "tests", "jest.config.js", "**/*.spec.ts"],
+  "ts-node": { "files": true }
 }
