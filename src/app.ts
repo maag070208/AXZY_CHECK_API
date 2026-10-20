@@ -10,6 +10,7 @@ import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { prismaClient } from "@src/core/config/database";
 import { redactResponseSecrets } from "@src/core/middlewares/redact-secrets.middleware";
 import { errorHandler } from "@src/core/middlewares/error-handler.middleware";
+import { requestContext } from "@src/core/middlewares/request-context.middleware";
 
 //router
 import apiRouter from "@src/modules/api.router";
@@ -25,6 +26,7 @@ const allowedOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5002,http:
   .filter(Boolean);
 
 app.use([
+  requestContext,
   express.json({ limit: "1mb" }), // S-17 / E-17: límite de tamaño del body
   redactResponseSecrets, // ninguna respuesta lleva la clave password (S-09)
   helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }),
@@ -69,3 +71,5 @@ app.get("/ready", async (_req, res) => {
 app.use("/api/v1", apiRouter);
 
 app.use(errorHandler);
+
+

@@ -5,6 +5,7 @@ import express from "express";
 import request from "supertest";
 import { AppError } from "@src/core/errors/app-error";
 import { errorHandler } from "@src/core/middlewares/error-handler.middleware";
+import { logger } from "@src/core/logger/logger";
 
 const build = (thrower: (next: any) => void) => {
   const app = express();
@@ -24,7 +25,7 @@ describe("manejador global de errores", () => {
   });
 
   it("un error inesperado responde 500 genérico, sin mensaje ni stack internos", async () => {
-    const spy = jest.spyOn(console, "error").mockImplementation(() => {});
+    const spy = jest.spyOn(logger, "error").mockImplementation(() => undefined as any);
     const res = await request(build(() => { throw new Error("secreto de la base: password=abc"); })).get("/x");
     expect(res.status).toBe(500);
     expect(JSON.stringify(res.body)).not.toContain("secreto");

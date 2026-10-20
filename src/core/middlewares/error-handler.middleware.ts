@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { AppError } from "@src/core/errors/app-error";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
+import { logger } from "@src/core/logger/logger";
 
 /**
  * Manejador global de errores (E-19).
@@ -20,6 +21,6 @@ export const errorHandler = (err: any, _req: Request, res: Response, _next: Next
     return res.status(status).json(createTResult(null, [err?.message ?? "Solicitud inválida"]));
   }
 
-  console.error("[error]", err);
+  logger.error({ err: { name: err?.name, message: err?.message }, requestId: (_req as any).requestId }, "error no controlado");
   return res.status(500).json(createTResult(null, ["Error interno del servidor"]));
 };

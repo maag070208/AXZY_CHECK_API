@@ -57,6 +57,7 @@
     "nodemailer": "^6.9.14",
     "path": "^0.12.7",
     "pdfkit": "^0.17.2",
+    "pino": "^9",
     "resend": "^6.12.2",
     "swagger-ui-express": "^4.6.0",
     "tsconfig-paths": "^4.2.0",
