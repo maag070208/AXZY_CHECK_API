@@ -1,6 +1,6 @@
 # CheckApp API
 
-API REST (Express + PostgreSQL + Prisma) para la operación de seguridad de **BARCELONA Residencial**: usuarios, ubicaciones, rondas, kardex, incidencias, mantenimiento, casa club, propiedades, residentes, invitaciones, reportes y comunicación del equipo.
+API REST (Express + PostgreSQL + Prisma) para la operación de seguridad de un residencial (textos del cliente en `src/client/`): usuarios, ubicaciones, rondas, kardex, incidencias, mantenimiento, casa club, propiedades, residentes, invitaciones, reportes y comunicación del equipo.
 
 ## Swagger
 

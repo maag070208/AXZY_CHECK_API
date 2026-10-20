@@ -35,7 +35,7 @@ const walk = (dir: string, out: string[]): void => {
     if (entry.isDirectory()) {
       if (SKIP_DIRS.has(entry.name)) continue;
       walk(full, out);
-    } else if (/\.(ts|js|json|md|html)$/.test(entry.name)) {
+    } else if (/\.(ts|js|json|md|html|py)$/.test(entry.name)) {
       out.push(full);
     }
   }
@@ -45,6 +45,11 @@ describe("sin cadenas de cliente fuera de la configuración de cliente", () => {
   const files: string[] = [];
   walk(path.join(API_ROOT, "src"), files);
   walk(path.join(API_ROOT, "prisma"), files);
+  walk(path.join(API_ROOT, "scripts"), files);
+  // Archivos sueltos de la raíz (scripts de una sola vez, etc.).
+  for (const entry of fs.readdirSync(API_ROOT, { withFileTypes: true })) {
+    if (entry.isFile() && /\.(ts|js|json|md|html|py)$/.test(entry.name)) files.push(path.join(API_ROOT, entry.name));
+  }
 
   it("revisa archivos", () => {
     expect(files.length).toBeGreaterThan(50);
