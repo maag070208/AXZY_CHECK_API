@@ -1,4 +1,6 @@
 import { Router } from "express";
+import { moveOutBody } from "./household.schemas";
+import { postMoveOut, postSetPrimary } from "./household.controller";
 import { requirePermission } from "@src/modules/common/middlewares/require-permission.middleware";
 import { 
     addResident, 
@@ -38,5 +40,9 @@ router.get("/:id/contacts", getResidentContacts);
 router.post("/:id/contacts", requirePermission("residents.manage"), validate({ params: idParam, body: contactBody }), addContact);
 router.put("/contacts/:contactId", requirePermission("residents.manage"), validate({ params: contactIdParam, body: putContactBody }), putContact);
 router.delete("/contacts/:contactId", requirePermission("residents.manage"), removeContact);
+
+// Titular y mudanza (A2).
+router.post("/:id/primary", requirePermission("residents.manage"), validate({ params: idParam }), postSetPrimary);
+router.post("/:id/move-out", requirePermission("residents.manage"), validate({ params: idParam, body: moveOutBody }), postMoveOut);
 
 export default router;

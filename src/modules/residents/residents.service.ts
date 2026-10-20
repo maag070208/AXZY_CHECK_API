@@ -1,7 +1,7 @@
 import { prismaClient } from "@src/core/config/database";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
-import { recountResidents } from "@src/modules/properties/resident-count";
+import { syncLegacyResident, closeResidentsOfUser } from "./legacy-sync";
 
 export const getResidentsList = async () => {
     return prismaClient.user.findMany({
@@ -150,14 +150,13 @@ export const createResidentUser = async (userData: any, profileData: any) => {
         },
         include: { residentProfile: true, property: true }
     });
-    await recountResidents([created.propertyId], tx);
+    await syncLegacyResident(tx, created.id);
     return created;
     });
 };
 
 export const updateResidentUser = async (id: number, userData: any, profileData: any) => {
     const { propertyId, ...rest } = userData;
-    const before = await prismaClient.user.findUnique({ where: { id }, select: { propertyId: true } });
     return prismaClient.$transaction(async (tx) => {
     const updated = await tx.user.update({
         where: { id },
@@ -173,17 +172,15 @@ export const updateResidentUser = async (id: number, userData: any, profileData:
         },
         include: { residentProfile: true, property: true }
     });
-    await recountResidents([before?.propertyId, updated.propertyId], tx);
+    await syncLegacyResident(tx, updated.id);
     return updated;
     });
 };
 
 export const deleteResidentUser = async (id: number) => {
-    const before = await prismaClient.user.findUnique({ where: { id }, select: { propertyId: true } });
     return prismaClient.$transaction(async (tx) => {
-        const deleted = await tx.user.delete({ where: { id } });
-        await recountResidents([before?.propertyId], tx);
-        return deleted;
+        await closeResidentsOfUser(tx, id);
+        return tx.user.delete({ where: { id } });
     });
 };
 

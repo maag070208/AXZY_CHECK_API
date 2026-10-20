@@ -1,7 +1,7 @@
 import { prismaClient } from "@src/core/config/database";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
-import { recountResidents } from "@src/modules/properties/resident-count";
+import { syncLegacyResident, closeResidentsOfUser } from "@src/modules/residents/legacy-sync";
 
 export const getUsers = async (search?: string) => {
   if (!search) {
@@ -91,11 +91,15 @@ export const addUser = async (data: any) => {
       }
   }
 
-  return prismaClient.user.create({
-    data: {
-        ...userData,
-        roleId: Number(targetRoleId)
-    },
+  return prismaClient.$transaction(async (tx) => {
+    const created = await tx.user.create({
+      data: {
+          ...userData,
+          roleId: Number(targetRoleId)
+      },
+    });
+    await syncLegacyResident(tx, created.id);
+    return created;
   });
 };
 
@@ -107,11 +111,10 @@ export const updateUser = async (id: number, data: any) => {
       if (roleObj) userData.roleId = roleObj.id;
   }
 
-  // El conteo de residentes depende de vínculo y estado activo: se recalcula en la misma operación.
-  const before = await prismaClient.user.findUnique({ where: { id }, select: { propertyId: true } });
+  // Los residentes (tabla Resident) siguen al usuario en la misma transacción.
   return prismaClient.$transaction(async (tx) => {
     const updated = await tx.user.update({ where: { id }, data: userData });
-    await recountResidents([before?.propertyId, updated.propertyId], tx);
+    await syncLegacyResident(tx, id);
     return updated;
   });
 };
@@ -156,7 +159,7 @@ export const deleteUser = async (id: number) => {
         username: `${user.username}_deleted_${Date.now()}`
       }
     });
-    await recountResidents([user.propertyId], tx);
+    await syncLegacyResident(tx, id);
     return deleted;
   });
 };

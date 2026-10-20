@@ -11,6 +11,7 @@ export const systemSettingsSeed = async (prisma: PrismaClient) => {
     const settings = [
         { key: 'APP_VERSION', valueType: 'string', value: '1.0.0', group: 'general' },
         { key: 'MAINTENANCE_MODE', valueType: 'bool', value: 'false', group: 'general' },
+        { key: 'resident.minAgeForAccount', valueType: 'int', value: '18', group: 'residentes', description: 'Edad mínima para tener cuenta de APP' },
     ];
 
     for (const setting of settings) {

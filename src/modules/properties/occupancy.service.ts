@@ -135,6 +135,10 @@ export const changeOccupancy = async (
         where: { propertyId, active: true, role: { name: "RESDN" } },
         data: { active: false },
       });
+      await tx.resident.updateMany({
+        where: { propertyId, status: "ACTIVE" },
+        data: { status: "MOVED_OUT", endDate: today, isPrimary: false },
+      });
     }
 
     const closed = await tx.occupancyPeriod.updateMany({

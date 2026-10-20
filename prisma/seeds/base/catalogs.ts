@@ -163,6 +163,23 @@ export const catalogsSeed = async (prisma: PrismaClient) => {
         });
     }
 
+    // 8. Tipos de residente (A2). isHouseholdMember decide si suma al conteo del hogar.
+    const residentKinds = [
+        { code: 'OWNER', name: 'Propietario', isHouseholdMember: true, canAuthorizeVisits: true, canHaveVehicle: true, hasAppAccess: true },
+        { code: 'TENANT', name: 'Inquilino', isHouseholdMember: true, canAuthorizeVisits: true, canHaveVehicle: true, hasAppAccess: true },
+        { code: 'FAMILY', name: 'Familiar', isHouseholdMember: true, canAuthorizeVisits: false, canHaveVehicle: true, hasAppAccess: false },
+        { code: 'DOMESTIC', name: 'Empleado doméstico', isHouseholdMember: false, canAuthorizeVisits: false, canHaveVehicle: false, hasAppAccess: false },
+        { code: 'AUTHORIZED', name: 'Persona autorizada permanente', isHouseholdMember: false, canAuthorizeVisits: false, canHaveVehicle: false, hasAppAccess: false },
+        { code: 'CAREGIVER', name: 'Cuidador/a', isHouseholdMember: false, canAuthorizeVisits: false, canHaveVehicle: false, hasAppAccess: false },
+    ];
+    for (const [index, kind] of residentKinds.entries()) {
+        await prisma.residentKind.upsert({
+            where: { code: kind.code },
+            update: { name: kind.name, order: index },
+            create: { ...kind, order: index, isSystem: true },
+        });
+    }
+
     hackerLog.success('CATALOG', 'Base catalogs synchronized');
     await permissionsSeed(prisma);
 };

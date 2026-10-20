@@ -100,6 +100,7 @@ model User {
   uniformChecksReceived    UniformCheck[]           @relation("UniformGuard")
   uniformChecksPerformed   UniformCheck[]           @relation("UniformEvaluator")
   mediaFiles               MediaFile[]
+  person                   Person?
   notifications            Notification[]
   auditLogs                AuditLog[]
   pushDevices              PushDevice[]
@@ -154,6 +155,7 @@ model Property {
   owner             Person?           @relation("PropertyOwner", fields: [ownerPersonId], references: [id])
   periods           OccupancyPeriod[]
   ownershipChanges  OwnershipChange[]
+  residents         Resident[]
 
   @@index([identifier])
   @@index([statusId, typeId])
@@ -216,6 +218,10 @@ model Person {
   lastName        String?
   phone           String?
   email           String?
+  birthDate       DateTime?         @db.Date
+  userId          Int?              @unique
+  user            User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  residents       Resident[]
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @updatedAt
   ownedProperties Property[]        @relation("PropertyOwner")
@@ -223,6 +229,49 @@ model Person {
   tenantPeriods   OccupancyPeriod[] @relation("PeriodTenant")
   ownershipFrom   OwnershipChange[] @relation("OwnershipFrom")
   ownershipTo     OwnershipChange[] @relation("OwnershipTo")
+}
+
+/// Tipo de residente (T-A2-01). `isHouseholdMember` decide si suma al conteo del hogar.
+model ResidentKind {
+  id                 Int        @id @default(autoincrement())
+  code               String     @unique
+  name               String
+  isHouseholdMember  Boolean    @default(false)
+  canAuthorizeVisits Boolean    @default(false)
+  canHaveVehicle     Boolean    @default(false)
+  hasAppAccess       Boolean    @default(false)
+  active             Boolean    @default(true)
+  isSystem           Boolean    @default(true)
+  order              Int        @default(0)
+  residents          Resident[]
+}
+
+enum ResidentStatus {
+  ACTIVE
+  MOVED_OUT
+}
+
+/// Vínculo de una persona con una propiedad (T-A2-01). Reemplaza a User.propertyId como
+/// fuente de verdad del hogar; User.propertyId se mantiene sincronizado mientras dura la transición.
+model Resident {
+  id                 Int            @id @default(autoincrement())
+  personId           Int
+  propertyId         Int
+  kindId             Int
+  status             ResidentStatus @default(ACTIVE)
+  isPrimary          Boolean        @default(false)
+  canAuthorizeVisits Boolean        @default(false)
+  hasAppAccess       Boolean        @default(false)
+  startDate          DateTime       @db.Date
+  endDate            DateTime?      @db.Date
+  notes              String?
+  createdAt          DateTime       @default(now())
+  person             Person         @relation(fields: [personId], references: [id])
+  property           Property       @relation(fields: [propertyId], references: [id])
+  kind               ResidentKind   @relation(fields: [kindId], references: [id])
+
+  @@index([propertyId, status])
+  @@index([personId])
 }
 
 /// Periodo de ocupación. Un solo periodo vigente por propiedad (índice parcial en la migración,
