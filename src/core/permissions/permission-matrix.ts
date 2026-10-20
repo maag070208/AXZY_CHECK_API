@@ -13,7 +13,9 @@ export const PERMISSIONS = [
   { code: "kardex.manage", description: "Eliminar registros y evidencias de bitácora" },
   { code: "locations.manage", description: "Crear, editar y eliminar ubicaciones" },
   { code: "maintenance.manage", description: "Resolver y eliminar reportes de mantenimiento" },
+  { code: "occupancy.change", description: "Cambiar la ocupación de una propiedad" },
   { code: "properties.manage", description: "Administrar propiedades" },
+  { code: "properties.view", description: "Consultar propiedades y su ocupación" },
   { code: "recurring.manage", description: "Administrar rutas recurrentes" },
   { code: "recurring.operate", description: "Ver y ejecutar mis rutas recurrentes" },
   { code: "residents.manage", description: "Administrar residentes y contactos" },
@@ -33,6 +35,7 @@ export const ROLE_PERMISSIONS: Record<string, readonly PermissionCode[]> = {
   ADMIN: ALL,
   SHIFT: [
     "assignments.manage",
+    "properties.view",
     "chat.use",
     "club.manage",
     "dashboard.view",

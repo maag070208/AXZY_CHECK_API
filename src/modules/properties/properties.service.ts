@@ -1,6 +1,7 @@
 import { prismaClient } from "@src/core/config/database";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
+import { resolveKindAndOccupancy, todayDateOnly } from "./occupancy.service";
 
 export const getAllProperties = async () => {
     return prismaClient.property.findMany({
@@ -133,25 +134,56 @@ export const getPropertyById = async (id: number) => {
     });
 };
 
+/** Campos que el cliente puede escribir. La ocupación, el conteo y el propietario NO entran aquí. */
+const pickPropertyFields = (data: any) => ({
+    identifier: data.identifier,
+    name: data.name,
+    mainStreet: data.mainStreet,
+    betweenStreets: data.betweenStreets ?? null,
+    latitude: data.latitude ?? null,
+    longitude: data.longitude ?? null,
+    active: data.active,
+    buildingId: data.buildingId ? Number(data.buildingId) : null,
+    floor: data.floor ?? null,
+    unitNumber: data.unitNumber ?? null,
+    maxResidents: data.maxResidents ?? null,
+    vehicleQuota: data.vehicleQuota ?? null,
+});
+
 export const createProperty = async (data: any) => {
-    return prismaClient.property.create({
-        data: {
-            ...data,
+    return prismaClient.$transaction(async (tx) => {
+        const { kindId, occupancyStatusId } = await resolveKindAndOccupancy(tx, {
+            kindId: data.kindId ? Number(data.kindId) : undefined,
+            occupancyStatusId: data.occupancyStatusId ? Number(data.occupancyStatusId) : undefined,
             typeId: data.typeId ? Number(data.typeId) : undefined,
-            statusId: data.statusId ? Number(data.statusId) : undefined
-        }
+            statusId: data.statusId ? Number(data.statusId) : undefined,
+        });
+        const property = await tx.property.create({
+            data: {
+                ...pickPropertyFields(data),
+                typeId: Number(data.typeId),
+                statusId: Number(data.statusId),
+                kindId,
+                occupancyStatusId,
+            },
+        });
+        await tx.occupancyPeriod.create({
+            data: { propertyId: property.id, statusId: occupancyStatusId, startDate: await todayDateOnly() },
+        });
+        return property;
     });
 };
 
 export const updateProperty = async (id: number, data: any) => {
-    return prismaClient.property.update({
-        where: { id },
-        data: {
-            ...data,
-            typeId: data.typeId ? Number(data.typeId) : undefined,
-            statusId: data.statusId ? Number(data.statusId) : undefined
-        }
-    });
+    // El tipo y la ocupación no se cambian aquí: la ocupación tiene su propio endpoint (A1).
+    // Solo cambia lo que el cliente envió: un campo ausente no se borra.
+    const changes: Record<string, unknown> = {};
+    const fields = ["identifier", "name", "mainStreet", "betweenStreets", "latitude", "longitude", "active", "floor", "unitNumber", "maxResidents", "vehicleQuota"] as const;
+    for (const field of fields) {
+        if (data[field] !== undefined) changes[field] = data[field] === "" ? null : data[field];
+    }
+    if (data.buildingId !== undefined) changes.buildingId = data.buildingId ? Number(data.buildingId) : null;
+    return prismaClient.property.update({ where: { id }, data: changes });
 };
 
 export const deleteProperty = async (id: number) => {

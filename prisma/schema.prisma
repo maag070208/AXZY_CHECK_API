@@ -138,8 +138,128 @@ model Property {
   type           PropertyType   @relation(fields: [typeId], references: [id])
   users          User[]
 
+  // A1: tipo, ocupación y residentes (T-A1-02). `statusId`/`typeId` quedan por compatibilidad.
+  kindId            Int
+  kind              PropertyKind      @relation(fields: [kindId], references: [id])
+  buildingId        Int?
+  building          Building?         @relation(fields: [buildingId], references: [id])
+  floor             Int?
+  unitNumber        String?
+  occupancyStatusId Int
+  occupancyStatus   OccupancyStatus   @relation(fields: [occupancyStatusId], references: [id])
+  residentCount     Int               @default(0)
+  maxResidents      Int?
+  vehicleQuota      Int?
+  ownerPersonId     Int?
+  owner             Person?           @relation("PropertyOwner", fields: [ownerPersonId], references: [id])
+  periods           OccupancyPeriod[]
+  ownershipChanges  OwnershipChange[]
+
   @@index([identifier])
   @@index([statusId, typeId])
+  @@index([occupancyStatusId])
+}
+
+/// Tipo de unidad (casa, departamento, terreno…). Administrable (T-A1-01).
+model PropertyKind {
+  id              Int        @id @default(autoincrement())
+  code            String     @unique
+  name            String
+  isUnitContainer Boolean    @default(false)
+  active          Boolean    @default(true)
+  isSystem        Boolean    @default(true)
+  order           Int        @default(0)
+  properties      Property[]
+}
+
+/// Estado de ocupación (vacía, habitada por propietario, rentada…). Solo el servicio de
+/// ocupación lo cambia, y solo por transiciones de OccupancyStatusTransition (T-A1-01).
+model OccupancyStatus {
+  id              Int                         @id @default(autoincrement())
+  code            String                      @unique
+  name            String
+  isOccupied      Boolean                     @default(false)
+  allowsResidents Boolean                     @default(false)
+  active          Boolean                     @default(true)
+  isSystem        Boolean                     @default(true)
+  order           Int                         @default(0)
+  properties      Property[]
+  periods         OccupancyPeriod[]
+  fromTransitions OccupancyStatusTransition[] @relation("TransitionFrom")
+  toTransitions   OccupancyStatusTransition[] @relation("TransitionTo")
+}
+
+model OccupancyStatusTransition {
+  fromId     Int
+  toId       Int
+  fromStatus OccupancyStatus @relation("TransitionFrom", fields: [fromId], references: [id], onDelete: Cascade)
+  toStatus   OccupancyStatus @relation("TransitionTo", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@id([fromId, toId])
+}
+
+/// Edificio de departamentos (T-A1-02).
+model Building {
+  id         Int        @id @default(autoincrement())
+  name       String     @unique
+  floors     Int?
+  active     Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  properties Property[]
+}
+
+/// Persona (propietario, inquilino). Se amplía en A2 (T-A1-02, ADR-016: Persona ≠ Residente ≠ Usuario).
+model Person {
+  id              Int               @id @default(autoincrement())
+  firstName       String
+  lastName        String?
+  phone           String?
+  email           String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  ownedProperties Property[]        @relation("PropertyOwner")
+  ownerPeriods    OccupancyPeriod[] @relation("PeriodOwner")
+  tenantPeriods   OccupancyPeriod[] @relation("PeriodTenant")
+  ownershipFrom   OwnershipChange[] @relation("OwnershipFrom")
+  ownershipTo     OwnershipChange[] @relation("OwnershipTo")
+}
+
+/// Periodo de ocupación. Un solo periodo vigente por propiedad (índice parcial en la migración,
+/// T-A1-03). El historial se conserva al cerrar periodos.
+model OccupancyPeriod {
+  id             Int             @id @default(autoincrement())
+  propertyId     Int
+  statusId       Int
+  startDate      DateTime        @db.Date
+  endDate        DateTime?       @db.Date
+  tenantPersonId Int?
+  ownerPersonId  Int?
+  notes          String?
+  createdById    Int?
+  createdAt      DateTime        @default(now())
+  property       Property        @relation(fields: [propertyId], references: [id])
+  status         OccupancyStatus @relation(fields: [statusId], references: [id])
+  tenant         Person?         @relation("PeriodTenant", fields: [tenantPersonId], references: [id])
+  owner          Person?         @relation("PeriodOwner", fields: [ownerPersonId], references: [id])
+
+  @@index([propertyId, startDate])
+}
+
+/// Cambio de propietario, separado de la ocupación (T-A1-05).
+model OwnershipChange {
+  id           Int      @id @default(autoincrement())
+  propertyId   Int
+  fromPersonId Int?
+  toPersonId   Int
+  changedById  Int?
+  changedAt    DateTime @default(now())
+  notes        String?
+  property     Property @relation(fields: [propertyId], references: [id])
+  fromPerson   Person?  @relation("OwnershipFrom", fields: [fromPersonId], references: [id])
+  toPerson     Person   @relation("OwnershipTo", fields: [toPersonId], references: [id])
+
+  @@index([propertyId])
 }
 
 model ResidentProfile {

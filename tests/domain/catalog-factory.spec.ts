@@ -101,8 +101,18 @@ describe("borrado en dos pasos", () => {
     const admin = await auth("ADMIN");
     const type = await prisma.propertyType.create({ data: { name: "EN_USO", value: "En uso", active: false } });
     const status = await prisma.propertyStatus.findUniqueOrThrow({ where: { name: "VACNT" } });
+    const kind = await prisma.propertyKind.findUniqueOrThrow({ where: { code: "HOUSE" } });
+    const occupancy = await prisma.occupancyStatus.findUniqueOrThrow({ where: { code: "VACANT" } });
     await prisma.property.create({
-      data: { identifier: `P-${Date.now()}`, name: "Casa", mainStreet: "Calle", statusId: status.id, typeId: type.id },
+      data: {
+        identifier: `P-${Date.now()}`,
+        name: "Casa",
+        mainStreet: "Calle",
+        statusId: status.id,
+        typeId: type.id,
+        kindId: kind.id,
+        occupancyStatusId: occupancy.id,
+      },
     });
     const res = await request(app).delete(`${BASE}/${type.id}`).set("Authorization", admin);
     expect(res.status).toBe(409);

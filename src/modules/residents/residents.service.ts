@@ -1,6 +1,7 @@
 import { prismaClient } from "@src/core/config/database";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
+import { recountResidents } from "@src/modules/properties/resident-count";
 
 export const getResidentsList = async () => {
     return prismaClient.user.findMany({
@@ -135,7 +136,8 @@ export const getResidentById = async (id: number) => {
 export const createResidentUser = async (userData: any, profileData: any) => {
     const { propertyId, ...rest } = userData;
     // We use nested writes to create User and ResidentProfile simultaneously
-    return prismaClient.user.create({
+    return prismaClient.$transaction(async (tx) => {
+    const created = await tx.user.create({
         data: {
             ...rest,
             role: { connect: { name: 'RESDN' } },
@@ -148,11 +150,16 @@ export const createResidentUser = async (userData: any, profileData: any) => {
         },
         include: { residentProfile: true, property: true }
     });
+    await recountResidents([created.propertyId], tx);
+    return created;
+    });
 };
 
 export const updateResidentUser = async (id: number, userData: any, profileData: any) => {
     const { propertyId, ...rest } = userData;
-    return prismaClient.user.update({
+    const before = await prismaClient.user.findUnique({ where: { id }, select: { propertyId: true } });
+    return prismaClient.$transaction(async (tx) => {
+    const updated = await tx.user.update({
         where: { id },
         data: {
             ...rest,
@@ -166,11 +173,17 @@ export const updateResidentUser = async (id: number, userData: any, profileData:
         },
         include: { residentProfile: true, property: true }
     });
+    await recountResidents([before?.propertyId, updated.propertyId], tx);
+    return updated;
+    });
 };
 
 export const deleteResidentUser = async (id: number) => {
-    return await prismaClient.user.delete({
-        where: { id }
+    const before = await prismaClient.user.findUnique({ where: { id }, select: { propertyId: true } });
+    return prismaClient.$transaction(async (tx) => {
+        const deleted = await tx.user.delete({ where: { id } });
+        await recountResidents([before?.propertyId], tx);
+        return deleted;
     });
 };
 

@@ -14,5 +14,12 @@ it("las migraciones producen exactamente el schema.prisma (sin deriva)", () => {
     `npx prisma migrate diff --from-migrations prisma/migrations --to-schema-datamodel prisma/schema.prisma --shadow-database-url "${url}" --script`,
     { cwd: root, env: { ...process.env, PRISMA_HIDE_UPDATE_MESSAGE: "1" }, encoding: "utf-8" },
   );
-  expect(out.trim()).toBe("-- This is an empty migration.");
+  // Índice parcial de un solo periodo vigente (T-A1-03): Prisma no lo modela, así que vive
+  // solo en la migración y el diff lo reporta como eliminado. Es el único caso permitido.
+  const sinIndiceParcial = out
+    .split("\n")
+    .filter((linea) => !linea.includes("OccupancyPeriod_open_key"))
+    .join("\n")
+    .trim();
+  expect(sinIndiceParcial).toBe("-- This is an empty migration.");
 }, 120000);

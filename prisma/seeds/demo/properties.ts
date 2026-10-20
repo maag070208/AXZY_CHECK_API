@@ -60,14 +60,22 @@ export const propertiesSeed = async (prisma: PrismaClient) => {
     };
   });
 
+  // Mismo camino que la API: la propiedad nace con su tipo, su ocupación y el periodo inicial.
+  const kind = await prisma.propertyKind.findUniqueOrThrow({ where: { code: "HOUSE" } });
+  const vacant = await prisma.occupancyStatus.findUniqueOrThrow({ where: { code: "VACANT" } });
   for (const prop of propertiesData) {
-    properties.push(
-      await prisma.property.upsert({
-        where: { identifier: prop.identifier },
-        update: {},
-        create: prop,
-      })
-    );
+    const existing = await prisma.property.findUnique({ where: { identifier: prop.identifier } });
+    if (existing) {
+      properties.push(existing);
+      continue;
+    }
+    const created = await prisma.property.create({
+      data: { ...prop, kindId: kind.id, occupancyStatusId: vacant.id },
+    });
+    await prisma.occupancyPeriod.create({
+      data: { propertyId: created.id, statusId: vacant.id, startDate: new Date() },
+    });
+    properties.push(created);
   }
 
   hackerLog.info("PROPERTY", "Assigning residents");

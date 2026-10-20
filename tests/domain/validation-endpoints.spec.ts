@@ -79,6 +79,8 @@ describe("invitaciones", () => {
         mainStreet: "Calle 1",
         typeId: (await prisma.propertyType.findFirstOrThrow()).id,
         statusId: (await prisma.propertyStatus.findFirstOrThrow()).id,
+        kindId: (await prisma.propertyKind.findFirstOrThrow()).id,
+        occupancyStatusId: (await prisma.occupancyStatus.findFirstOrThrow()).id,
       },
     });
     const type = await prisma.invitationType.findFirstOrThrow();

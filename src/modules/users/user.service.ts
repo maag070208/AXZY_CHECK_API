@@ -1,6 +1,7 @@
 import { prismaClient } from "@src/core/config/database";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
+import { recountResidents } from "@src/modules/properties/resident-count";
 
 export const getUsers = async (search?: string) => {
   if (!search) {
@@ -106,11 +107,12 @@ export const updateUser = async (id: number, data: any) => {
       if (roleObj) userData.roleId = roleObj.id;
   }
 
-  return prismaClient.user.update({
-    where: {
-      id,
-    },
-    data: userData,
+  // El conteo de residentes depende de vínculo y estado activo: se recalcula en la misma operación.
+  const before = await prismaClient.user.findUnique({ where: { id }, select: { propertyId: true } });
+  return prismaClient.$transaction(async (tx) => {
+    const updated = await tx.user.update({ where: { id }, data: userData });
+    await recountResidents([before?.propertyId, updated.propertyId], tx);
+    return updated;
   });
 };
 
@@ -145,12 +147,16 @@ export const deleteUser = async (id: number) => {
   const user = await prismaClient.user.findUnique({ where: { id } });
   if (!user) return null;
 
-  return prismaClient.user.update({
-    where: { id },
-    data: { 
-      softDelete: true, 
-      active: false,
-      username: `${user.username}_deleted_${Date.now()}`
-    }
+  return prismaClient.$transaction(async (tx) => {
+    const deleted = await tx.user.update({
+      where: { id },
+      data: {
+        softDelete: true,
+        active: false,
+        username: `${user.username}_deleted_${Date.now()}`
+      }
+    });
+    await recountResidents([user.propertyId], tx);
+    return deleted;
   });
 };

@@ -110,6 +110,59 @@ export const catalogsSeed = async (prisma: PrismaClient) => {
         }
     }
 
+    // 7. Tipos de unidad y estados de ocupación (A1). Transiciones válidas como datos.
+    const propertyKinds = [
+        { code: 'HOUSE', name: 'Casa', isUnitContainer: false },
+        { code: 'APARTMENT', name: 'Departamento', isUnitContainer: false },
+        { code: 'COMMERCIAL', name: 'Local', isUnitContainer: false },
+        { code: 'LOT', name: 'Terreno', isUnitContainer: false },
+        { code: 'COMMON', name: 'Área común', isUnitContainer: false },
+    ];
+    for (const [index, kind] of propertyKinds.entries()) {
+        await prisma.propertyKind.upsert({
+            where: { code: kind.code },
+            update: { name: kind.name, order: index },
+            create: { ...kind, order: index, isSystem: true },
+        });
+    }
+
+    const occupancyStatuses = [
+        { code: 'VACANT', name: 'Vacía', isOccupied: false, allowsResidents: false },
+        { code: 'OWNER_OCCUPIED', name: 'Habitada por propietario', isOccupied: true, allowsResidents: true },
+        { code: 'RENTED', name: 'Rentada', isOccupied: true, allowsResidents: true },
+        { code: 'FOR_RENT', name: 'En renta', isOccupied: false, allowsResidents: false },
+        { code: 'FOR_SALE', name: 'En venta', isOccupied: false, allowsResidents: false },
+        { code: 'UNDER_CONSTRUCTION', name: 'En construcción', isOccupied: false, allowsResidents: false },
+        { code: 'BLOCKED', name: 'Bloqueada', isOccupied: false, allowsResidents: false },
+    ];
+    for (const [index, status] of occupancyStatuses.entries()) {
+        await prisma.occupancyStatus.upsert({
+            where: { code: status.code },
+            update: { name: status.name, order: index },
+            create: { ...status, order: index, isSystem: true },
+        });
+    }
+
+    // Transiciones válidas. Bloqueada puede aplicarse desde cualquier estado.
+    const transitions: [string, string][] = [
+        ['VACANT', 'OWNER_OCCUPIED'], ['VACANT', 'RENTED'], ['VACANT', 'FOR_RENT'], ['VACANT', 'FOR_SALE'],
+        ['VACANT', 'UNDER_CONSTRUCTION'], ['VACANT', 'BLOCKED'],
+        ['FOR_RENT', 'RENTED'], ['FOR_RENT', 'VACANT'], ['FOR_RENT', 'BLOCKED'],
+        ['RENTED', 'VACANT'], ['RENTED', 'OWNER_OCCUPIED'], ['RENTED', 'BLOCKED'],
+        ['OWNER_OCCUPIED', 'VACANT'], ['OWNER_OCCUPIED', 'RENTED'], ['OWNER_OCCUPIED', 'BLOCKED'],
+        ['FOR_SALE', 'VACANT'], ['FOR_SALE', 'BLOCKED'],
+        ['UNDER_CONSTRUCTION', 'VACANT'], ['UNDER_CONSTRUCTION', 'BLOCKED'],
+        ['BLOCKED', 'VACANT'],
+    ];
+    const statusIds = new Map((await prisma.occupancyStatus.findMany()).map((s) => [s.code, s.id]));
+    for (const [from, to] of transitions) {
+        await prisma.occupancyStatusTransition.upsert({
+            where: { fromId_toId: { fromId: statusIds.get(from)!, toId: statusIds.get(to)! } },
+            update: {},
+            create: { fromId: statusIds.get(from)!, toId: statusIds.get(to)! },
+        });
+    }
+
     hackerLog.success('CATALOG', 'Base catalogs synchronized');
     await permissionsSeed(prisma);
 };

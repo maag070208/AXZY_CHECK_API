@@ -4,6 +4,8 @@ import { addProperty, getDataTable, getProperties, getProperty, putProperty, rem
 import { validate } from "@src/core/validation/validate";
 import { idParam } from "@src/core/validation/common";
 import { createPropertyBody, updatePropertyBody } from "./property.schemas";
+import { changeOccupancyBody, changeOwnershipBody } from "./occupancy.schemas";
+import { getPropertyOccupancy, postPropertyOccupancy, postPropertyOwnership } from "./occupancy.controller";
 
 const router = Router();
 
@@ -14,5 +16,10 @@ router.get("/:id", getProperty);
 router.post("/", requirePermission("properties.manage"), validate({ body: createPropertyBody }), addProperty);
 router.put("/:id", requirePermission("properties.manage"), validate({ params: idParam, body: updatePropertyBody }), putProperty);
 router.delete("/:id", requirePermission("properties.manage"), removeProperty);
+
+// Ocupación (A1): consulta con historial; cambio transaccional; cambio de propietario.
+router.get("/:id/occupancy", requirePermission("properties.view"), validate({ params: idParam }), getPropertyOccupancy);
+router.post("/:id/occupancy", requirePermission("occupancy.change"), validate({ params: idParam, body: changeOccupancyBody }), postPropertyOccupancy);
+router.post("/:id/ownership", requirePermission("properties.manage"), validate({ params: idParam, body: changeOwnershipBody }), postPropertyOwnership);
 
 export default router;
