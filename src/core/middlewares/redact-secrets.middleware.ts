@@ -7,22 +7,29 @@ import { Request, Response, NextFunction } from "express";
  */
 const SECRET_KEYS = new Set(["password"]);
 
-/** Copia profunda sin las claves secretas. Protege contra ciclos. */
-export const redactSecrets = <T>(value: T, seen = new WeakSet<object>()): T => {
+/**
+ * Copia profunda sin las claves secretas. Corta solo los ciclos reales: `ancestors` guarda
+ * la rama actual, no todo lo visto, así un mismo objeto compartido sale completo en cada lugar.
+ */
+export const redactSecrets = <T>(value: T, ancestors = new Set<object>()): T => {
   if (value === null || typeof value !== "object") return value;
   if (value instanceof Date || Buffer.isBuffer(value)) return value;
-  if (seen.has(value as object)) return undefined as unknown as T;
-  seen.add(value as object);
+  if (ancestors.has(value as object)) return undefined as unknown as T;
 
-  if (Array.isArray(value)) {
-    return value.map((item) => redactSecrets(item, seen)) as unknown as T;
+  ancestors.add(value as object);
+  try {
+    if (Array.isArray(value)) {
+      return value.map((item) => redactSecrets(item, ancestors)) as unknown as T;
+    }
+    const out: Record<string, unknown> = {};
+    for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
+      if (SECRET_KEYS.has(key)) continue;
+      out[key] = redactSecrets(item, ancestors);
+    }
+    return out as T;
+  } finally {
+    ancestors.delete(value as object);
   }
-  const out: Record<string, unknown> = {};
-  for (const [key, item] of Object.entries(value as Record<string, unknown>)) {
-    if (SECRET_KEYS.has(key)) continue;
-    out[key] = redactSecrets(item, seen);
-  }
-  return out as T;
 };
 
 /** Envuelve res.json para que todo cuerpo pase por `redactSecrets`. */
