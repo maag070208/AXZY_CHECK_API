@@ -68,11 +68,14 @@ model User {
   role                     Role                     @relation(fields: [roleId], references: [id])
   schedule                 Schedule?                @relation(fields: [scheduleId], references: [id])
   recurringConfigurations  RecurringConfiguration[] @relation("RecurringAssignments")
-  chatMessages              ChatMessage[]            @relation("ChatMessages")
-  createdShiftHandovers     ShiftHandover[]          @relation("ShiftHandoverCreator")
-  shiftHandoverAppearances  ShiftHandoverElement[]   @relation("ShiftHandoverGuard")
-  uniformChecksReceived     UniformCheck[]           @relation("UniformGuard")
-  uniformChecksPerformed    UniformCheck[]           @relation("UniformEvaluator")
+  chatMessages             ChatMessage[]            @relation("ChatMessages")
+  createdShiftHandovers    ShiftHandover[]          @relation("ShiftHandoverCreator")
+  shiftHandoverAppearances ShiftHandoverElement[]   @relation("ShiftHandoverGuard")
+  uniformChecksReceived    UniformCheck[]           @relation("UniformGuard")
+  uniformChecksPerformed   UniformCheck[]           @relation("UniformEvaluator")
+
+  @@index([roleId])
+  @@index([isLoggedIn])
 }
 
 model Schedule {
@@ -106,6 +109,7 @@ model Property {
   users          User[]
 
   @@index([identifier])
+  @@index([statusId, typeId])
 }
 
 model ResidentProfile {
@@ -146,6 +150,7 @@ model Invitation {
   type        InvitationType   @relation(fields: [typeId], references: [id])
 
   @@index([code])
+  @@index([propertyId, status])
 }
 
 model Location {
@@ -182,6 +187,7 @@ model Kardex {
   @@index([userId])
   @@index([locationId])
   @@index([timestamp])
+  @@index([userId, timestamp(sort: Desc)])
 }
 
 model Assignment {
@@ -237,6 +243,8 @@ model RecurringLocation {
   configuration   RecurringConfiguration @relation(fields: [configurationId], references: [id])
   location        Location               @relation(fields: [locationId], references: [id])
   tasks           RecurringTask[]
+
+  @@index([configurationId])
 }
 
 model RecurringTask {
@@ -298,6 +306,8 @@ model Incident {
   guard        User              @relation(fields: [guardId], references: [id])
   resolvedBy   User?             @relation("IncidentResolver", fields: [resolvedById], references: [id])
   type         IncidentType?     @relation(fields: [typeId], references: [id])
+
+  @@index([kind, status, createdAt(sort: Desc)])
 }
 
 model Round {
@@ -309,6 +319,10 @@ model Round {
   recurringConfigurationId Int?
   guard                    User                    @relation("GuardRounds", fields: [guardId], references: [id])
   recurringConfiguration   RecurringConfiguration? @relation(fields: [recurringConfigurationId], references: [id])
+
+  @@index([guardId, status])
+  @@index([recurringConfigurationId, status])
+  @@index([startTime(sort: Desc)])
 }
 
 model SysConfig {
@@ -336,6 +350,8 @@ model Maintenance {
   guard        User              @relation(fields: [guardId], references: [id])
   resolvedBy   User?             @relation("MaintenanceResolver", fields: [resolvedById], references: [id])
   type         IncidentType?     @relation(fields: [typeId], references: [id])
+
+  @@index([status, createdAt(sort: Desc)])
 }
 
 model ResidentContact {

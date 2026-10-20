@@ -1,4 +1,5 @@
 import { prismaClient } from "@src/core/config/database";
+import { LIST_MAX_ROWS } from "@src/core/constants/limits";
 import { AssignmentStatus, ScanType } from "@prisma/client";
 import { ABLY_CHANNELS, publishToChannel } from "@src/core/config/ably";
 
@@ -112,6 +113,7 @@ export const getKardex = async (filters: {
 
   return prismaClient.kardex.findMany({
     where,
+    take: LIST_MAX_ROWS,
     include: {
       user: {
         select: { id: true, name: true, lastName: true, username: true, role: true },

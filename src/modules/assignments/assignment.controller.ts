@@ -19,13 +19,6 @@ export const createAssignment = async (req: Request, res: Response) => {
     // Quien asigna es siempre el usuario autenticado, nunca un valor del body (S-03).
     // @ts-ignore - req.user lo agrega `authenticate`
     const assignedBy = req.user.id;
-    console.log({
-      assignedBy,
-      guardId,
-      locationId,
-      notes,
-      tasks,
-    });
     const result = await assignmentService.createAssignment({
       guardId: Number(guardId),
       locationId: Number(locationId),

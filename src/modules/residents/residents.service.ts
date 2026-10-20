@@ -20,7 +20,6 @@ export const getDataTableResidents = async (params: ITDataTableFetchParams): Pro
     if (searchTerm) {
         const search = `%${searchTerm}%`;
         try {
-            await prismaClient.$executeRaw`CREATE EXTENSION IF NOT EXISTS unaccent;`.catch(() => {});
 
             // Construct parts for dynamic SQL
             const rows: any = propertyId

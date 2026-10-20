@@ -7,6 +7,7 @@ import YAML from "yamljs";
 
 //middlewares
 import { createTResult } from "@src/core/mappers/tresult.mapper";
+import { redactResponseSecrets } from "@src/core/middlewares/redact-secrets.middleware";
 
 //router
 import apiRouter from "@src/modules/api.router";
@@ -23,6 +24,7 @@ const allowedOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5002,http:
 
 app.use([
   express.json({ limit: "1mb" }), // S-17 / E-17: límite de tamaño del body
+  redactResponseSecrets, // ninguna respuesta lleva la clave password (S-09)
   helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }),
   cors({ origin: allowedOrigins }),
   morgan(process.env.NODE_ENV === "test" ? "tiny" : "dev"),

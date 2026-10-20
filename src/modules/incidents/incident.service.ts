@@ -1,4 +1,6 @@
 import { prismaClient } from "@src/core/config/database";
+import { LIST_MAX_ROWS } from "@src/core/constants/limits";
+import { USER_PUBLIC_SELECT } from "@src/core/constants/user-select";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 import { ABLY_CHANNELS, publishToChannel } from "@src/core/config/ably";
@@ -40,8 +42,8 @@ export const getDataTableIncidents = async (params: ITDataTableFetchParams): Pro
         prismaClient.incident.findMany({
             ...prismaParams,
             include: { 
-                guard: true,
-                resolvedBy: true,
+                guard: { select: USER_PUBLIC_SELECT },
+                resolvedBy: { select: USER_PUBLIC_SELECT },
                 category: true,
                 type: true
             },
@@ -86,7 +88,7 @@ export const createIncident = async (data: {
             const enrichedIncident = await prismaClient.incident.findUnique({
                 where: { id: incident.id },
                 include: {
-                    guard: true,
+                    guard: { select: USER_PUBLIC_SELECT },
                     category: true,
                     type: true
                 }
@@ -137,9 +139,10 @@ export const getIncidents = async (filters: {
 
     return prismaClient.incident.findMany({
         where: whereClause,
+        take: LIST_MAX_ROWS,
         include: { 
-            guard: true,
-            resolvedBy: true
+            guard: { select: USER_PUBLIC_SELECT },
+            resolvedBy: { select: USER_PUBLIC_SELECT }
         },
         orderBy: { createdAt: 'desc' }
     });
@@ -154,8 +157,8 @@ export const resolveIncident = async (id: number, userId: number) => {
             resolvedById: userId
         },
         include: {
-            guard: true,
-            resolvedBy: true
+            guard: { select: USER_PUBLIC_SELECT },
+            resolvedBy: { select: USER_PUBLIC_SELECT }
         }
     });
 };
@@ -172,7 +175,7 @@ export const getPendingIncidentsCount = async () => {
 export const getIncidentById = async (id: number) => {
     return prismaClient.incident.findFirst({
         where: { id, kind: INCIDENT_KIND },
-        include: { guard: true }
+        include: { guard: { select: USER_PUBLIC_SELECT } }
     });
 };
 

@@ -16,7 +16,6 @@ export enum CatalogKey {
 }
 
 export const getCatalog = async (key: string) => {
-    console.log(`[CatalogService] Fetching catalog for key: ${key}`);
     const selectFields = { id: true, name: true, value: true };
     try {
         switch (key) {

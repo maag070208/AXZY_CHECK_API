@@ -1,4 +1,5 @@
 
+import { USER_PUBLIC_SELECT } from "@src/core/constants/user-select";
 import { prismaClient } from "@src/core/config/database";
 import { TResult } from '@src/core/dto/TResult';
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
@@ -160,7 +161,7 @@ export const startRound = async (guardId: number, recurringConfigId?: number): P
             guardId,
             status: 'IN_PROGRESS'
         },
-        include: { guard: true, recurringConfiguration: true }
+        include: { guard: { select: USER_PUBLIC_SELECT }, recurringConfiguration: true }
     });
 
     if (activeRound) {
@@ -231,7 +232,7 @@ export const startRound = async (guardId: number, recurringConfigId?: number): P
                 status: 'IN_PROGRESS',
                 guardId: { not: guardId } // Someone else
             },
-            include: { guard: true }
+            include: { guard: { select: USER_PUBLIC_SELECT } }
         });
         
         if (routeActiveByOther) {
@@ -253,7 +254,7 @@ export const startRound = async (guardId: number, recurringConfigId?: number): P
         startTime: new Date(),
         recurringConfigurationId: recurringConfigId
       },
-      include: { guard: true, recurringConfiguration: true }
+      include: { guard: { select: USER_PUBLIC_SELECT }, recurringConfiguration: true }
     });
 
     // Live dashboard (Home de WEB): avisa a los clientes que vuelvan a
@@ -274,7 +275,17 @@ export const startRound = async (guardId: number, recurringConfigId?: number): P
   }
 };
 
-export const endRound = async (roundId: number): Promise<TResult<any>> => {
+/** Roles que pueden cerrar la ronda de otro guardia (supervisión). */
+const ROUND_SUPERVISORS = ["ADMIN", "SHIFT"];
+
+/**
+ * Cierra una ronda. Solo puede hacerlo el guardia dueño o un supervisor
+ * (ADMIN/SHIFT). Antes cualquier usuario autenticado podía cerrar la ronda de otro.
+ */
+export const endRound = async (
+  roundId: number,
+  actor?: { id: number; role: string },
+): Promise<TResult<any>> => {
   try {
     const round = await prisma.round.findUnique({
       where: { id: roundId },
@@ -282,6 +293,17 @@ export const endRound = async (roundId: number): Promise<TResult<any>> => {
 
     if (!round) {
       return { success: false, data: null, messages: ['Ronda no encontrada'] };
+    }
+
+    const isOwner = actor !== undefined && Number(actor.id) === round.guardId;
+    const isSupervisor = actor !== undefined && ROUND_SUPERVISORS.includes(actor.role);
+    if (actor && !isOwner && !isSupervisor) {
+      return {
+        success: false,
+        data: null,
+        messages: ['No puedes finalizar una ronda que no es tuya'],
+        code: 'FORBIDDEN',
+      } as any;
     }
 
     if (round.status === 'COMPLETED') {
@@ -333,7 +355,7 @@ export const getCurrentRound = async (guardId: number): Promise<TResult<any>> =>
                 },
             },
             include: {
-                guard: true,
+                guard: { select: USER_PUBLIC_SELECT },
                 recurringConfiguration: true
             },
             orderBy: {
@@ -345,7 +367,7 @@ export const getCurrentRound = async (guardId: number): Promise<TResult<any>> =>
         if (!round) {
              const anyActive = await prisma.round.findFirst({
                  where: { guardId, status: 'IN_PROGRESS' },
-                 include: { guard: true, recurringConfiguration: true },
+                 include: { guard: { select: USER_PUBLIC_SELECT }, recurringConfiguration: true },
                  orderBy: { startTime: 'desc' }
              });
              if (anyActive) round = anyActive;

@@ -1,4 +1,5 @@
 import { prismaClient } from "@src/core/config/database";
+import { USER_PUBLIC_SELECT } from "@src/core/constants/user-select";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 
@@ -92,7 +93,7 @@ export const getInvitationByIdOrCode = async (identifier: string) => {
         where: whereClause,
         include: {
             property: true,
-            createdBy: true
+            createdBy: { select: USER_PUBLIC_SELECT }
         }
     });
 };

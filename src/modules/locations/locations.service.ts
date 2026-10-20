@@ -14,9 +14,6 @@ export const getDataTableLocations = async (params: ITDataTableFetchParams): Pro
     if (searchTerm) {
         const search = `%${searchTerm}%`;
         try {
-            // Attempt to enable unaccent if not exists
-            await prisma.$executeRaw`CREATE EXTENSION IF NOT EXISTS unaccent;`.catch(() => {});
-
             const rows: any = await prisma.$queryRaw`
                 SELECT * FROM "Location"
                 WHERE "softDelete" = false

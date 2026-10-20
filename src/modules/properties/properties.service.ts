@@ -21,7 +21,6 @@ export const getDataTableProperties = async (params: ITDataTableFetchParams): Pr
     if (searchTerm) {
         const search = `%${searchTerm}%`;
         try {
-            await prismaClient.$executeRaw`CREATE EXTENSION IF NOT EXISTS unaccent;`.catch(() => {});
 
             // Construct parts for dynamic SQL
             const rows: any = typeId 

@@ -1,4 +1,6 @@
 import { prismaClient } from "@src/core/config/database";
+import { LIST_MAX_ROWS } from "@src/core/constants/limits";
+import { USER_PUBLIC_SELECT } from "@src/core/constants/user-select";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 
@@ -9,8 +11,8 @@ export const getDataTableMaintenances = async (params: ITDataTableFetchParams): 
         prismaClient.maintenance.findMany({
             ...prismaParams,
             include: { 
-                guard: true,
-                resolvedBy: true
+                guard: { select: USER_PUBLIC_SELECT },
+                resolvedBy: { select: USER_PUBLIC_SELECT }
             },
         }),
         prismaClient.maintenance.count({
@@ -53,7 +55,7 @@ export const createMaintenance = async (data: {
             const enrichedMaintenance = await prismaClient.maintenance.findUnique({
                 where: { id: maintenance.id },
                 include: { 
-                    guard: true,
+                    guard: { select: USER_PUBLIC_SELECT },
                     categoryRel: true,
                     type: true
                 }
@@ -100,9 +102,10 @@ export const getMaintenances = async (filters: {
 
     return prismaClient.maintenance.findMany({
         where: whereClause,
+        take: LIST_MAX_ROWS,
         include: { 
-            guard: true,
-            resolvedBy: true
+            guard: { select: USER_PUBLIC_SELECT },
+            resolvedBy: { select: USER_PUBLIC_SELECT }
         },
         orderBy: { createdAt: 'desc' }
     });
@@ -117,8 +120,8 @@ export const resolveMaintenance = async (id: number, userId: number) => {
             resolvedById: userId
         },
         include: {
-            guard: true,
-            resolvedBy: true
+            guard: { select: USER_PUBLIC_SELECT },
+            resolvedBy: { select: USER_PUBLIC_SELECT }
         }
     });
 };
@@ -135,8 +138,8 @@ export const getMaintenanceById = async (id: number) => {
     return prismaClient.maintenance.findUnique({
         where: { id },
         include: {
-            guard: true,
-            resolvedBy: true
+            guard: { select: USER_PUBLIC_SELECT },
+            resolvedBy: { select: USER_PUBLIC_SELECT }
         }
     });
 };

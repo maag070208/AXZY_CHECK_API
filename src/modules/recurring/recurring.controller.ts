@@ -94,9 +94,7 @@ export const getMyRecurring = async (req: Request, res: Response) => {
     try {
         // @ts-ignore - req.user lo agrega `authenticate`
         const userId = req.user.id;
-        console.log("DEBUG: getMyRecurring - userId:", userId, "Type:", typeof userId);
         const list = await getRecurringConfigurationsForUser(userId);
-        console.log("DEBUG: getMyRecurring - found configs:", list.length);
         return res.status(200).json(createTResult(list));
     } catch (error: any) {
         return res.status(500).json(createTResult(null, error.message));

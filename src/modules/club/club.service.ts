@@ -1,4 +1,5 @@
 import { prismaClient } from "@src/core/config/database";
+import { USER_PUBLIC_SELECT } from "@src/core/constants/user-select";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 
@@ -35,8 +36,8 @@ export const getDataTableClub = async (params: ITDataTableFetchParams): Promise<
         prismaClient.incident.findMany({
             ...prismaParams,
             include: {
-                guard: true,
-                resolvedBy: true,
+                guard: { select: USER_PUBLIC_SELECT },
+                resolvedBy: { select: USER_PUBLIC_SELECT },
                 category: true,
                 type: true
             },
@@ -110,8 +111,8 @@ export const getClubs = async (filters: {
     return prismaClient.incident.findMany({
         where: whereClause,
         include: {
-            guard: true,
-            resolvedBy: true,
+            guard: { select: USER_PUBLIC_SELECT },
+            resolvedBy: { select: USER_PUBLIC_SELECT },
             category: true,
             type: true
         },
@@ -128,8 +129,8 @@ export const resolveClub = async (id: number, userId: number) => {
             resolvedById: userId
         },
         include: {
-            guard: true,
-            resolvedBy: true,
+            guard: { select: USER_PUBLIC_SELECT },
+            resolvedBy: { select: USER_PUBLIC_SELECT },
             category: true,
             type: true
         }
@@ -148,7 +149,7 @@ export const getPendingClubsCount = async () => {
 export const getClubById = async (id: number) => {
     return prismaClient.incident.findFirst({
         where: { id, kind: CLUB_TYPE },
-        include: { guard: true }
+        include: { guard: { select: USER_PUBLIC_SELECT } }
     });
 };
 

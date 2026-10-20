@@ -236,36 +236,38 @@ export const getRecurringConfigurationsForUser = async (userId: number) => {
 
     const filterDate = activeRound ? activeRound.startTime : today;
 
-    const enrichedConfigs = await Promise.all(configs.map(async (config) => {
-        const enrichedLocations = await Promise.all(config.recurringLocations.map(async (loc) => {
-            const scan = await prismaClient.kardex.findFirst({
-                where: {
-                    locationId: loc.locationId,
-                    userId: userId, 
-                    timestamp: {
-                        gte: filterDate // Use dynamic filter date
-                    },
-                    // Ensure it is a completed report (not a draft with empty notes)
-                    notes: {
-                        not: '' 
-                    }
-                }
-            });
-            
-            return {
-                ...loc,
-                completed: !!scan,
-                completedAt: scan?.timestamp
-            };
-        }));
+    // Una sola consulta para TODAS las ubicaciones del guardia (antes: una
+    // consulta por punto, N+1 en cada apertura de la APP). Se toma el escaneo
+    // más antiguo de cada ubicación dentro del periodo, de forma determinista.
+    const locationIds = Array.from(
+        new Set(configs.flatMap((c) => c.recurringLocations.map((l) => l.locationId))),
+    );
+    const scans = locationIds.length
+        ? await prismaClient.kardex.findMany({
+            where: {
+                userId,
+                locationId: { in: locationIds },
+                timestamp: { gte: filterDate },
+                // Solo escaneos completos (con notas), no borradores vacíos.
+                notes: { not: '' },
+            },
+            select: { locationId: true, timestamp: true },
+            orderBy: { timestamp: 'asc' },
+        })
+        : [];
 
-        return {
-            ...config,
-            recurringLocations: enrichedLocations
-        };
+    const firstScanByLocation = new Map<number, Date>();
+    for (const scan of scans) {
+        if (!firstScanByLocation.has(scan.locationId)) {
+            firstScanByLocation.set(scan.locationId, scan.timestamp);
+        }
+    }
+
+    return configs.map((config) => ({
+        ...config,
+        recurringLocations: config.recurringLocations.map((loc) => {
+            const completedAt = firstScanByLocation.get(loc.locationId);
+            return { ...loc, completed: !!completedAt, completedAt };
+        }),
     }));
-
-    console.log("DEBUG: Service - Enriched Configs:", JSON.stringify(enrichedConfigs.map(c => ({id: c.id, locs: c.recurringLocations.length})), null, 2));
-
-    return enrichedConfigs;
 };
