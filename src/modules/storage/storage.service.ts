@@ -1,4 +1,4 @@
-import { S3Client, GetObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, GetObjectCommand, DeleteObjectCommand, HeadObjectCommand, PutObjectCommand, NotFound } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { Upload } from "@aws-sdk/lib-storage";
 import "multer";
@@ -71,5 +71,36 @@ export class StorageService {
       Key: key,
     });
     await this.client.send(command);
+  }
+
+  /**
+   * PRESIGNED UPLOAD (T-F0-09)
+   * URL para que el cliente suba el objeto directo a S3 con PUT. Caduca en `expiresInSeconds`.
+   */
+  async presignUpload(
+    bucketName: string,
+    key: string,
+    contentType: string,
+    contentLength: number,
+    expiresInSeconds: number
+  ): Promise<string> {
+    const command = new PutObjectCommand({
+      Bucket: bucketName,
+      Key: key,
+      ContentType: contentType,
+      ContentLength: contentLength,
+    });
+    return getSignedUrl(this.client, command, { expiresIn: expiresInSeconds });
+  }
+
+  /** ¿Existe el objeto en S3? Sólo NotFound cuenta como "no existe"; otros errores se propagan. */
+  async objectExists(bucketName: string, key: string): Promise<boolean> {
+    try {
+      await this.client.send(new HeadObjectCommand({ Bucket: bucketName, Key: key }));
+      return true;
+    } catch (error) {
+      if (error instanceof NotFound) return false;
+      throw error;
+    }
   }
 }

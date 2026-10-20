@@ -1,23 +1,14 @@
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import { ALLOWED_MEDIA_TYPES } from "@src/core/constants/media";
 
 // Ensure upload directory exists
 // Storage configuration
 const storage = multer.memoryStorage();
 
 const fileFilter = (req: any, file: any, cb: any) => {
-  const allowedMimes = [
-    "image/jpeg",
-    "image/png",
-    "image/webp",
-    "video/mp4",
-    "video/quicktime",
-    "video/x-msvideo",
-    "video/x-matroska",
-    "video/3gpp",
-    "video/webm",
-  ];
+  const allowedMimes: readonly string[] = ALLOWED_MEDIA_TYPES;
 
   if (allowedMimes.includes(file.mimetype)) {
     cb(null, true);

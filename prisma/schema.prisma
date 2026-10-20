@@ -99,6 +99,7 @@ model User {
   shiftHandoverAppearances ShiftHandoverElement[]   @relation("ShiftHandoverGuard")
   uniformChecksReceived    UniformCheck[]           @relation("UniformGuard")
   uniformChecksPerformed   UniformCheck[]           @relation("UniformEvaluator")
+  mediaFiles               MediaFile[]
 
   @@index([roleId])
   @@index([isLoggedIn])
@@ -359,6 +360,26 @@ model AppSetting {
   description String?
   isSecret    Boolean  @default(false)
   updatedAt   DateTime @updatedAt
+}
+
+enum MediaFileStatus {
+  PENDING
+  CONFIRMED
+}
+
+/// Archivo subido directo a S3 con URL prefirmada (T-F0-09).
+model MediaFile {
+  id           Int             @id @default(autoincrement())
+  key          String          @unique
+  contentType  String
+  sizeBytes    Int
+  status       MediaFileStatus @default(PENDING)
+  uploadedById Int?
+  uploadedBy   User?           @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime        @default(now())
+  confirmedAt  DateTime?
+
+  @@index([uploadedById])
 }
 
 model SysConfig {
