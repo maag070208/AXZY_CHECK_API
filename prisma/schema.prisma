@@ -100,6 +100,8 @@ model User {
   uniformChecksReceived    UniformCheck[]           @relation("UniformGuard")
   uniformChecksPerformed   UniformCheck[]           @relation("UniformEvaluator")
   mediaFiles               MediaFile[]
+  notifications            Notification[]
+  pushDevices              PushDevice[]
 
   @@index([roleId])
   @@index([isLoggedIn])
@@ -360,6 +362,56 @@ model AppSetting {
   description String?
   isSecret    Boolean  @default(false)
   updatedAt   DateTime @updatedAt
+}
+
+enum OutboxStatus {
+  PENDING
+  SENT
+  DEAD
+}
+
+/// Evento a entregar con reintentos (T-F0-10). DEAD = agotó los intentos.
+model OutboxEvent {
+  id            Int            @id @default(autoincrement())
+  type          String
+  payload       Json
+  status        OutboxStatus   @default(PENDING)
+  attempts      Int            @default(0)
+  nextAttemptAt DateTime       @default(now())
+  lastError     String?
+  createdAt     DateTime       @default(now())
+  sentAt        DateTime?
+  notifications Notification[]
+
+  @@index([status, nextAttemptAt])
+}
+
+model Notification {
+  id            Int          @id @default(autoincrement())
+  userId        Int
+  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  outboxEventId Int?
+  outboxEvent   OutboxEvent? @relation(fields: [outboxEventId], references: [id], onDelete: SetNull)
+  title         String
+  body          String
+  data          Json?
+  createdAt     DateTime     @default(now())
+  readAt        DateTime?
+
+  @@unique([outboxEventId, userId])
+  @@index([userId, readAt])
+}
+
+model PushDevice {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token      String   @unique
+  platform   String
+  createdAt  DateTime @default(now())
+  lastSeenAt DateTime @updatedAt
+
+  @@index([userId])
 }
 
 enum MediaFileStatus {

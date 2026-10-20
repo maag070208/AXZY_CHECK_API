@@ -1,11 +1,13 @@
 import { app } from "@src/app";
 import { registerShiftAlertCron } from "@src/core/jobs/shift-alert.cron";
+import { registerOutboxWorker } from "@src/core/jobs/outbox.cron";
 import { prismaClient } from "@src/core/config/database";
 
 const PORT = 4444;
 
 // Entrega de turno: alertas automáticas 7:00 AM / 7:00 PM (ajustes/bonaterra_ajuste_2.md, 4.2)
 registerShiftAlertCron();
+registerOutboxWorker();
 
 const server = app.listen(PORT, "0.0.0.0", () => {
   console.log(`Server is running on port ${PORT}`);
