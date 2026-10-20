@@ -1,4 +1,7 @@
 import Router from "express";
+import { validate } from "@src/core/validation/validate";
+import { idParam } from "@src/core/validation/common";
+import { loginBody, createUserBody, updateUserBody } from "./user.schemas";
 import { createUser, getAllUsers, login, getCoachesList, updateUserProfile, changePassword, logout, resetPassword, deleteUser, getDataTable } from "./user.controller";
 import { requireRole } from "@src/modules/common/middlewares/role.middleware";
 import { loginRateLimiter } from "@src/core/middlewares/rate-limit.middleware";
@@ -13,10 +16,10 @@ const MANAGERS = ["ADMIN", "SHIFT"];
 router.post("/datatable", requireRole(MANAGERS), getDataTable);
 router.get("/", requireRole(MANAGERS), getAllUsers);
 router.get("/coaches", requireRole(["ADMIN"]), getCoachesList);
-router.post("/login", loginRateLimiter, login);
-router.post("/", requireRole(["ADMIN"]), createUser);
+router.post("/login", loginRateLimiter, validate({ body: loginBody }), login);
+router.post("/", requireRole(["ADMIN"]), validate({ body: createUserBody }), createUser);
 // Perfil propio (cualquiera) o cualquier usuario (ADMIN). Los campos de rol se filtran en el controlador.
-router.put("/:id", selfOrRole(["ADMIN"]), updateUserProfile);
+router.put("/:id", selfOrRole(["ADMIN"]), validate({ params: idParam, body: updateUserBody }), updateUserProfile);
 router.put("/:id/password", selfOrRole(["ADMIN"]), changePassword);
 router.put("/:id/reset-password", requireRole(["ADMIN"]), resetPassword);
 router.post("/logout", logout);

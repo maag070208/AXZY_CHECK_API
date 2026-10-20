@@ -1,11 +1,13 @@
 import { Router } from "express";
+import { validate } from "@src/core/validation/validate";
+import { createIncidentBody } from "./incident.schemas";
 import { requireRole } from "@src/modules/common/middlewares/role.middleware";
 import * as incidentController from "./incident.controller";
 import { authenticate } from "../common/middlewares/auth.middleware";
 
 const router = Router();
 
-router.post("/", authenticate, incidentController.createIncident);
+router.post("/", authenticate, validate({ body: createIncidentBody }), incidentController.createIncident);
 router.post("/datatable", incidentController.getDataTable);
 router.get("/", authenticate, incidentController.getIncidents);
 router.get("/pending-count", authenticate, incidentController.getPendingCount);
