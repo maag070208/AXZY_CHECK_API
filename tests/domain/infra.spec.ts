@@ -1,44 +1,19 @@
 /**
- * [E1] Infraestructura: caché de ajustes (E-09), candado del cron (E-13),
+ * [E1] Infraestructura: candado del cron (E-13),
  * límites del pool (E-14) y endpoints de salud (T-E1-10).
  */
 import request from "supertest";
 import { app } from "@src/app";
-import { getSysConfig, clearSysConfigCache } from "@src/modules/shift-handover/shift-handover.service";
 import { withAdvisoryLock } from "@src/core/utils/advisory-lock";
 import { buildDatabaseUrl } from "@src/core/config/database";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
 
 beforeEach(async () => {
   await resetDatabase();
-  clearSysConfigCache();
 });
 
 afterAll(async () => {
-  clearSysConfigCache();
   await disconnectDatabase();
-});
-
-describe("caché de SysConfig (E-09)", () => {
-  it("no vuelve a leer la base dentro del TTL, y se invalida al limpiar", async () => {
-    await prisma.sysConfig.upsert({
-      where: { key: "DASHBOARD_STALE_MINUTES" },
-      update: { value: "20" },
-      create: { key: "DASHBOARD_STALE_MINUTES", value: "20" },
-    });
-    expect(await getSysConfig("DASHBOARD_STALE_MINUTES", "0")).toBe("20");
-
-    await prisma.sysConfig.update({ where: { key: "DASHBOARD_STALE_MINUTES" }, data: { value: "45" } });
-    // Dentro del TTL: sigue el valor cacheado.
-    expect(await getSysConfig("DASHBOARD_STALE_MINUTES", "0")).toBe("20");
-
-    clearSysConfigCache();
-    expect(await getSysConfig("DASHBOARD_STALE_MINUTES", "0")).toBe("45");
-  });
-
-  it("usa el valor por defecto si la clave no existe", async () => {
-    expect(await getSysConfig("NO_EXISTE", "fallback")).toBe("fallback");
-  });
 });
 
 describe("candado del cron (E-13)", () => {

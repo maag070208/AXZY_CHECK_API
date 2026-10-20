@@ -1,5 +1,5 @@
 import cron from "node-cron";
-import { prismaClient } from "@src/core/config/database";
+import { getSetting } from "@src/core/settings/app-settings.service";
 import { LOCK_KEYS, withAdvisoryLock } from "@src/core/utils/advisory-lock";
 import { publishToChannel, ABLY_CHANNELS } from "@src/core/config/ably";
 
@@ -7,7 +7,7 @@ import { publishToChannel, ABLY_CHANNELS } from "@src/core/config/ably";
  * @description Registers the two daily cron jobs that remind the jefe
  * operativo (rol SHIFT) to submit the shift-handover report — 7:00 AM and
  * 7:00 PM per `ajustes/bonaterra_ajuste_2.md` (4.2). Times and timezone are
- * read once at startup from `SysConfig` (`SHIFT_ALERT_MORNING_TIME`,
+ * read once at startup from `AppSetting` (`SHIFT_ALERT_MORNING_TIME`,
  * `SHIFT_ALERT_EVENING_TIME`, `SHIFT_ALERT_TIMEZONE`) so an admin can adjust
  * them without a code change — a running server needs a restart to pick up
  * a change, which is an accepted trade-off to keep this simple.
@@ -19,15 +19,11 @@ import { publishToChannel, ABLY_CHANNELS } from "@src/core/config/ably";
  */
 export const registerShiftAlertCron = async (): Promise<void> => {
   try {
-    const [morningRow, eveningRow, tzRow] = await Promise.all([
-      prismaClient.sysConfig.findUnique({ where: { key: "SHIFT_ALERT_MORNING_TIME" } }),
-      prismaClient.sysConfig.findUnique({ where: { key: "SHIFT_ALERT_EVENING_TIME" } }),
-      prismaClient.sysConfig.findUnique({ where: { key: "SHIFT_ALERT_TIMEZONE" } }),
+    const [morningTime, eveningTime] = await Promise.all([
+      getSetting("SHIFT_ALERT_MORNING_TIME", "07:00"),
+      getSetting("SHIFT_ALERT_EVENING_TIME", "19:00"),
     ]);
-
-    const morningTime = morningRow?.value ?? "07:00";
-    const eveningTime = eveningRow?.value ?? "19:00";
-    const tzValue = tzRow?.value ?? "America/Tijuana";
+    const tzValue = await getSetting("SHIFT_ALERT_TIMEZONE", "America/Tijuana");
 
     const [morningHour, morningMinute] = morningTime.split(":").map(Number);
     const [eveningHour, eveningMinute] = eveningTime.split(":").map(Number);

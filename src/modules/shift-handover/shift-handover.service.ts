@@ -1,4 +1,5 @@
 import { prismaClient } from "@src/core/config/database";
+import { getSetting } from "@src/core/settings/app-settings.service";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 import { ABLY_CHANNELS, publishToChannel } from "@src/core/config/ably";
@@ -111,28 +112,6 @@ export const getShiftHandoverById = async (id: number) => {
   return prismaClient.shiftHandover.findUnique({ where: { id }, include: detailInclude });
 };
 
-/** @description Reads a `SysConfig` value, falling back to a default if unset. */
-/**
- * Caché en memoria de SysConfig con TTL (E-09). Los ajustes cambian rara vez y
- * se leen en cada refresco del dashboard. Se invalida al expirar o con
- * clearSysConfigCache() tras escribir un ajuste.
- */
-const SYS_CONFIG_TTL_MS = 60_000;
-const sysConfigCache = new Map<string, { value: string | null; expiresAt: number }>();
-
-export const clearSysConfigCache = () => sysConfigCache.clear();
-
-export const getSysConfig = async (key: string, fallback: string) => {
-  const now = Date.now();
-  const hit = sysConfigCache.get(key);
-  if (hit && hit.expiresAt > now) {
-    return hit.value ?? fallback;
-  }
-  const row = await prismaClient.sysConfig.findUnique({ where: { key } });
-  sysConfigCache.set(key, { value: row?.value ?? null, expiresAt: now + SYS_CONFIG_TTL_MS });
-  return row?.value ?? fallback;
-};
-
 /**
  * @description Determines whether the current shift's handover report is
  * "pending": the configured alert time for the relevant shift has already
@@ -141,9 +120,9 @@ export const getSysConfig = async (key: string, fallback: string) => {
  * as a fallback to the Ably live alert.
  */
 export const getPendingShiftHandover = async () => {
-  const timezoneConfig = await getSysConfig("SHIFT_ALERT_TIMEZONE", "America/Tijuana");
-  const morningTime = await getSysConfig("SHIFT_ALERT_MORNING_TIME", "07:00");
-  const eveningTime = await getSysConfig("SHIFT_ALERT_EVENING_TIME", "19:00");
+  const timezoneConfig = await getSetting("SHIFT_ALERT_TIMEZONE", "America/Tijuana");
+  const morningTime = await getSetting("SHIFT_ALERT_MORNING_TIME", "07:00");
+  const eveningTime = await getSetting("SHIFT_ALERT_EVENING_TIME", "19:00");
 
   const now = dayjs().tz(timezoneConfig);
   const today = now.format("YYYY-MM-DD");

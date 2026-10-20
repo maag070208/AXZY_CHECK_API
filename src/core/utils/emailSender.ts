@@ -1,21 +1,17 @@
 import { transporter, resend } from "../config/mail";
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import { getSetting } from "../settings/app-settings.service";
 
 export const sendIncidentEmail = async (incident: any, guard: any) => {
   try {
-    // 1. Get recipients from SysConfig
-    const config = await prisma.sysConfig.findUnique({
-      where: { key: "INCIDENT_EMAIL" },
-    });
+    // 1. Destinatarios desde AppSetting (separados por "|")
+    const emails = await getSetting("INCIDENT_EMAIL", "");
 
-    if (!config || !config.value) {
+    if (!emails) {
       console.warn("No Recipients found for INCIDENT_EMAIL");
       return;
     }
 
-    const recipients = config.value.split("|");
+    const recipients = emails.split("|");
 
     const subject = `⚠️ Nuevo Incidente Reportado: ${incident.title}`;
 
@@ -121,16 +117,14 @@ export const sendIncidentEmail = async (incident: any, guard: any) => {
 
 export const sendMaintenanceEmail = async (maintenance: any, guard: any) => {
   try {
-    const config = await prisma.sysConfig.findUnique({
-      where: { key: "MAINTENANCE_EMAIL" },
-    });
+    const emails = await getSetting("MAINTENANCE_EMAIL", "");
 
-    if (!config || !config.value) {
+    if (!emails) {
       console.warn("No Recipients found for MAINTENANCE_EMAIL");
       return;
     }
 
-    const recipients = config.value.split("|");
+    const recipients = emails.split("|");
     const subject = `🔧 Nuevo Reporte de Mantenimiento: ${maintenance.title}`;
 
     let mediaLinks = '<p><em>No hay evidencia adjunta.</em></p>';

@@ -2,7 +2,7 @@ import { PrismaClient } from "@prisma/client";
 import { catalogsSeed } from "./seeds/catalogs";
 import { securitySeed } from "./seeds/security";
 import { locationsSeed } from "./seeds/locations";
-import { sysConfigSeed } from "./seeds/sysconfig";
+import { settingsSeed } from "./seeds/settings";
 import { schedulesSeed } from "./seeds/schedules";
 import { propertiesSeed } from "./seeds/properties";
 import { relationshipsSeed } from "./seeds/relationships";
@@ -24,7 +24,7 @@ async function main() {
   await schedulesSeed(prisma);
   await securitySeed(prisma);
   await locationsSeed(prisma);
-  await sysConfigSeed(prisma);
+  await settingsSeed(prisma);
   await propertiesSeed(prisma);
   await relationshipsSeed(prisma);
 

@@ -1,5 +1,6 @@
 import { prismaClient } from "@src/core/config/database";
-import { getSysConfig, getPendingShiftHandover } from "@src/modules/shift-handover/shift-handover.service";
+import { getPendingShiftHandover } from "@src/modules/shift-handover/shift-handover.service";
+import { getSetting } from "@src/core/settings/app-settings.service";
 
 /**
  * "Dashboard administrativo en vivo" — reemplaza el Home de WEB para
@@ -186,7 +187,7 @@ export const getLiveInsights = async (now: Date) => {
 
 export const getLiveDashboard = async () => {
   const now = new Date();
-  const staleMinutes = Number(await getSysConfig("DASHBOARD_STALE_MINUTES", "20")) || 20;
+  const staleMinutes = Number(await getSetting("DASHBOARD_STALE_MINUTES", "20")) || 20;
 
   const [activeRoundsRaw, onShiftUsers, openIncidents, openIncidentsCount, activeRoutes, pendingHandover, insights] =
     await Promise.all([

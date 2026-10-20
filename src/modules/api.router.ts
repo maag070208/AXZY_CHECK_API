@@ -26,6 +26,7 @@ import uniformRoute from "./uniform/uniform.routes";
 import dashboardRoute from "./dashboard/dashboard.routes";
 import { createCatalogRouter } from "@src/core/catalogs/catalog-factory";
 import { CATALOG_REGISTRY } from "@src/core/catalogs/registry";
+import settingsRoute from "./settings/settings.routes";
 
 
 const apiRouter = Router();
@@ -57,6 +58,7 @@ apiRouter.use("/realtime", realtimeRoute);
 apiRouter.use("/shift-handover", shiftHandoverRoute);
 apiRouter.use("/uniform", uniformRoute);
 apiRouter.use("/dashboard", dashboardRoute);
+apiRouter.use("/settings", settingsRoute);
 
 // Catálogos administrables (T-F0-04): un router generado por cada entrada del registro.
 apiRouter.get("/catalogs", (_req, res) =>

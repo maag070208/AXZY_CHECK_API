@@ -334,6 +334,16 @@ model Round {
   @@index([startTime(sort: Desc)])
 }
 
+model AppSetting {
+  key         String   @id
+  valueType   String   @default("string")
+  value       String
+  group       String   @default("general")
+  description String?
+  isSecret    Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+}
+
 model SysConfig {
   key   String @id
   value String
