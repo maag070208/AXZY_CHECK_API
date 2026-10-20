@@ -279,7 +279,9 @@ export const getLiveDashboard = async () => {
     const guardScans = kardexByGuard.get(round.guardId) ?? [];
     // Scans that belong to THIS round (since it started).
     const roundScans = guardScans.filter((s) => s.timestamp >= round.startTime);
-    const scannedCount = new Set(roundScans.map((s) => s.locationId)).size;
+    // Un escaneo solo cuenta como punto cubierto si registró al menos una foto.
+    const completedScans = roundScans.filter((s) => Array.isArray(s.media) && s.media.length > 0);
+    const scannedCount = new Set(completedScans.map((s) => s.locationId)).size;
     const totalLocations = round.recurringConfiguration?.recurringLocations.length ?? null;
     const progressPercent =
       totalLocations && totalLocations > 0

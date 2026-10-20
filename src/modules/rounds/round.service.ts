@@ -111,6 +111,12 @@ const attachRoundProgress = async (rows: any[]) => {
           ON k."userId" = r."guardId"
          AND k."timestamp" >= r."startTime"
          AND k."timestamp" <= COALESCE(r."endTime", ${now})
+         AND k."media" IS NOT NULL
+         AND CASE
+               WHEN jsonb_typeof(k."media") = 'array'
+               THEN jsonb_array_length(k."media") > 0
+               ELSE FALSE
+             END
         WHERE r."id" IN (${Prisma.join(ids)})
         GROUP BY r."id"
     `;

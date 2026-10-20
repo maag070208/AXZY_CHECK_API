@@ -74,7 +74,7 @@ export const getGuardGeneralStats = async (filters: IGuardReportFilters): Promis
                 ...(guardId ? { userId: guardId } : {}),
                 timestamp: { gte: start, lte: end }
             },
-            select: { userId: true, timestamp: true, locationId: true }
+            select: { userId: true, timestamp: true, locationId: true, media: true }
         });
 
         let missedScansCount = 0;
@@ -89,7 +89,8 @@ export const getGuardGeneralStats = async (filters: IGuardReportFilters): Promis
                     k.userId === round.guardId && 
                     k.timestamp >= round.startTime && 
                     k.timestamp <= roundEnd &&
-                    configLocationIds.includes(k.locationId)
+                    configLocationIds.includes(k.locationId) &&
+                    Array.isArray(k.media) && k.media.length > 0
                 ).length;
                 
                 const required = configLocationIds.length;
@@ -241,7 +242,7 @@ export const getGuardDetailedReport = async (filters: IGuardReportFilters): Prom
             }),
             prisma.kardex.findMany({
                 where: { userId: { in: guardIds }, timestamp: { gte: start, lte: end } },
-                select: { userId: true, timestamp: true, locationId: true }
+                select: { userId: true, timestamp: true, locationId: true, media: true }
             })
         ]);
 
@@ -268,7 +269,8 @@ export const getGuardDetailedReport = async (filters: IGuardReportFilters): Prom
                     const scannedInRound = guardKardex.filter(k => 
                         k.timestamp >= round.startTime && 
                         k.timestamp <= roundEnd &&
-                        configIds.includes(k.locationId)
+                        configIds.includes(k.locationId) &&
+                        Array.isArray(k.media) && k.media.length > 0
                     ).length;
 
                     const required = configIds.length;
@@ -321,7 +323,7 @@ export const getGuardDetailBreakdown = async (filters: IGuardReportFilters): Pro
             }),
             prisma.kardex.findMany({
                 where: { userId: guardId, timestamp: { gte: start, lte: end } },
-                select: { locationId: true, timestamp: true }
+                select: { locationId: true, timestamp: true, media: true }
             })
         ]);
 
@@ -334,7 +336,11 @@ export const getGuardDetailBreakdown = async (filters: IGuardReportFilters): Pro
             const roundEnd = round.endTime || new Date();
             const scannedIds = new Set(
                 allKardex
-                    .filter(k => k.timestamp >= round.startTime && k.timestamp <= roundEnd)
+                    .filter(k =>
+                        k.timestamp >= round.startTime &&
+                        k.timestamp <= roundEnd &&
+                        Array.isArray(k.media) && k.media.length > 0
+                    )
                     .map(k => k.locationId)
             );
 
