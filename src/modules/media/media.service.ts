@@ -20,11 +20,11 @@ const bucketName = (): string => {
  */
 export const presignMedia = async (
   userId: number,
-  input: { contentType: MediaContentType; sizeBytes: number }
+  input: { contentType: MediaContentType; sizeBytes: number; isPrivate?: boolean }
 ) => {
   const key = `media/${randomUUID()}.${MEDIA_EXTENSIONS[input.contentType]}`;
   const media = await prismaClient.mediaFile.create({
-    data: { key, contentType: input.contentType, sizeBytes: input.sizeBytes, uploadedById: userId },
+    data: { key, contentType: input.contentType, sizeBytes: input.sizeBytes, uploadedById: userId, isPrivate: input.isPrivate ?? false },
   });
   const uploadUrl = await storage.presignUpload(
     bucketName(),

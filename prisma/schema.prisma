@@ -229,6 +229,8 @@ model Person {
   tenantPeriods   OccupancyPeriod[] @relation("PeriodTenant")
   ownershipFrom   OwnershipChange[] @relation("OwnershipFrom")
   ownershipTo     OwnershipChange[] @relation("OwnershipTo")
+  contacts        PersonContact[]
+  documents       PersonDocument[]
 }
 
 /// Tipo de residente (T-A2-01). `isHouseholdMember` decide si suma al conteo del hogar.
@@ -633,6 +635,8 @@ model MediaFile {
   uploadedBy   User?           @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
   createdAt    DateTime        @default(now())
   confirmedAt  DateTime?
+  isPrivate    Boolean         @default(false)
+  document     PersonDocument?
 
   @@index([uploadedById])
 }
@@ -917,4 +921,48 @@ model ShiftHandoverCheck {
   handoverChecklistItem   HandoverChecklistItem @relation(fields: [handoverChecklistItemId], references: [id])
 
   @@id([shiftHandoverId, handoverChecklistItemId])
+}
+
+/// Tipo de documento de una persona (T-A2-07). Administrable.
+model DocumentKind {
+  id        Int              @id @default(autoincrement())
+  code      String           @unique
+  name      String
+  hasBack   Boolean          @default(false)
+  expires   Boolean          @default(false)
+  active    Boolean          @default(true)
+  isSystem  Boolean          @default(true)
+  order     Int              @default(0)
+  documents PersonDocument[]
+}
+
+/// Documento privado de una persona. El archivo es un MediaFile privado (sin URL pública).
+model PersonDocument {
+  id          Int          @id @default(autoincrement())
+  personId    Int
+  kindId      Int
+  mediaFileId Int          @unique
+  expiresAt   DateTime?    @db.Date
+  notes       String?
+  createdAt   DateTime     @default(now())
+  person      Person       @relation(fields: [personId], references: [id], onDelete: Cascade)
+  kind        DocumentKind @relation(fields: [kindId], references: [id])
+  mediaFile   MediaFile    @relation(fields: [mediaFileId], references: [id])
+
+  @@index([personId])
+  @@index([expiresAt])
+}
+
+/// Contacto de una persona (teléfono, correo y parentesco). Datos personales: solo residents.manage.
+model PersonContact {
+  id           Int      @id @default(autoincrement())
+  personId     Int
+  name         String
+  phone        String?
+  email        String?
+  relationship String?
+  createdAt    DateTime @default(now())
+  person       Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
+
+  @@index([personId])
 }

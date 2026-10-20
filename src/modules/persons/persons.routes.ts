@@ -6,6 +6,8 @@ import { requirePermission } from "@src/modules/common/middlewares/require-permi
 import { validate } from "@src/core/validation/validate";
 import { emptyable } from "@src/core/validation/common";
 import { findDuplicates } from "@src/modules/residents/household.service";
+import { documentReadUrl, expiringDocuments, listDocuments, uploadDocument } from "./documents.service";
+import { idParam, positiveId } from "@src/core/validation/common";
 
 const router = Router();
 
@@ -56,6 +58,74 @@ router.post("/", requirePermission("residents.manage"), validate({ body: personB
       },
     });
     return res.status(201).json(createTResult(person));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Documentos privados (A2): solo ADMIN los ve (documents.view). Subir: residents.manage.
+const documentBody = z.object({
+  kindCode: z.string().trim().min(1).max(40),
+  mediaFileId: positiveId,
+  expiresAt: z.string().nullish(),
+  notes: z.string().trim().max(500).nullish(),
+});
+
+router.get("/documents/expiring", requirePermission("documents.view"), validate({ query: z.object({ days: z.coerce.number().int().min(1).max(365).default(30) }) }), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    return res.status(200).json(createTResult(await expiringDocuments(Number(req.query.days ?? 30))));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get("/:id/documents", requirePermission("documents.view"), validate({ params: idParam }), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    return res.status(200).json(createTResult(await listDocuments(Number(req.params.id))));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post("/:id/documents", requirePermission("residents.manage"), validate({ params: idParam, body: documentBody }), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const doc = await uploadDocument(Number(req.params.id), req.body);
+    return res.status(201).json(createTResult(doc));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.get("/:id/documents/:docId/url", requirePermission("documents.view"), validate({ params: idParam.extend({ docId: positiveId }) }), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    return res.status(200).json(createTResult(await documentReadUrl(Number(req.params.id), Number(req.params.docId))));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+// Contactos de la persona: datos personales, solo residents.manage.
+const contactBody = z.object({
+  name: z.string().trim().min(1, "es obligatorio").max(120),
+  phone: z.string().trim().max(30).nullish(),
+  email: emptyable(z.string().trim().email("no es un correo válido")),
+  relationship: z.string().trim().max(60).nullish(),
+});
+
+router.get("/:id/contacts", requirePermission("residents.manage"), validate({ params: idParam }), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    return res.status(200).json(createTResult(await prismaClient.personContact.findMany({ where: { personId: Number(req.params.id) }, orderBy: { id: "asc" } })));
+  } catch (error) {
+    return next(error);
+  }
+});
+
+router.post("/:id/contacts", requirePermission("residents.manage"), validate({ params: idParam, body: contactBody }), async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const contact = await prismaClient.personContact.create({
+      data: { personId: Number(req.params.id), name: req.body.name, phone: req.body.phone ?? null, email: req.body.email || null, relationship: req.body.relationship ?? null },
+    });
+    return res.status(201).json(createTResult(contact));
   } catch (error) {
     return next(error);
   }

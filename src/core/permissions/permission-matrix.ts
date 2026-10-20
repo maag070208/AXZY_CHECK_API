@@ -9,6 +9,7 @@ export const PERMISSIONS = [
   { code: "chat.use", description: "Usar el chat del equipo" },
   { code: "club.manage", description: "Resolver y eliminar reportes de club" },
   { code: "dashboard.view", description: "Ver el dashboard operativo" },
+  { code: "documents.view", description: "Consultar documentos privados de personas" },
   { code: "incidents.manage", description: "Resolver y eliminar incidentes" },
   { code: "kardex.manage", description: "Eliminar registros y evidencias de bitácora" },
   { code: "locations.manage", description: "Crear, editar y eliminar ubicaciones" },

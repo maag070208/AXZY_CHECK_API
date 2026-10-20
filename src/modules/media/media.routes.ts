@@ -11,6 +11,8 @@ const router = Router();
 const presignBody = z.object({
   contentType: z.enum(ALLOWED_MEDIA_TYPES),
   sizeBytes: z.number().int().positive().max(MEDIA_MAX_BYTES),
+  // Documentos de personas se suben privados: sin URL pública (T-A2-07).
+  isPrivate: z.boolean().optional(),
 });
 
 // La identidad viene solo del token (req.user, puesto por authenticate en el guard global).

@@ -163,6 +163,20 @@ export const catalogsSeed = async (prisma: PrismaClient) => {
         });
     }
 
+    // 8a. Tipos de documento de persona (A2).
+    const documentKinds = [
+        { code: 'INE', name: 'Identificación oficial (INE)', hasBack: true, expires: true },
+        { code: 'CONTRACT', name: 'Contrato de arrendamiento', hasBack: false, expires: true },
+        { code: 'OTHER', name: 'Otro documento', hasBack: false, expires: false },
+    ];
+    for (const [index, kind] of documentKinds.entries()) {
+        await prisma.documentKind.upsert({
+            where: { code: kind.code },
+            update: { name: kind.name, order: index },
+            create: { ...kind, order: index, isSystem: true },
+        });
+    }
+
     // 8. Tipos de residente (A2). isHouseholdMember decide si suma al conteo del hogar.
     const residentKinds = [
         { code: 'OWNER', name: 'Propietario', isHouseholdMember: true, canAuthorizeVisits: true, canHaveVehicle: true, hasAppAccess: true },
