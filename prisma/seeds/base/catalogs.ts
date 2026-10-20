@@ -82,7 +82,8 @@ export const catalogsSeed = async (prisma: PrismaClient) => {
 
     for (const [model, values] of Object.entries(enumCatalogs)) {
         const delegate = (prisma as any)[model];
-        for (const [index, [name, value]] of values.entries()) {
+        for (let index = 0; index < values.length; index++) {
+            const [name, value] = values[index];
             await delegate.upsert({
                 where: { name },
                 update: { value, order: index },
@@ -99,7 +100,8 @@ export const catalogsSeed = async (prisma: PrismaClient) => {
 
     for (const [model, items] of Object.entries(checklistItems)) {
         const delegate = (prisma as any)[model];
-        for (const [index, [name, value]] of items.entries()) {
+        for (let index = 0; index < items.length; index++) {
+            const [name, value] = items[index];
             await delegate.upsert({
                 where: { name },
                 update: { value, order: index },

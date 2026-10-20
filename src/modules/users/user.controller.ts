@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
+import { getSetting } from "@src/core/settings/app-settings.service";
 import { addUser, getUserByUsername, getUsers, getDataTableUsers } from "./user.service";
 
 export const getDataTable = async (req: Request, res: Response) => {
@@ -47,34 +48,18 @@ export const login = async (req: Request, res: Response) => {
         return res.status(403).json(createTResult("", ["Horario no configurado correctamente"]));
       }
 
-      // Obtener hora actual en Tijuana (America/Tijuana)
-      const now = new Date();
-      
-      // También podemos usar Intl.DateTimeFormat para más control
-      const tijuanaFormatter = new Intl.DateTimeFormat('en-US', {
-        timeZone: 'America/Tijuana',
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false
-      });
-      
-      const tijuanaTimeParts = tijuanaFormatter.formatToParts(now);
-      const tijuanaHour = parseInt(tijuanaTimeParts.find(part => part.type === 'hour')?.value || '0');
-      const tijuanaMinute = parseInt(tijuanaTimeParts.find(part => part.type === 'minute')?.value || '0');
-      
-      // Formato HH:mm para Tijuana
-      const currentHourStr = tijuanaHour.toString().padStart(2, '0');
-      const currentMinuteStr = tijuanaMinute.toString().padStart(2, '0');
-      const currentTime = `${currentHourStr}:${currentMinuteStr}`;
-      
-      // Minutos totales en Tijuana
-      const currentTotalMinutes = tijuanaHour * 60 + tijuanaMinute;
-      
-      // Otra opción: usar getHours/minutes del objeto Date ajustado
-      const tijuanaDate = new Date(now.toLocaleString('en-US', { timeZone: 'America/Tijuana' }));
-      const altTijuanaHour = tijuanaDate.getHours();
-      const altTijuanaMinute = tijuanaDate.getMinutes();
-      
+      // Hora actual en la zona horaria del cliente (ajuste app.timezone).
+      const timeZone = await getSetting("app.timezone", "UTC");
+      const timeParts = new Intl.DateTimeFormat("en-US", {
+        timeZone,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      }).formatToParts(new Date());
+      const currentHour = Number(timeParts.find((part) => part.type === "hour")?.value ?? 0) % 24;
+      const currentMinute = Number(timeParts.find((part) => part.type === "minute")?.value ?? 0);
+      const currentTotalMinutes = currentHour * 60 + currentMinute;
+
       // Convertir horarios del schedule a minutos
       const [startHour, startMinute] = shiftStart.split(':').map(Number);
       const [endHour, endMinute] = shiftEnd.split(':').map(Number);

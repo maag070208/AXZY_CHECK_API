@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { hackerLog } from "./logger";
+import { hackerLog } from "../base/logger";
 
 export const schedulesSeed = async (prisma: PrismaClient) => {
   hackerLog.info('SCHEDULE', 'Configuring Operational timelines');

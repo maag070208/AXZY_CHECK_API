@@ -7,7 +7,7 @@
  *   comparten una sola base.
  */
 import { prismaClient } from "@src/core/config/database";
-import { catalogsSeed } from "../../prisma/seeds/catalogs";
+import { catalogsSeed } from "../../prisma/seeds/base/catalogs";
 
 export const prisma = prismaClient;
 

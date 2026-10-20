@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { hackerLog } from "./logger";
+import { hackerLog } from "../base/logger";
 
 /**
  * @description Poblador del catálogo propio de Casa Club.

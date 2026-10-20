@@ -1,4 +1,4 @@
-import { transporter, resend } from "../config/mail";
+import { transporter, resend, mailFrom } from "../config/mail";
 import { getSetting } from "../settings/app-settings.service";
 
 export const sendIncidentEmail = async (incident: any, guard: any) => {
@@ -75,7 +75,7 @@ export const sendIncidentEmail = async (incident: any, guard: any) => {
           </div>
 
           <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-             <a href="${process.env.SYSTEM_URL || 'https://axzycheckui-production.up.railway.app/#/home'}" style="background-color: #333; color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 5px; font-weight: bold;">Ir al Panel de Control</a>
+             <a href="${process.env.SYSTEM_URL ?? ''}" style="background-color: #333; color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 5px; font-weight: bold;">Ir al Panel de Control</a>
           </div>
         </div>
         
@@ -86,10 +86,9 @@ export const sendIncidentEmail = async (incident: any, guard: any) => {
     `;
 
     // 4. Send Email  
-    console.log("Sending email using Resend", resend);
     if (resend) {
       const { data, error } = await resend.emails.send({
-        from: "AXZY Check <noreply@axzy.dev>",
+        from: mailFrom(),
         to: recipients,
         subject: subject,
         html: htmlContent,
@@ -101,7 +100,7 @@ export const sendIncidentEmail = async (incident: any, guard: any) => {
       }
     } else {
       await transporter.sendMail({
-        from: "aamaro@axzy.dev",
+        from: mailFrom(),
         to: recipients,
         subject: subject,
         html: htmlContent,
@@ -181,7 +180,7 @@ export const sendMaintenanceEmail = async (maintenance: any, guard: any) => {
           </div>
 
           <div style="text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #eee;">
-             <a href="${process.env.SYSTEM_URL || 'https://axzycheckui-production.up.railway.app/#/home'}" style="background-color: #333; color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 5px; font-weight: bold;">Ir al Panel de Control</a>
+             <a href="${process.env.SYSTEM_URL ?? ''}" style="background-color: #333; color: #fff; text-decoration: none; padding: 10px 20px; border-radius: 5px; font-weight: bold;">Ir al Panel de Control</a>
           </div>
         </div>
         
@@ -193,7 +192,7 @@ export const sendMaintenanceEmail = async (maintenance: any, guard: any) => {
 
     if (resend) {
       const { data, error } = await resend.emails.send({
-        from: "AXZY Check <onboarding@resend.dev>",
+        from: mailFrom(),
         to: recipients,
         subject: subject,
         html: htmlContent,
@@ -205,7 +204,7 @@ export const sendMaintenanceEmail = async (maintenance: any, guard: any) => {
       }
     } else {
       await transporter.sendMail({
-        from: "aamaro@axzy.dev",
+        from: mailFrom(),
         to: recipients,
         subject: subject,
         html: htmlContent,

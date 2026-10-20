@@ -120,7 +120,7 @@ export const getShiftHandoverById = async (id: number) => {
  * as a fallback to the Ably live alert.
  */
 export const getPendingShiftHandover = async () => {
-  const timezoneConfig = await getSetting("SHIFT_ALERT_TIMEZONE", "America/Tijuana");
+  const timezoneConfig = await getSetting("app.timezone", "UTC");
   const morningTime = await getSetting("SHIFT_ALERT_MORNING_TIME", "07:00");
   const eveningTime = await getSetting("SHIFT_ALERT_EVENING_TIME", "19:00");
 

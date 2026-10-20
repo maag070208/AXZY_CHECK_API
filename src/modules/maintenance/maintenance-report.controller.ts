@@ -2,11 +2,12 @@ import { Request, Response } from "express";
 import { maintenancePdfQuerySchema } from "./maintenance-report.dto";
 import { getMaintenancesForReport } from "./maintenance-report.service";
 import { PdfDocumentConfig, PdfReportItem, streamModulePdf } from "@src/modules/reports/pdf-report.renderer";
+import { branding } from "@src/client/branding";
 
 const MAINTENANCE_PDF_CONFIG: PdfDocumentConfig = {
     moduleLabel: "Mantenimientos",
     headerEyebrow: "REPORTE EJECUTIVO",
-    heroTitle: "Mantenimientos del Sitio",
+    heroTitle: branding.maintenanceReportTitle,
     platformSubtitle: "Plataforma de control operativo",
     docTitle: "Reporte Ejecutivo de Mantenimientos",
     docKeywords: "mantenimiento, operaciones, reporte, ejecutivo",

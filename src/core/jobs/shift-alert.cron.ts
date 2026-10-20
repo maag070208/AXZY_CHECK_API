@@ -8,7 +8,7 @@ import { publishToChannel, ABLY_CHANNELS } from "@src/core/config/ably";
  * operativo (rol SHIFT) to submit the shift-handover report — 7:00 AM and
  * 7:00 PM per `ajustes/bonaterra_ajuste_2.md` (4.2). Times and timezone are
  * read once at startup from `AppSetting` (`SHIFT_ALERT_MORNING_TIME`,
- * `SHIFT_ALERT_EVENING_TIME`, `SHIFT_ALERT_TIMEZONE`) so an admin can adjust
+ * `SHIFT_ALERT_EVENING_TIME`, `app.timezone`) so an admin can adjust
  * them without a code change — a running server needs a restart to pick up
  * a change, which is an accepted trade-off to keep this simple.
  *
@@ -23,7 +23,7 @@ export const registerShiftAlertCron = async (): Promise<void> => {
       getSetting("SHIFT_ALERT_MORNING_TIME", "07:00"),
       getSetting("SHIFT_ALERT_EVENING_TIME", "19:00"),
     ]);
-    const tzValue = await getSetting("SHIFT_ALERT_TIMEZONE", "America/Tijuana");
+    const tzValue = await getSetting("app.timezone", "UTC");
 
     const [morningHour, morningMinute] = morningTime.split(":").map(Number);
     const [eveningHour, eveningMinute] = eveningTime.split(":").map(Number);

@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { hackerLog } from "./logger";
+import { hackerLog } from "../base/logger";
 
 export const maintenanceCatalogsSeed = async (prisma: PrismaClient) => {
     hackerLog.info('SEED', 'Populating Maintenance Categories and Types...');

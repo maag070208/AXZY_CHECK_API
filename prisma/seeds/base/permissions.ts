@@ -1,5 +1,5 @@
 import { PrismaClient } from "@prisma/client";
-import { PERMISSIONS, ROLE_PERMISSIONS } from "../../src/core/permissions/permission-matrix";
+import { PERMISSIONS, ROLE_PERMISSIONS } from "../../../src/core/permissions/permission-matrix";
 
 /** Sincroniza permisos y su asignación a roles desde la matriz (idempotente). */
 export const permissionsSeed = async (prisma: PrismaClient) => {

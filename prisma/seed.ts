@@ -1,32 +1,45 @@
 import { PrismaClient } from "@prisma/client";
-import { catalogsSeed } from "./seeds/catalogs";
-import { securitySeed } from "./seeds/security";
-import { locationsSeed } from "./seeds/locations";
-import { settingsSeed } from "./seeds/settings";
-import { schedulesSeed } from "./seeds/schedules";
-import { propertiesSeed } from "./seeds/properties";
-import { relationshipsSeed } from "./seeds/relationships";
-import { incidentCatalogsSeed } from "./seeds/incidents";
-import { maintenanceCatalogsSeed } from "./seeds/maintenance";
-import { clubCatalogsSeed } from "./seeds/club";
-
-import { hackerLog } from "./seeds/logger";
+import { catalogsSeed } from "./seeds/base/catalogs";
+import { relationshipsSeed } from "./seeds/base/relationships";
+import { systemSettingsSeed } from "./seeds/base/system-settings";
+import { hackerLog } from "./seeds/base/logger";
+import { incidentCatalogsSeed } from "./seeds/client/incidents";
+import { maintenanceCatalogsSeed } from "./seeds/client/maintenance";
+import { clubCatalogsSeed } from "./seeds/client/club";
+import { schedulesSeed } from "./seeds/client/schedules";
+import { locationsSeed } from "./seeds/client/locations";
+import { clientSettingsSeed } from "./seeds/client/settings";
+import { securitySeed } from "./seeds/demo/security";
+import { propertiesSeed } from "./seeds/demo/properties";
 
 const prisma = new PrismaClient();
 
+/**
+ * base    → siempre: roles, permisos, catálogos del sistema, ajustes del sistema.
+ * client  → valores propios de la instalación (horarios, ubicaciones, catálogos, correos, zona).
+ * demo    → usuarios y propiedades de ejemplo con contraseñas conocidas. Solo con SEED_DEMO=true
+ *           y nunca en producción.
+ */
 async function main() {
   hackerLog.header('Master Seeding Sequence');
-  
+
   await catalogsSeed(prisma);
+  await relationshipsSeed(prisma);
+  await systemSettingsSeed(prisma);
+
   await incidentCatalogsSeed(prisma);
   await clubCatalogsSeed(prisma);
   await maintenanceCatalogsSeed(prisma);
   await schedulesSeed(prisma);
-  await securitySeed(prisma);
   await locationsSeed(prisma);
-  await settingsSeed(prisma);
-  await propertiesSeed(prisma);
-  await relationshipsSeed(prisma);
+  await clientSettingsSeed(prisma);
+
+  if (process.env.SEED_DEMO === "true") {
+    await securitySeed(prisma);
+    await propertiesSeed(prisma);
+  } else {
+    hackerLog.info('DEMO', 'Datos de demostración omitidos (SEED_DEMO no es "true")');
+  }
 
   hackerLog.divider();
   hackerLog.success('SYSTEM', 'Master Seeding Complete');

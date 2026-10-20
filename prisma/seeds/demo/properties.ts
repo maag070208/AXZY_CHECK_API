@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
-import { hackerLog } from "./logger";
+import { hackerLog } from "../base/logger";
 
 export const propertiesSeed = async (prisma: PrismaClient) => {
   const password = await bcrypt.hash("123123", 10);
