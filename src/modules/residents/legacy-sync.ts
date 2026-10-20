@@ -34,7 +34,9 @@ export const syncLegacyResident = async (tx: Tx, userId: number) => {
     : [];
   const affected = new Set<number>(activeLinks.map((link) => link.propertyId));
 
-  const shouldBeResident = user.active && user.role?.name === "RESDN" && user.propertyId !== null;
+  // Ser miembro del hogar depende de la propiedad, no de la cuenta. Una cuenta desactivada
+  // conserva el vínculo y solo pierde el acceso a la APP (decisión del 2026-10-20).
+  const shouldBeResident = user.role?.name === "RESDN" && user.propertyId !== null;
 
   // Cerrar los vínculos que ya no corresponden.
   for (const link of activeLinks) {
@@ -44,6 +46,14 @@ export const syncLegacyResident = async (tx: Tx, userId: number) => {
         data: { status: "MOVED_OUT", endDate: today, isPrimary: false },
       });
     }
+  }
+
+  // El acceso a la APP sigue a la cuenta activa.
+  if (shouldBeResident) {
+    await tx.resident.updateMany({
+      where: { personId: person?.id ?? -1, propertyId: user.propertyId!, status: "ACTIVE" },
+      data: { hasAppAccess: user.active },
+    });
   }
 
   if (shouldBeResident && user.propertyId !== null) {
@@ -71,7 +81,7 @@ export const syncLegacyResident = async (tx: Tx, userId: number) => {
           kindId: owner.id,
           isPrimary: hasPrimary === 0,
           canAuthorizeVisits: true,
-          hasAppAccess: true,
+          hasAppAccess: user.active,
           startDate: today,
         },
       });

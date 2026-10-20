@@ -155,7 +155,12 @@ describe("puente con la API anterior", () => {
 
     const { updateUser } = await import("@src/modules/users/user.service");
     await updateUser(user.id, { active: false });
-    expect(await count(p2.id)).toBe(0);
+    // Desactivar la cuenta no saca a la persona del hogar: solo le quita el acceso a la APP.
+    expect(await count(p2.id)).toBe(1);
+    const kept = await prisma.resident.findFirstOrThrow({ where: { propertyId: p2.id, status: "ACTIVE" } });
+    expect(kept.hasAppAccess).toBe(false);
+    await updateUser(user.id, { active: true });
+    expect((await prisma.resident.findFirstOrThrow({ where: { propertyId: p2.id, status: "ACTIVE" } })).hasAppAccess).toBe(true);
     expect(await findResidentCountDrift()).toEqual([]);
   });
 });
