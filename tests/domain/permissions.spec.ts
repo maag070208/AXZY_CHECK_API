@@ -23,12 +23,12 @@ describe("matriz sembrada", () => {
     expect(count).toBe(PERMISSIONS.length);
   });
 
-  it("GUARD solo tiene chat y rutas operativas", async () => {
+  it("GUARD tiene consulta de caseta, chat y rutas operativas", async () => {
     const codes = (await prisma.rolePermission.findMany({
       where: { role: { name: "GUARD" } },
       include: { permission: true },
     })).map((rp) => rp.permission.code).sort();
-    expect(codes).toEqual(["chat.use", "recurring.operate"]);
+    expect(codes).toEqual(["access.check", "chat.use", "recurring.operate"]);
   });
 
   it("RESDN no tiene ningún permiso", async () => {

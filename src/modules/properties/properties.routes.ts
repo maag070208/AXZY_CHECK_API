@@ -74,7 +74,6 @@ router.get("/:id/authorizations", requirePermission("properties.view"), validate
 });
 router.post("/:id/authorizations", requirePermission("residents.manage"), validate({ params: idParam, body: authorizationBody }), async (req, res, next) => {
   try {
-    // @ts-ignore - req.user lo agrega authenticate
     return res.status(201).json(createTResult(await createAuthorization(Number(req.params.id), req.body, req.user!.id)));
   } catch (error) {
     return next(error);
