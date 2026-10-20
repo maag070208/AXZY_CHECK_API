@@ -141,21 +141,22 @@ model Property {
 
   // A1: tipo, ocupación y residentes (T-A1-02). `statusId`/`typeId` quedan por compatibilidad.
   kindId            Int
-  kind              PropertyKind      @relation(fields: [kindId], references: [id])
+  kind              PropertyKind            @relation(fields: [kindId], references: [id])
   buildingId        Int?
-  building          Building?         @relation(fields: [buildingId], references: [id])
+  building          Building?               @relation(fields: [buildingId], references: [id])
   floor             Int?
   unitNumber        String?
   occupancyStatusId Int
-  occupancyStatus   OccupancyStatus   @relation(fields: [occupancyStatusId], references: [id])
-  residentCount     Int               @default(0)
+  occupancyStatus   OccupancyStatus         @relation(fields: [occupancyStatusId], references: [id])
+  residentCount     Int                     @default(0)
   maxResidents      Int?
   vehicleQuota      Int?
   ownerPersonId     Int?
-  owner             Person?           @relation("PropertyOwner", fields: [ownerPersonId], references: [id])
+  owner             Person?                 @relation("PropertyOwner", fields: [ownerPersonId], references: [id])
   periods           OccupancyPeriod[]
   ownershipChanges  OwnershipChange[]
   residents         Resident[]
+  authorizations    PropertyAuthorization[]
 
   @@index([identifier])
   @@index([statusId, typeId])
@@ -213,24 +214,25 @@ model Building {
 
 /// Persona (propietario, inquilino). Se amplía en A2 (T-A1-02, ADR-016: Persona ≠ Residente ≠ Usuario).
 model Person {
-  id              Int               @id @default(autoincrement())
+  id              Int                     @id @default(autoincrement())
   firstName       String
   lastName        String?
   phone           String?
   email           String?
-  birthDate       DateTime?         @db.Date
-  userId          Int?              @unique
-  user            User?             @relation(fields: [userId], references: [id], onDelete: SetNull)
+  birthDate       DateTime?               @db.Date
+  userId          Int?                    @unique
+  user            User?                   @relation(fields: [userId], references: [id], onDelete: SetNull)
   residents       Resident[]
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @updatedAt
-  ownedProperties Property[]        @relation("PropertyOwner")
-  ownerPeriods    OccupancyPeriod[] @relation("PeriodOwner")
-  tenantPeriods   OccupancyPeriod[] @relation("PeriodTenant")
-  ownershipFrom   OwnershipChange[] @relation("OwnershipFrom")
-  ownershipTo     OwnershipChange[] @relation("OwnershipTo")
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  ownedProperties Property[]              @relation("PropertyOwner")
+  ownerPeriods    OccupancyPeriod[]       @relation("PeriodOwner")
+  tenantPeriods   OccupancyPeriod[]       @relation("PeriodTenant")
+  ownershipFrom   OwnershipChange[]       @relation("OwnershipFrom")
+  ownershipTo     OwnershipChange[]       @relation("OwnershipTo")
   contacts        PersonContact[]
   documents       PersonDocument[]
+  authorizations  PropertyAuthorization[]
 }
 
 /// Tipo de residente (T-A2-01). `isHouseholdMember` decide si suma al conteo del hogar.
@@ -965,4 +967,31 @@ model PersonContact {
   person       Person   @relation(fields: [personId], references: [id], onDelete: Cascade)
 
   @@index([personId])
+}
+
+enum AuthorizationScope {
+  PEDESTRIAN
+  VEHICLE
+  BOTH
+}
+
+/// Persona autorizada a entrar a una propiedad sin ser residente (empleados, familiares que no viven ahí).
+/// Vigencia por fechas, horario por días (0=domingo … 6=sábado) y horas en la zona del cliente.
+model PropertyAuthorization {
+  id          Int                @id @default(autoincrement())
+  propertyId  Int
+  personId    Int
+  scope       AuthorizationScope @default(PEDESTRIAN)
+  days        String
+  startTime   String
+  endTime     String
+  validFrom   DateTime           @db.Date
+  validUntil  DateTime?          @db.Date
+  createdById Int?
+  createdAt   DateTime           @default(now())
+  revokedAt   DateTime?
+  property    Property           @relation(fields: [propertyId], references: [id])
+  person      Person             @relation(fields: [personId], references: [id])
+
+  @@index([propertyId, personId])
 }

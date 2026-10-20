@@ -5,6 +5,7 @@
  */
 export const PERMISSIONS = [
   { code: "assignments.manage", description: "Asignar y revisar rondas/tareas de guardias" },
+  { code: "access.check", description: "Consultar si una persona puede entrar a una propiedad" },
   { code: "catalogs.manage", description: "Administrar catálogos" },
   { code: "chat.use", description: "Usar el chat del equipo" },
   { code: "club.manage", description: "Resolver y eliminar reportes de club" },
@@ -35,6 +36,7 @@ const ALL = PERMISSIONS.map((p) => p.code) as PermissionCode[];
 export const ROLE_PERMISSIONS: Record<string, readonly PermissionCode[]> = {
   ADMIN: ALL,
   SHIFT: [
+    "access.check",
     "assignments.manage",
     "properties.view",
     "chat.use",
@@ -49,7 +51,7 @@ export const ROLE_PERMISSIONS: Record<string, readonly PermissionCode[]> = {
     "uniform.manage",
     "users.read",
   ],
-  GUARD: ["chat.use", "recurring.operate"],
+  GUARD: ["access.check", "chat.use", "recurring.operate"],
   MAINT: ["chat.use", "maintenance.manage", "recurring.operate"],
   RESDN: [],
 };

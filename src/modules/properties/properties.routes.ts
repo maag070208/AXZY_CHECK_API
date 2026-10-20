@@ -9,6 +9,8 @@ import { changeOccupancyBody, changeOwnershipBody } from "./occupancy.schemas";
 import { getPropertyOccupancy, postPropertyOccupancy, postPropertyOwnership } from "./occupancy.controller";
 import { addHouseholdResidentBody } from "../residents/household.schemas";
 import { importProperties, IMPORT_MAX_ROWS } from "./property-import";
+import { createAuthorization, listAuthorizations } from "../authorizations/authorizations.service";
+import { authorizationBody } from "../authorizations/authorizations.schemas";
 import { listKinds, listOccupancyStatuses, occupancyStats } from "./occupancy.service";
 import { z } from "zod";
 import { getHousehold, postHouseholdResident } from "../residents/household.controller";
@@ -62,6 +64,22 @@ router.post("/:id/occupancy", requirePermission("occupancy.change"), validate({ 
 // Hogar (A2): residentes que suman al conteo, con titular único.
 router.get("/:id/residents", requirePermission("properties.view"), validate({ params: idParam }), getHousehold);
 router.post("/:id/residents", requirePermission("residents.manage"), validate({ params: idParam, body: addHouseholdResidentBody }), postHouseholdResident);
+// Personas autorizadas a entrar sin ser residentes (03 §6).
+router.get("/:id/authorizations", requirePermission("properties.view"), validate({ params: idParam }), async (req, res, next) => {
+  try {
+    return res.status(200).json(createTResult(await listAuthorizations(Number(req.params.id))));
+  } catch (error) {
+    return next(error);
+  }
+});
+router.post("/:id/authorizations", requirePermission("residents.manage"), validate({ params: idParam, body: authorizationBody }), async (req, res, next) => {
+  try {
+    // @ts-ignore - req.user lo agrega authenticate
+    return res.status(201).json(createTResult(await createAuthorization(Number(req.params.id), req.body, req.user!.id)));
+  } catch (error) {
+    return next(error);
+  }
+});
 router.post("/:id/ownership", requirePermission("properties.manage"), validate({ params: idParam, body: changeOwnershipBody }), postPropertyOwnership);
 
 export default router;
