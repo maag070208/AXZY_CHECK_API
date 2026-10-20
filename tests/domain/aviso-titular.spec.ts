@@ -69,3 +69,20 @@ describe("aviso al titular", () => {
     expect(await pending()).toHaveLength(0);
   });
 });
+
+describe("copia al propietario en propiedad rentada", () => {
+  it("con la propiedad rentada, el propietario con cuenta recibe copia de la solicitud", async () => {
+    const { guard, check, holderUserId } = await setup(true);
+    const property = await prisma.property.findFirstOrThrow({ where: { identifier: "AV-1" } });
+    const rented = await prisma.occupancyStatus.findUniqueOrThrow({ where: { code: "RENTED" } });
+    const resdn = await prisma.role.findUniqueOrThrow({ where: { name: "RESDN" } });
+    const ownerUser = await prisma.user.create({ data: { name: "Dueño", username: "dueno.av", password: "x", roleId: resdn.id } });
+    const ownerPerson = await prisma.person.create({ data: { firstName: "Dueño", userId: ownerUser.id } });
+    await prisma.property.update({ where: { id: property.id }, data: { occupancyStatusId: rented.id, ownerPersonId: ownerPerson.id } });
+
+    await request(app).get(check).set("Authorization", guard);
+    const events = await pending();
+    expect(events).toHaveLength(1);
+    expect((events[0].payload as any).userIds).toEqual(expect.arrayContaining([holderUserId, ownerUser.id]));
+  });
+});

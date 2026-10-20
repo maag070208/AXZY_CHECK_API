@@ -18,6 +18,14 @@ const askHolderApproval = async (propertyId: number, personName: string) => {
     select: { person: { select: { userId: true } } },
   });
   const userIds = holders.map((h) => h.person.userId as number);
+  // Propiedad rentada: el propietario ausente recibe copia del aviso (03 §5 y T-A2-03).
+  const property = await prismaClient.property.findUnique({
+    where: { id: propertyId },
+    select: { occupancyStatus: { select: { code: true } }, owner: { select: { userId: true } } },
+  });
+  if (property?.occupancyStatus.code === "RENTED" && property.owner?.userId) {
+    userIds.push(property.owner.userId);
+  }
   if (userIds.length === 0) return;
   await enqueueOutbox("notification.send", {
     userIds,

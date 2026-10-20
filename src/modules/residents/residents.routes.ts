@@ -1,4 +1,6 @@
 import { Router } from "express";
+import { createTResult } from "@src/core/mappers/tresult.mapper";
+import { prismaClient } from "@src/core/config/database";
 import { moveOutBody } from "./household.schemas";
 import { postMoveOut, postSetPrimary } from "./household.controller";
 import { requirePermission } from "@src/modules/common/middlewares/require-permission.middleware";
@@ -30,6 +32,20 @@ router.post("/datatable", getDataTable);
 
 router.get("/", getResidents);
 router.get("/catalog/relationships", getRelationships);
+
+// Tipos de residente (A2) para el formulario de alta desde la propiedad.
+router.get("/kinds", requirePermission("properties.view"), async (_req, res, next) => {
+  try {
+    const kinds = await prismaClient.residentKind.findMany({
+      where: { active: true },
+      orderBy: { order: "asc" },
+      select: { code: true, name: true, isHouseholdMember: true, canAuthorizeVisits: true, hasAppAccess: true },
+    });
+    return res.status(200).json(createTResult(kinds));
+  } catch (error) {
+    return next(error);
+  }
+});
 router.get("/:id", getResident);
 router.post("/", requirePermission("residents.manage"), validate({ body: addResidentBody }), addResident);
 router.put("/:id", requirePermission("residents.manage"), validate({ params: idParam, body: putResidentBody }), putResident);
