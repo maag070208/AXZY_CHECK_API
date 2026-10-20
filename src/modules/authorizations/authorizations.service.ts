@@ -5,7 +5,31 @@ import timezone from "dayjs/plugin/timezone";
 import { prismaClient } from "@src/core/config/database";
 import { AppError } from "@src/core/errors/app-error";
 import { getSetting } from "@src/core/settings/app-settings.service";
-import { AccessScope, decideAccess, Moment } from "./access-decision";
+import { enqueueOutbox } from "@src/core/outbox/outbox";
+import { AccessScope, AccessDecision, decideAccess, Moment } from "./access-decision";
+
+/**
+ * Pide aprobación al titular: notificación en la app a los residentes titulares con cuenta.
+ * Pasa por el outbox (reintentos, sin duplicar). Sin titular con cuenta, no hay a quién avisar.
+ */
+const askHolderApproval = async (propertyId: number, personName: string) => {
+  const holders = await prismaClient.resident.findMany({
+    where: { propertyId, status: "ACTIVE", isPrimary: true, person: { userId: { not: null } } },
+    select: { person: { select: { userId: true } } },
+  });
+  const userIds = holders.map((h) => h.person.userId as number);
+  if (userIds.length === 0) return;
+  await enqueueOutbox("notification.send", {
+    userIds,
+    title: "Visita fuera de horario",
+    body: `${personName} pide entrar fuera de su horario autorizado. ¿Lo permites?`,
+    data: { propertyId: String(propertyId), kind: "AUTHORIZATION_APPROVAL" },
+  });
+};
+
+const notifyIfNeeded = async (decision: AccessDecision, propertyId: number, personName: string) => {
+  if (decision === "NEEDS_APPROVAL") await askHolderApproval(propertyId, personName);
+};
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -68,7 +92,10 @@ export const checkAccess = async (propertyId: number, personId: number, scope: A
     orderBy: { id: "desc" },
   });
   if (!auth) return { decision: "DENIED" as const, reason: "NO_AUTHORIZATION" };
-  return decideAccess(auth, scope, await momentAt(now));
+  const result = decideAccess(auth, scope, await momentAt(now));
+  const person = await prismaClient.person.findUnique({ where: { id: personId }, select: { firstName: true } });
+  await notifyIfNeeded(result.decision, propertyId, person?.firstName ?? "Una persona");
+  return result;
 };
 
 const hashPass = (token: string) => createHash("sha256").update(token).digest("hex");
@@ -94,5 +121,6 @@ export const verifyPass = async (token: string, scope: AccessScope, now = new Da
   });
   if (!auth) return { decision: "DENIED" as const, reason: "UNKNOWN_PASS", person: null };
   const result = decideAccess(auth, scope, await momentAt(now));
+  await notifyIfNeeded(result.decision, auth.propertyId, auth.person.firstName);
   return { ...result, person: { firstName: auth.person.firstName, lastName: auth.person.lastName } };
 };
