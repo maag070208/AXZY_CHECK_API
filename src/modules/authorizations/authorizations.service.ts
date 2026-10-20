@@ -12,7 +12,20 @@ import { AccessScope, AccessDecision, decideAccess, Moment } from "./access-deci
  * Pide aprobación al titular: notificación en la app a los residentes titulares con cuenta.
  * Pasa por el outbox (reintentos, sin duplicar). Sin titular con cuenta, no hay a quién avisar.
  */
-const askHolderApproval = async (propertyId: number, personName: string) => {
+/** Un aviso por persona y propiedad cada 15 minutos (decisión del 2026-10-20). */
+export const APPROVAL_NOTICE_WINDOW_MS = 15 * 60 * 1000;
+
+const askHolderApproval = async (propertyId: number, personId: number, personName: string) => {
+  const since = new Date(Date.now() - APPROVAL_NOTICE_WINDOW_MS);
+  const recent = await prismaClient.outboxEvent.count({
+    where: {
+      type: "notification.send",
+      createdAt: { gte: since },
+      payload: { path: ["data", "personId"], equals: String(personId) },
+    },
+  });
+  if (recent > 0) return;
+
   const holders = await prismaClient.resident.findMany({
     where: { propertyId, status: "ACTIVE", isPrimary: true, person: { userId: { not: null } } },
     select: { person: { select: { userId: true } } },
@@ -31,12 +44,12 @@ const askHolderApproval = async (propertyId: number, personName: string) => {
     userIds,
     title: "Visita fuera de horario",
     body: `${personName} pide entrar fuera de su horario autorizado. ¿Lo permites?`,
-    data: { propertyId: String(propertyId), kind: "AUTHORIZATION_APPROVAL" },
+    data: { propertyId: String(propertyId), personId: String(personId), kind: "AUTHORIZATION_APPROVAL" },
   });
 };
 
-const notifyIfNeeded = async (decision: AccessDecision, propertyId: number, personName: string) => {
-  if (decision === "NEEDS_APPROVAL") await askHolderApproval(propertyId, personName);
+const notifyIfNeeded = async (decision: AccessDecision, propertyId: number, personId: number, personName: string) => {
+  if (decision === "NEEDS_APPROVAL") await askHolderApproval(propertyId, personId, personName);
 };
 
 dayjs.extend(utc);
@@ -102,7 +115,7 @@ export const checkAccess = async (propertyId: number, personId: number, scope: A
   if (!auth) return { decision: "DENIED" as const, reason: "NO_AUTHORIZATION" };
   const result = decideAccess(auth, scope, await momentAt(now));
   const person = await prismaClient.person.findUnique({ where: { id: personId }, select: { firstName: true } });
-  await notifyIfNeeded(result.decision, propertyId, person?.firstName ?? "Una persona");
+  await notifyIfNeeded(result.decision, propertyId, personId, person?.firstName ?? "Una persona");
   return result;
 };
 
@@ -129,6 +142,6 @@ export const verifyPass = async (token: string, scope: AccessScope, now = new Da
   });
   if (!auth) return { decision: "DENIED" as const, reason: "UNKNOWN_PASS", person: null };
   const result = decideAccess(auth, scope, await momentAt(now));
-  await notifyIfNeeded(result.decision, auth.propertyId, auth.person.firstName);
+  await notifyIfNeeded(result.decision, auth.propertyId, auth.personId, auth.person.firstName);
   return { ...result, person: { firstName: auth.person.firstName, lastName: auth.person.lastName } };
 };

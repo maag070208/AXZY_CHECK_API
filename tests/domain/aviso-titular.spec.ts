@@ -86,3 +86,30 @@ describe("copia al propietario en propiedad rentada", () => {
     expect((events[0].payload as any).userIds).toEqual(expect.arrayContaining([holderUserId, ownerUser.id]));
   });
 });
+
+describe("límite de un aviso por persona cada 15 minutos", () => {
+  it("consultas repetidas de la misma persona generan un solo aviso; otra persona sí avisa", async () => {
+    const { guard, check, holderUserId } = await setup(true);
+    await request(app).get(check).set("Authorization", guard);
+    await request(app).get(check).set("Authorization", guard);
+    expect(await pending()).toHaveLength(1);
+
+    // Otra persona de la misma propiedad, con su propia autorización fuera de horario.
+    const property = await prisma.property.findFirstOrThrow({ where: { identifier: "AV-1" } });
+    const other = await prisma.person.create({ data: { firstName: "Plomero" } });
+    await prisma.propertyAuthorization.create({
+      data: { propertyId: property.id, personId: other.id, days: String((new Date().getUTCDay() + 1) % 7), startTime: "00:00", endTime: "23:59", validFrom: new Date("2026-01-01") },
+    });
+    await request(app).get(`/api/v1/authorizations/check?propertyId=${property.id}&personId=${other.id}`).set("Authorization", guard);
+    expect(await pending()).toHaveLength(2);
+    expect((await pending())[0].payload).toMatchObject({ userIds: [holderUserId] });
+  });
+
+  it("pasada la ventana de 15 minutos vuelve a avisar", async () => {
+    const { guard, check } = await setup(true);
+    await request(app).get(check).set("Authorization", guard);
+    await prisma.outboxEvent.updateMany({ data: { createdAt: new Date(Date.now() - 16 * 60 * 1000) } });
+    await request(app).get(check).set("Authorization", guard);
+    expect(await pending()).toHaveLength(2);
+  });
+});
