@@ -9,6 +9,7 @@ import YAML from "yamljs";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { prismaClient } from "@src/core/config/database";
 import { redactResponseSecrets } from "@src/core/middlewares/redact-secrets.middleware";
+import { errorHandler } from "@src/core/middlewares/error-handler.middleware";
 
 //router
 import apiRouter from "@src/modules/api.router";
@@ -67,17 +68,4 @@ app.get("/ready", async (_req, res) => {
 
 app.use("/api/v1", apiRouter);
 
-app.use(
-  (
-    err: any,
-    req: express.Request,
-    res: express.Response,
-    next: express.NextFunction
-  ) => {
-    console.log({ err });
-    console.log({ err: err.errors });
-    res
-      .status(err.status || 500)
-      .json(createTResult<any>(null, [err.message, err.errors]));
-  }
-);
+app.use(errorHandler);
