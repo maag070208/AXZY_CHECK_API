@@ -5,7 +5,6 @@ import { prismaClient } from "@src/core/config/database";
  * chat. Residents (RESDN) are intentionally excluded — this channel is only
  * for administración, guardias, jefe de guardias y mantenimiento.
  */
-export const CHAT_ALLOWED_ROLES = ["ADMIN", "GUARD", "SHIFT", "MAINT"] as const;
 
 const messageSelect = {
   id: true,

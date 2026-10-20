@@ -1,13 +1,13 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { z } from "zod";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
-import { requireRole } from "@src/modules/common/middlewares/role.middleware";
+import { requirePermission } from "@src/modules/common/middlewares/require-permission.middleware";
 import { validate } from "@src/core/validation/validate";
 import { listSettings, setSetting } from "@src/core/settings/app-settings.service";
 
 const router = Router();
 
-const ADMIN = requireRole(["ADMIN"]);
+const ADMIN = requirePermission("settings.manage");
 const updateBody = z.object({ value: z.string().max(500) });
 const keyParam = z.object({ key: z.string().regex(/^[A-Za-z0-9_.-]{1,80}$/) });
 

@@ -1,11 +1,11 @@
 import { Router } from "express";
 import * as uniformController from "./uniform.controller";
 import { authenticate } from "../common/middlewares/auth.middleware";
-import { requireRole } from "../common/middlewares/role.middleware";
+import { requirePermission } from "../common/middlewares/require-permission.middleware";
 
 const router = Router();
 
-router.use(authenticate, requireRole(["ADMIN", "SHIFT"]));
+router.use(authenticate, requirePermission("uniform.manage"));
 
 router.post("/", uniformController.createUniformCheck);
 router.post("/datatable", uniformController.getDataTable);

@@ -1,13 +1,13 @@
 import { Router } from "express";
 import * as catalogAdminController from "./catalog-admin.controller";
 import { authenticate } from "../common/middlewares/auth.middleware";
-import { requireRole } from "../common/middlewares/role.middleware";
+import { requirePermission } from "../common/middlewares/require-permission.middleware";
 
 const router = Router();
 
 // Only ADMIN manages catalogs — this is the module requested in
 // "3. Catálogo de incidencias → CRUD de catálogos".
-router.use(authenticate, requireRole(["ADMIN"]));
+router.use(authenticate, requirePermission("catalogs.manage"));
 
 // Categories
 router.get("/categories", catalogAdminController.getCategories);

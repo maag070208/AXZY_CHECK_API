@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { validate } from "@src/core/validation/validate";
 import { createIncidentBody } from "./incident.schemas";
-import { requireRole } from "@src/modules/common/middlewares/role.middleware";
+import { requirePermission } from "@src/modules/common/middlewares/require-permission.middleware";
 import * as incidentController from "./incident.controller";
 import { authenticate } from "../common/middlewares/auth.middleware";
 
@@ -11,8 +11,8 @@ router.post("/", authenticate, validate({ body: createIncidentBody }), incidentC
 router.post("/datatable", incidentController.getDataTable);
 router.get("/", authenticate, incidentController.getIncidents);
 router.get("/pending-count", authenticate, incidentController.getPendingCount);
-router.put("/:id/resolve", requireRole(["ADMIN", "SHIFT"]), authenticate, incidentController.resolveIncident);
-router.delete("/:id", requireRole(["ADMIN", "SHIFT"]), authenticate, incidentController.deleteIncident);
-router.delete("/:id/media", requireRole(["ADMIN", "SHIFT"]), authenticate, incidentController.deleteMedia);
+router.put("/:id/resolve", requirePermission("incidents.manage"), authenticate, incidentController.resolveIncident);
+router.delete("/:id", requirePermission("incidents.manage"), authenticate, incidentController.deleteIncident);
+router.delete("/:id/media", requirePermission("incidents.manage"), authenticate, incidentController.deleteMedia);
 
 export default router;

@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireRole } from "@src/modules/common/middlewares/role.middleware";
+import { requirePermission } from "@src/modules/common/middlewares/require-permission.middleware";
 import * as maintenanceController from "./maintenance.controller";
 import { authenticate } from "../common/middlewares/auth.middleware";
 import maintenanceReportRouter from "./maintenance-report.routes";
@@ -10,9 +10,9 @@ router.post("/", authenticate, maintenanceController.createMaintenance);
 router.post("/datatable", maintenanceController.getDataTable);
 router.get("/", authenticate, maintenanceController.getMaintenances);
 router.get("/pending-count", authenticate, maintenanceController.getPendingCount);
-router.put("/:id/resolve", requireRole(["ADMIN", "MAINT"]), authenticate, maintenanceController.resolveMaintenance);
-router.delete("/:id", requireRole(["ADMIN", "MAINT"]), authenticate, maintenanceController.deleteMaintenance);
-router.delete("/:id/media", requireRole(["ADMIN", "MAINT"]), authenticate, maintenanceController.deleteMedia);
+router.put("/:id/resolve", requirePermission("maintenance.manage"), authenticate, maintenanceController.resolveMaintenance);
+router.delete("/:id", requirePermission("maintenance.manage"), authenticate, maintenanceController.deleteMaintenance);
+router.delete("/:id/media", requirePermission("maintenance.manage"), authenticate, maintenanceController.deleteMedia);
 
 router.use(maintenanceReportRouter);
 

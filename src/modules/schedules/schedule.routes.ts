@@ -1,5 +1,5 @@
 import { Router } from "express";
-import { requireRole } from "@src/modules/common/middlewares/role.middleware";
+import { requirePermission } from "@src/modules/common/middlewares/require-permission.middleware";
 import { create, getAll, remove, update, getDataTable } from "./schedule.controller";
 
 const router = Router();
@@ -7,8 +7,8 @@ const router = Router();
 router.post("/datatable", getDataTable);
 
 router.get("/", getAll);
-router.post("/", requireRole(["ADMIN"]), create);
-router.put("/:id", requireRole(["ADMIN"]), update);
-router.delete("/:id", requireRole(["ADMIN"]), remove);
+router.post("/", requirePermission("schedules.manage"), create);
+router.put("/:id", requirePermission("schedules.manage"), update);
+router.delete("/:id", requirePermission("schedules.manage"), remove);
 
 export default router;

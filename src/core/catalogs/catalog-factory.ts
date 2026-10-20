@@ -2,7 +2,7 @@ import { Router, Request, Response } from "express";
 import { z } from "zod";
 import { prismaClient } from "@src/core/config/database";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
-import { requireRole } from "@src/modules/common/middlewares/role.middleware";
+import { requirePermission } from "@src/modules/common/middlewares/require-permission.middleware";
 import { validate } from "@src/core/validation/validate";
 import { positiveId, idParam } from "@src/core/validation/common";
 
@@ -45,7 +45,7 @@ const conflict = (res: Response, message: string) =>
 export const createCatalogRouter = (def: CatalogDefinition) => {
   const router = Router();
   const delegate = (prismaClient as any)[def.model];
-  const ADMIN = requireRole(["ADMIN"]);
+  const ADMIN = requirePermission("catalogs.manage");
 
   router.get("/", async (req: Request, res: Response) => {
     const includeInactive = req.query.all === "true";

@@ -1,11 +1,11 @@
 import { Router } from "express";
 import * as shiftHandoverController from "./shift-handover.controller";
 import { authenticate } from "../common/middlewares/auth.middleware";
-import { requireRole } from "../common/middlewares/role.middleware";
+import { requirePermission } from "../common/middlewares/require-permission.middleware";
 
 const router = Router();
 
-router.use(authenticate, requireRole(["ADMIN", "SHIFT"]));
+router.use(authenticate, requirePermission("shift-handover.manage"));
 
 router.post("/", shiftHandoverController.createShiftHandover);
 router.post("/datatable", shiftHandoverController.getDataTable);
