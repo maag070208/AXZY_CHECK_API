@@ -26,7 +26,7 @@ export const securitySeed = async (prisma: PrismaClient) => {
   hackerLog.info('AUTH', 'Deploying Admin accounts');
   await prisma.user.upsert({
     where: { username: "admin" },
-    update: { roleId: adminRole.id },
+    update: {},
     create: {
       name: "Admin",
       lastName: "Principal",
@@ -38,7 +38,7 @@ export const securitySeed = async (prisma: PrismaClient) => {
 
   await prisma.user.upsert({
     where: { username: "isabel" },
-    update: { roleId: adminRole.id },
+    update: {},
     create: {
       name: "Isabel",
       lastName: "Admin",
@@ -60,7 +60,7 @@ export const securitySeed = async (prisma: PrismaClient) => {
   for (const u of guardUsers) {
     await prisma.user.upsert({
       where: { username: u.username },
-      update: { scheduleId: u.scheduleId, roleId: guardRole.id },
+      update: {},
       create: {
         name: u.name,
         lastName: u.lastName,
@@ -75,7 +75,7 @@ export const securitySeed = async (prisma: PrismaClient) => {
   // 3. SHIFT GUARDS
   await prisma.user.upsert({
     where: { username: "ricardo" },
-    update: { scheduleId: vespertino?.id, roleId: shiftRole.id },
+    update: {},
     create: {
       name: "Ricardo",
       lastName: "Shift",
@@ -90,7 +90,7 @@ export const securitySeed = async (prisma: PrismaClient) => {
   hackerLog.info('AUTH', 'Deploying Maintenance personnel');
   await prisma.user.upsert({
     where: { username: "mario" },
-    update: { roleId: maintRole.id },
+    update: {},
     create: {
       name: "Mario",
       lastName: "Mantenimiento",

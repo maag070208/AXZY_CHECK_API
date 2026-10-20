@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { hackerLog } from "../base/logger";
+import { syncLegacyResident } from "@src/modules/residents/legacy-sync";
 
 export const propertiesSeed = async (prisma: PrismaClient) => {
   const password = await bcrypt.hash("123123", 10);
@@ -86,7 +87,7 @@ export const propertiesSeed = async (prisma: PrismaClient) => {
   for (let i = 0; i < 20; i++) {
     const username = `residente${i + 1}`;
 
-    await prisma.user.upsert({
+    const user = await prisma.user.upsert({
       where: { username },
       update: {
         propertyId: properties[i].id,
@@ -111,6 +112,8 @@ export const propertiesSeed = async (prisma: PrismaClient) => {
         },
       },
     });
+
+    await prisma.$transaction((tx) => syncLegacyResident(tx, user.id));
 
     await prisma.property.update({
       where: { id: properties[i].id },
