@@ -11,6 +11,7 @@ import { locationsSeed } from "./seeds/client/locations";
 import { clientSettingsSeed } from "./seeds/client/settings";
 import { securitySeed } from "./seeds/demo/security";
 import { propertiesSeed } from "./seeds/demo/properties";
+import { invitationsSeed } from "./seeds/demo/invitations";
 
 const prisma = new PrismaClient();
 
@@ -37,6 +38,7 @@ async function main() {
   if (process.env.SEED_DEMO === "true") {
     await securitySeed(prisma);
     await propertiesSeed(prisma);
+    await invitationsSeed(prisma);
   } else {
     hackerLog.info('DEMO', 'Datos de demostración omitidos (SEED_DEMO no es "true")');
   }
