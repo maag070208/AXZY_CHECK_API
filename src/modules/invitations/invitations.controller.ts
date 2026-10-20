@@ -1,4 +1,4 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import * as invitationsService from './invitations.service';
 
@@ -41,12 +41,12 @@ export const getOne = async (req: Request, res: Response) => {
     }
 };
 
-export const updateStatus = async (req: Request, res: Response) => {
+export const updateStatus = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { status } = req.body;
         const result = await invitationsService.updateInvitationStatus(Number(req.params.id), status);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return next(error);
     }
 };

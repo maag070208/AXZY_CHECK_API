@@ -1,5 +1,5 @@
 import { createTResult } from "@src/core/mappers/tresult.mapper";
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import { StorageService } from "../storage/storage.service";
 import * as incidentService from "./incident.service";
 
@@ -62,7 +62,7 @@ export const getIncidents = async (req: Request, res: Response) => {
     }
 };
 
-export const resolveIncident = async (req: Request, res: Response) => {
+export const resolveIncident = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
         // @ts-ignore
@@ -75,7 +75,7 @@ export const resolveIncident = async (req: Request, res: Response) => {
         const result = await incidentService.resolveIncident(Number(id), Number(userId));
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return next(error);
     }
 };
 

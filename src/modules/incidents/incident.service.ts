@@ -1,4 +1,6 @@
 import { prismaClient } from "@src/core/config/database";
+import { AppError } from "@src/core/errors/app-error";
+import { assertStatusUpdated, assertTransition, INCIDENT_TRANSITIONS } from "@src/core/transitions/transitions";
 import { LIST_MAX_ROWS } from "@src/core/constants/limits";
 import { USER_PUBLIC_SELECT } from "@src/core/constants/user-select";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
@@ -149,13 +151,18 @@ export const getIncidents = async (filters: {
 };
 
 export const resolveIncident = async (id: number, userId: number) => {
-    return prismaClient.incident.update({
+    const current = await prismaClient.incident.findUnique({ where: { id }, select: { status: true } });
+    if (!current) throw new AppError("INCIDENT_NOT_FOUND", "Incidente no encontrado", 404);
+    assertTransition(INCIDENT_TRANSITIONS, current.status, "ATTENDED");
+
+    const { count } = await prismaClient.incident.updateMany({
+        where: { id, status: current.status },
+        data: { status: 'ATTENDED', resolvedAt: new Date(), resolvedById: userId },
+    });
+    assertStatusUpdated(count);
+
+    return prismaClient.incident.findUniqueOrThrow({
         where: { id },
-        data: {
-            status: 'ATTENDED',
-            resolvedAt: new Date(),
-            resolvedById: userId
-        },
         include: {
             guard: { select: USER_PUBLIC_SELECT },
             resolvedBy: { select: USER_PUBLIC_SELECT }

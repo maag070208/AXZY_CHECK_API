@@ -1,5 +1,5 @@
 
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
 import * as assignmentService from "./assignment.service";
 import { AssignmentStatus } from "@prisma/client";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
@@ -63,14 +63,14 @@ export const getAllAssignments = async (req: Request, res: Response) => {
     }
 }
 
-export const updateStatus = async (req: Request, res: Response) => {
+export const updateStatus = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
         const { status } = req.body;
         const result = await assignmentService.updateAssignmentStatus(Number(id), status);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return next(error);
     }
 }
 

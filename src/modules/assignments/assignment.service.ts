@@ -1,7 +1,9 @@
 
 import { prismaClient } from "@src/core/config/database";
 import { PrismaClient, AssignmentStatus } from "@prisma/client";
+import { AppError } from "@src/core/errors/app-error";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
+import { ASSIGNMENT_TRANSITIONS, assertStatusUpdated, assertTransition } from "@src/core/transitions/transitions";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 
 const prisma = prismaClient;
@@ -135,10 +137,14 @@ export const getAllAssignments = async (filters: { guardId?: number; status?: As
 
 // Update status
 export const updateAssignmentStatus = async (id: number, status: AssignmentStatus) => {
-    return prisma.assignment.update({
-        where: { id },
-        data: { status }
-    });
+    const current = await prisma.assignment.findUnique({ where: { id }, select: { status: true } });
+    if (!current) throw new AppError("ASSIGNMENT_NOT_FOUND", "Asignación no encontrada", 404);
+    assertTransition(ASSIGNMENT_TRANSITIONS, current.status, status);
+
+    const { count } = await prisma.assignment.updateMany({ where: { id, status: current.status }, data: { status } });
+    assertStatusUpdated(count);
+
+    return prisma.assignment.findUniqueOrThrow({ where: { id } });
 }
 
 // Toggle task completion

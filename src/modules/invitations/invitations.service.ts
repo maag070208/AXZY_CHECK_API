@@ -1,4 +1,6 @@
 import { prismaClient } from "@src/core/config/database";
+import { AppError } from "@src/core/errors/app-error";
+import { assertStatusUpdated, assertTransition, INVITATION_TRANSITIONS } from "@src/core/transitions/transitions";
 import { USER_PUBLIC_SELECT } from "@src/core/constants/user-select";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
@@ -99,12 +101,16 @@ export const getInvitationByIdOrCode = async (identifier: string) => {
 };
 
 export const updateInvitationStatus = async (id: number, status: 'ENTERED' | 'EXITED' | 'CANCELLED') => {
+    const current = await prismaClient.invitation.findUnique({ where: { id }, select: { status: true } });
+    if (!current) throw new AppError("INVITATION_NOT_FOUND", "Invitación no encontrada", 404);
+    assertTransition(INVITATION_TRANSITIONS, current.status, status);
+
     const data: any = { status };
     if (status === 'ENTERED') data.entryTime = new Date();
     if (status === 'EXITED') data.exitTime = new Date();
 
-    return prismaClient.invitation.update({
-        where: { id },
-        data
-    });
+    const { count } = await prismaClient.invitation.updateMany({ where: { id, status: current.status }, data });
+    assertStatusUpdated(count);
+
+    return prismaClient.invitation.findUniqueOrThrow({ where: { id } });
 };
