@@ -552,6 +552,8 @@ model ShiftHandover {
   createdBy          User                   @relation("ShiftHandoverCreator", fields: [createdById], references: [id])
   elements           ShiftHandoverElement[]
 
+  checks ShiftHandoverCheck[]
+
   @@unique([shiftType, handoverDate])
   @@index([handoverDate])
 }
@@ -589,6 +591,8 @@ model UniformCheck {
   createdAt     DateTime @default(now())
   guard         User     @relation("UniformGuard", fields: [guardId], references: [id])
   evaluatedBy   User     @relation("UniformEvaluator", fields: [evaluatedById], references: [id])
+
+  items UniformCheckItem[]
 
   @@index([createdAt])
   @@index([guardId])
@@ -700,4 +704,46 @@ model MaintenanceStatusCatalog {
   active       Boolean       @default(true)
   isSystem     Boolean       @default(true)
   maintenances Maintenance[]
+}
+
+/// Ítem del checklist de uniforme (T-F0-14). Reemplaza las columnas booleanas de UniformCheck.
+model UniformItem {
+  id       Int                @id @default(autoincrement())
+  name     String             @unique
+  value    String
+  order    Int                @default(0)
+  active   Boolean            @default(true)
+  isSystem Boolean            @default(true)
+  checks   UniformCheckItem[]
+}
+
+model UniformCheckItem {
+  uniformCheckId Int
+  uniformItemId  Int
+  checked        Boolean      @default(false)
+  uniformCheck   UniformCheck @relation(fields: [uniformCheckId], references: [id], onDelete: Cascade)
+  uniformItem    UniformItem  @relation(fields: [uniformItemId], references: [id])
+
+  @@id([uniformCheckId, uniformItemId])
+}
+
+/// Ítem del checklist de entrega de turno (T-F0-14). Reemplaza las columnas booleanas de ShiftHandover.
+model HandoverChecklistItem {
+  id       Int                  @id @default(autoincrement())
+  name     String               @unique
+  value    String
+  order    Int                  @default(0)
+  active   Boolean              @default(true)
+  isSystem Boolean              @default(true)
+  checks   ShiftHandoverCheck[]
+}
+
+model ShiftHandoverCheck {
+  shiftHandoverId         Int
+  handoverChecklistItemId Int
+  checked                 Boolean               @default(false)
+  shiftHandover           ShiftHandover         @relation(fields: [shiftHandoverId], references: [id], onDelete: Cascade)
+  handoverChecklistItem   HandoverChecklistItem @relation(fields: [handoverChecklistItemId], references: [id])
+
+  @@id([shiftHandoverId, handoverChecklistItemId])
 }

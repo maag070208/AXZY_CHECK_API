@@ -91,6 +91,23 @@ export const catalogsSeed = async (prisma: PrismaClient) => {
         }
     }
 
+    // 6. Ítems de checklist (T-F0-14): uniforme y entrega de turno.
+    const checklistItems = {
+        uniformItem: [['PANTALON', 'Pantalón'], ['BOTAS', 'Botas'], ['CINTURON', 'Cinturón'], ['CAMISA', 'Camisa'], ['PLUMA', 'Pluma'], ['GORRA', 'Gorra'], ['UNAS', 'Uñas'], ['OREJAS', 'Orejas'], ['DESODORANTE', 'Desodorante'], ['AFEITADO', 'Afeitado'], ['PEINADO', 'Peinado']],
+        handoverChecklistItem: [['PHONES', 'Teléfonos'], ['TABLET', 'Tableta'], ['RADIOS', 'Radios'], ['KEYS', 'Llaves'], ['LOGBOOK', 'Bitácora'], ['CONSIGNAS', 'Consignas'], ['REPORTED_TO_ADMIN', 'Reportado a administración']],
+    } as const;
+
+    for (const [model, items] of Object.entries(checklistItems)) {
+        const delegate = (prisma as any)[model];
+        for (const [index, [name, value]] of items.entries()) {
+            await delegate.upsert({
+                where: { name },
+                update: { value, order: index },
+                create: { name, value, order: index, isSystem: true },
+            });
+        }
+    }
+
     hackerLog.success('CATALOG', 'Base catalogs synchronized');
     await permissionsSeed(prisma);
 };
