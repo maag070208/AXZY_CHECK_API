@@ -32,7 +32,7 @@ export const catalogsSeed = async (prisma: PrismaClient) => {
         await prisma.propertyType.upsert({
             where: { name: type.name },
             update: { value: type.value },
-            create: type,
+            create: { ...type, isSystem: true },
         });
     }
 
@@ -48,7 +48,7 @@ export const catalogsSeed = async (prisma: PrismaClient) => {
         await prisma.propertyStatus.upsert({
             where: { name: status.name },
             update: { value: status.value },
-            create: status,
+            create: { ...status, isSystem: true },
         });
     }
 
@@ -65,7 +65,7 @@ export const catalogsSeed = async (prisma: PrismaClient) => {
         await prisma.invitationType.upsert({
             where: { name: type.name },
             update: { value: type.value },
-            create: type,
+            create: { ...type, isSystem: true },
         });
     }
 

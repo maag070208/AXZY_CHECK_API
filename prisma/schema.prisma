@@ -20,6 +20,9 @@ model PropertyType {
   name       String     @unique
   value      String
   properties Property[]
+  active     Boolean    @default(true)
+  order      Int        @default(0)
+  isSystem   Boolean    @default(false)
 }
 
 model PropertyStatus {
@@ -27,6 +30,9 @@ model PropertyStatus {
   name       String     @unique
   value      String
   properties Property[]
+  active     Boolean    @default(true)
+  order      Int        @default(0)
+  isSystem   Boolean    @default(false)
 }
 
 model InvitationType {
@@ -34,6 +40,9 @@ model InvitationType {
   name        String       @unique
   value       String
   invitations Invitation[]
+  active      Boolean      @default(true)
+  order       Int          @default(0)
+  isSystem    Boolean      @default(false)
 }
 
 model User {
@@ -373,6 +382,9 @@ model ResidentRelationship {
   value     String
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  active    Boolean  @default(true)
+  order     Int      @default(0)
+  isSystem  Boolean  @default(false)
 }
 
 model ChatMessage {

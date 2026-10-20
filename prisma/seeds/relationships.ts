@@ -22,7 +22,7 @@ export async function relationshipsSeed(prisma: PrismaClient) {
     await prisma.residentRelationship.upsert({
       where: { name },
       update: {},
-      create: { name, value: name },
+      create: { name, value: name, isSystem: true },
     });
   }
 

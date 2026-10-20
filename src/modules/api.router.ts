@@ -24,6 +24,8 @@ import realtimeRoute from "./realtime/realtime.routes";
 import shiftHandoverRoute from "./shift-handover/shift-handover.routes";
 import uniformRoute from "./uniform/uniform.routes";
 import dashboardRoute from "./dashboard/dashboard.routes";
+import { createCatalogRouter } from "@src/core/catalogs/catalog-factory";
+import { CATALOG_REGISTRY } from "@src/core/catalogs/registry";
 
 
 const apiRouter = Router();
@@ -55,6 +57,14 @@ apiRouter.use("/realtime", realtimeRoute);
 apiRouter.use("/shift-handover", shiftHandoverRoute);
 apiRouter.use("/uniform", uniformRoute);
 apiRouter.use("/dashboard", dashboardRoute);
+
+// Catálogos administrables (T-F0-04): un router generado por cada entrada del registro.
+apiRouter.get("/catalogs", (_req, res) =>
+  res.status(200).json({ data: CATALOG_REGISTRY.map((c) => ({ key: c.key, label: c.label })), messages: ["Success"], success: true }),
+);
+for (const def of CATALOG_REGISTRY) {
+  apiRouter.use(`/catalogs/${def.key}`, createCatalogRouter(def));
+}
 
 
 export default apiRouter;
