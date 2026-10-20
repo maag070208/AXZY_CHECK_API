@@ -15,7 +15,7 @@
     "prisma:generate": "npx prisma generate",
     "prisma:migrate": "npx prisma migrate dev",
     "prisma:restore": "npx prisma migrate reset",
-    "prisma:regenerate": "yarn prisma:generate && yarn prisma:migrate && yarn prisma:seed",
+    "prisma:regenerate": "pnpm prisma:generate && pnpm prisma:migrate && pnpm prisma:seed",
     "test": "jest",
     "test:unit": "jest --testPathIgnorePatterns 'contract' 'security'",
     "test:contract": "jest --testPathPattern contract",
@@ -89,5 +89,6 @@
     "ts-node": "^10.9.2",
     "tsc-alias": "^1.8.10",
     "typescript": "^5.3.3"
-  }
+  },
+  "packageManager": "pnpm@10.34.0"
 }

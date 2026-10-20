@@ -13,12 +13,12 @@ Con el API corriendo:
 ## Desarrollo
 
 ```bash
-npm install
-npm run prisma:generate
-npm run prisma:migrate
-npm run prisma:seed
+pnpm install
+pnpm prisma:generate
+pnpm prisma:migrate
+pnpm prisma:seed
 
-npm run dev   # http://localhost:4444
+pnpm dev   # http://localhost:4444
 ```
 
 Las variables de entorno viven en `.env` (no se versiona). El detalle de endpoints, convenciones, autenticación y modelos está en [`../docs/api/`](../docs/api/).

@@ -45,7 +45,7 @@ const main = () => {
   console.log("Siguientes pasos:");
   console.log("  1. Editar src/client/branding.ts y prisma/seeds/client/*.ts");
   console.log("  2. Copiar .env.example a .env y completar");
-  console.log("  3. npm install && npx prisma migrate deploy && npx prisma db seed");
+  console.log("  3. pnpm install && pnpm exec prisma migrate deploy && pnpm prisma:seed");
 };
 
 main();
