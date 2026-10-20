@@ -7,6 +7,7 @@ import YAML from "yamljs";
 
 //middlewares
 import { createTResult } from "@src/core/mappers/tresult.mapper";
+import { prismaClient } from "@src/core/config/database";
 import { redactResponseSecrets } from "@src/core/middlewares/redact-secrets.middleware";
 
 //router
@@ -51,6 +52,18 @@ if (process.env.NODE_ENV !== "production") {
 
 
 // app.use(apiValidator());
+
+// Salud para el balanceador y los despliegues (E1). Fuera de /api/v1: sin token.
+// /health = el proceso responde. /ready = el proceso además puede hablar con la base.
+app.get("/health", (_req, res) => res.status(200).json({ status: "ok" }));
+app.get("/ready", async (_req, res) => {
+  try {
+    await prismaClient.$queryRaw`SELECT 1`;
+    return res.status(200).json({ status: "ready" });
+  } catch {
+    return res.status(503).json({ status: "unavailable" });
+  }
+});
 
 app.use("/api/v1", apiRouter);
 

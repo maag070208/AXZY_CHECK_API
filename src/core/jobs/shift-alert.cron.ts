@@ -1,5 +1,6 @@
 import cron from "node-cron";
 import { prismaClient } from "@src/core/config/database";
+import { LOCK_KEYS, withAdvisoryLock } from "@src/core/utils/advisory-lock";
 import { publishToChannel, ABLY_CHANNELS } from "@src/core/config/ably";
 
 /**
@@ -37,14 +38,18 @@ export const registerShiftAlertCron = async (): Promise<void> => {
         cronExpression,
         async () => {
           try {
-            console.log(`[ShiftAlert] Disparando alerta de entrega de turno (${shiftType})`);
-            await publishToChannel(ABLY_CHANNELS.SHIFT_ALERTS, "shift-reminder", {
-              shiftType,
-              message:
-                shiftType === "NOCTURNO"
-                  ? "Recuerda enviar el reporte de entrega de turno nocturno."
-                  : "Recuerda enviar el reporte de entrega de turno matutino.",
-              triggeredAt: new Date().toISOString(),
+            // Solo una réplica emite la alerta (candado de Postgres, E-13).
+            const lockKey = shiftType === "NOCTURNO" ? LOCK_KEYS.SHIFT_ALERT_MORNING : LOCK_KEYS.SHIFT_ALERT_EVENING;
+            await withAdvisoryLock(lockKey, async () => {
+              console.log(`[ShiftAlert] Disparando alerta de entrega de turno (${shiftType})`);
+              await publishToChannel(ABLY_CHANNELS.SHIFT_ALERTS, "shift-reminder", {
+                shiftType,
+                message:
+                  shiftType === "NOCTURNO"
+                    ? "Recuerda enviar el reporte de entrega de turno nocturno."
+                    : "Recuerda enviar el reporte de entrega de turno matutino.",
+                triggeredAt: new Date().toISOString(),
+              });
             });
           } catch (error) {
             console.error("[ShiftAlert] Error al disparar la alerta:", error);

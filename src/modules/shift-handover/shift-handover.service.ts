@@ -112,8 +112,24 @@ export const getShiftHandoverById = async (id: number) => {
 };
 
 /** @description Reads a `SysConfig` value, falling back to a default if unset. */
+/**
+ * Caché en memoria de SysConfig con TTL (E-09). Los ajustes cambian rara vez y
+ * se leen en cada refresco del dashboard. Se invalida al expirar o con
+ * clearSysConfigCache() tras escribir un ajuste.
+ */
+const SYS_CONFIG_TTL_MS = 60_000;
+const sysConfigCache = new Map<string, { value: string | null; expiresAt: number }>();
+
+export const clearSysConfigCache = () => sysConfigCache.clear();
+
 export const getSysConfig = async (key: string, fallback: string) => {
+  const now = Date.now();
+  const hit = sysConfigCache.get(key);
+  if (hit && hit.expiresAt > now) {
+    return hit.value ?? fallback;
+  }
   const row = await prismaClient.sysConfig.findUnique({ where: { key } });
+  sysConfigCache.set(key, { value: row?.value ?? null, expiresAt: now + SYS_CONFIG_TTL_MS });
   return row?.value ?? fallback;
 };
 

@@ -110,16 +110,10 @@ export const deleteLocation = async (id: number) => {
 
     // 1. Remove from any Recurring configurations
     // First find all recurring locations linked to this location
-    const recurringLocs = await prisma.recurringLocation.findMany({
-        where: { locationId: id }
+    // Una sola operación por tabla, no un borrado por punto (E-11).
+    await prisma.recurringTask.deleteMany({
+        where: { recurringLocation: { locationId: id } }
     });
-
-    for (const loc of recurringLocs) {
-        // Delete all tasks associated with this recurring location
-        await prisma.recurringTask.deleteMany({
-            where: { recurringLocationId: loc.id }
-        });
-    }
 
     // Now delete the recurring locations themselves
     await prisma.recurringLocation.deleteMany({

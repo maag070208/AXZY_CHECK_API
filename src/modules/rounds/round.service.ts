@@ -1,5 +1,6 @@
 
 import { USER_PUBLIC_SELECT } from "@src/core/constants/user-select";
+import { Prisma } from "@prisma/client";
 import { prismaClient } from "@src/core/config/database";
 import { TResult } from '@src/core/dto/TResult';
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
@@ -98,30 +99,26 @@ const progressStatusFor = (percent: number | null): "MALO" | "MEDIO" | "ALTO" | 
 const attachRoundProgress = async (rows: any[]) => {
     if (rows.length === 0) return rows;
 
-    const guardIds = Array.from(new Set(rows.map((r) => r.guardId)));
+    // Puntos distintos escaneados por el guardia dentro de cada ronda, calculados
+    // en la base de datos con una sola consulta agrupada (antes se traían todos
+    // los escaneos de los guardias a memoria, E-03).
     const now = new Date();
-    const windowStart = new Date(Math.min(...rows.map((r: any) => new Date(r.startTime).getTime())));
-
-    const kardex = await prisma.kardex.findMany({
-        where: { userId: { in: guardIds }, timestamp: { gte: windowStart, lte: now } },
-        select: { userId: true, locationId: true, timestamp: true },
-    });
+    const ids = rows.map((r: any) => r.id);
+    const counts = await prisma.$queryRaw<{ roundId: number; scanned: number }[]>`
+        SELECT r."id" AS "roundId", COUNT(DISTINCT k."locationId")::int AS "scanned"
+        FROM "Round" r
+        LEFT JOIN "Kardex" k
+          ON k."userId" = r."guardId"
+         AND k."timestamp" >= r."startTime"
+         AND k."timestamp" <= COALESCE(r."endTime", ${now})
+        WHERE r."id" IN (${Prisma.join(ids)})
+        GROUP BY r."id"
+    `;
+    const scannedById = new Map(counts.map((c) => [Number(c.roundId), Number(c.scanned)]));
 
     return rows.map((round: any) => {
         const totalLocations = round.recurringConfiguration?.recurringLocations?.length ?? null;
-        const start = new Date(round.startTime).getTime();
-        const end = round.endTime ? new Date(round.endTime).getTime() : now.getTime();
-
-        const scannedLocationIds = new Set(
-            kardex
-                .filter((k) => {
-                    const t = new Date(k.timestamp).getTime();
-                    return k.userId === round.guardId && t >= start && t <= end;
-                })
-                .map((k) => k.locationId),
-        );
-
-        const scannedCount = scannedLocationIds.size;
+        const scannedCount = scannedById.get(round.id) ?? 0;
         const progressPercent =
             totalLocations && totalLocations > 0
                 ? Math.min(100, Math.round((scannedCount / totalLocations) * 100))
