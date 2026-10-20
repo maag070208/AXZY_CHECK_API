@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { requireRole } from "@src/modules/common/middlewares/role.middleware";
 import * as incidentController from "./incident.controller";
 import { authenticate } from "../common/middlewares/auth.middleware";
 
@@ -8,8 +9,8 @@ router.post("/", authenticate, incidentController.createIncident);
 router.post("/datatable", incidentController.getDataTable);
 router.get("/", authenticate, incidentController.getIncidents);
 router.get("/pending-count", authenticate, incidentController.getPendingCount);
-router.put("/:id/resolve", authenticate, incidentController.resolveIncident);
-router.delete("/:id", authenticate, incidentController.deleteIncident);
-router.delete("/:id/media", authenticate, incidentController.deleteMedia);
+router.put("/:id/resolve", requireRole(["ADMIN", "SHIFT"]), authenticate, incidentController.resolveIncident);
+router.delete("/:id", requireRole(["ADMIN", "SHIFT"]), authenticate, incidentController.deleteIncident);
+router.delete("/:id/media", requireRole(["ADMIN", "SHIFT"]), authenticate, incidentController.deleteMedia);
 
 export default router;

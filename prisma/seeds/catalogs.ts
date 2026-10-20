@@ -10,6 +10,7 @@ export const catalogsSeed = async (prisma: PrismaClient) => {
         { name: 'GUARD', value: 'Guardia' },
         { name: 'SHIFT', value: 'Jefe de Turno' },
         { name: 'MAINT', value: 'Mantenimiento' },
+        { name: 'RESDN', value: 'Residente' },
     ];
 
     for (const role of roles) {

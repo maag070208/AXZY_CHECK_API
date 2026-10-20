@@ -31,18 +31,6 @@ export const login = async (req: Request, res: Response) => {
       return res.status(401).json(createTResult("", ["Contraseña invalida"]));
     }
 
-    console.log("------------------------ USER ------------------------------")
-    console.log("NAME", user.name)
-    console.log("LASTNAME", user.lastName)
-    console.log("USERNAME", user.username)
-    console.log("ROLE", user.role?.name)
-    console.log("------------------------ USER ------------------------------")
-
-    console.log("------------------------ SCHEDULE ------------------------------")
-    console.log("START", user?.schedule?.startTime)
-    console.log("END", user?.schedule?.endTime)
-    console.log("------------------------ SCHEDULE ------------------------------")
-
     // SHIFT CHECK - Validar por horario del schedule
     // Aplicar a GUARD, SHIFT, MAINT
     if (user.role?.name === 'GUARD' || user.role?.name === 'SHIFT' || user.role?.name === 'MAINT') {
@@ -108,18 +96,6 @@ export const login = async (req: Request, res: Response) => {
                     currentTotalMinutes <= endTotalMinutes;
       }
 
-      // Logs para depuración
-      console.log("DEBUG - Validación de horario:");
-      console.log("Hora UTC:", now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0'));
-      console.log("Hora Tijuana:", currentTime);
-      console.log("Hora Tijuana (alternativa):", altTijuanaHour.toString().padStart(2, '0') + ':' + altTijuanaMinute.toString().padStart(2, '0'));
-      console.log("Turno asignado:", `${shiftStart} - ${shiftEnd}`);
-      console.log("Minutos actual en Tijuana:", currentTotalMinutes);
-      console.log("Minutos inicio:", startTotalMinutes);
-      console.log("Minutos fin:", endTotalMinutes);
-      console.log("¿Turno nocturno?:", endTotalMinutes < startTotalMinutes);
-      console.log("¿Dentro del horario?:", isInShift);
-
       if (!isInShift) {
         return res.status(403).json(createTResult("", ["Fuera de horario de turno"]));
       }
@@ -145,42 +121,15 @@ export const login = async (req: Request, res: Response) => {
 
 export const logout = async (req: Request, res: Response) => {
   try {
-     // Assuming user id is in req.body or derived from token if passed?
-     // Actually logout is often just client-side, but we need to update DB.
-     // If we use middleware, we have user in res.locals.user
-     // But if token is expired? We might still want to clear DB.
-     // Typically logout endpoint requires auth.
-     
-     // Let's assume passed in body or strictly from auth middleware.
-     // If we use auth middleware, we can access user id.
-     const { id } = req.body; // Or from token
-     // If we use middleware, 'req.user' or 'res.locals.user'
-     // Let's rely on body for simplicity if middleware not used, or better user attached.
-     // I'll check if user attached.
-     
-     // Actually, let's use the ID from the token if available. 
-     // But if token invalid, we can't identify user easily to logout.
-     // Let's accept ID in body for force logout, or rely on token.
-     // User requirement: "si se sale de app, no cerrarle sesion". 
-     // "cerrarle la sesion en automatico" if active out of shift.
-     
-     // For explicit logout (button click):
-     if (res.locals.user) {
-         const { updateUser } = require('./user.service');
-         await updateUser(res.locals.user.id, { isLoggedIn: false });
-         return res.status(200).json(createTResult(true));
-     } else {
-         // Maybe passed in body?
-         if (req.body.userId) {
-             const { updateUser } = require('./user.service');
-             await updateUser(req.body.userId, { isLoggedIn: false });
-             return res.status(200).json(createTResult(true));
-         }
-     }
-     
-     return res.status(200).json(createTResult(true)); // Just return specific success even if no-op
+    // La identidad viene SOLO del token. No se acepta un id en el body: así nadie
+    // puede desconectar a otro usuario (antes existía un fallback por body).
+    // @ts-ignore - req.user lo agrega `authenticate`
+    const userId = req.user?.id;
+    const { updateUser } = require("./user.service");
+    await updateUser(userId, { isLoggedIn: false });
+    return res.status(200).json(createTResult(true));
   } catch (error: any) {
-      return res.status(500).json(createTResult("", error.message));
+    return res.status(500).json(createTResult("", error.message));
   }
 };
 
@@ -222,7 +171,9 @@ export const createUser = async (req: Request, res: Response) => {
       scheduleId: scheduleId ? Number(scheduleId) : undefined
     });
 
-    return res.status(201).json(createTResult(user));
+    // Nunca devolver el hash de la contraseña (S-09).
+    const { password: _omit, ...safeUser } = user as typeof user & { password?: string };
+    return res.status(201).json(createTResult(safeUser));
   } catch (error: any) {
     return res.status(500).json(createTResult(null, error.message));
   }
@@ -242,6 +193,14 @@ export const updateUserProfile = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { name, lastName, username, shiftStart, shiftEnd, scheduleId, roleId, role } = req.body;
 
+    // Solo ADMIN puede cambiar rol y horario. Sin esto, un guardia podría
+    // cambiarse su propio rol a ADMIN usando PUT /users/:id sobre sí mismo.
+    // @ts-ignore - req.user lo agrega `authenticate`
+    const isAdmin = req.user?.role === "ADMIN";
+    const adminOnly = isAdmin
+      ? { roleId: roleId ? Number(roleId) : undefined, role, scheduleId: scheduleId ? Number(scheduleId) : undefined, shiftStart, shiftEnd }
+      : {};
+
     const { updateUser, getUserByUsername } = require("./user.service");
 
     if (username) {
@@ -257,11 +216,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
       name,
       lastName,
       username,
-      roleId: roleId ? Number(roleId) : undefined,
-      role,
-      shiftStart,
-      shiftEnd,
-      scheduleId: scheduleId ? Number(scheduleId) : undefined
+      ...adminOnly,
     });
 
     return res.status(200).json(createTResult(updated));

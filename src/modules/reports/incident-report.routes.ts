@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { getClubPdf, getIncidentsPdf } from "./incident-report.controller";
-import authenticate from "../../core/middlewares/token-validator.middleware";
+import { authenticate } from "../common/middlewares/auth.middleware";
 
 /**
  * @description Rutas para la generación de reportes PDF.

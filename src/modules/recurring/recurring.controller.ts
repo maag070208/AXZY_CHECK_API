@@ -92,7 +92,8 @@ export const assignGuard = async (req: Request, res: Response) => {
 
 export const getMyRecurring = async (req: Request, res: Response) => {
     try {
-        const userId = res.locals.user.id;
+        // @ts-ignore - req.user lo agrega `authenticate`
+        const userId = req.user.id;
         console.log("DEBUG: getMyRecurring - userId:", userId, "Type:", typeof userId);
         const list = await getRecurringConfigurationsForUser(userId);
         console.log("DEBUG: getMyRecurring - found configs:", list.length);

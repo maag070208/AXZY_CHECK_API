@@ -1,4 +1,5 @@
 import { Router } from "express";
+import { requireAuthUnlessPublic } from "./common/middlewares/require-auth-unless-public.middleware";
 
 import indexRoute from "./index.routes";
 import userRoute from "./users/user.routes";
@@ -26,6 +27,10 @@ import dashboardRoute from "./dashboard/dashboard.routes";
 
 
 const apiRouter = Router();
+
+// Guard global: todo exige token salvo la lista blanca (core/routes/public.ts).
+// Debe ir ANTES de montar cualquier módulo.
+apiRouter.use(requireAuthUnlessPublic);
 
 apiRouter.use("/", indexRoute);
 apiRouter.use("/users", userRoute);

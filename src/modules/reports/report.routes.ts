@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import * as ReportController from './report.controller';
-import authenticate from '../../core/middlewares/token-validator.middleware';
+import { authenticate } from '../common/middlewares/auth.middleware';
 import incidentReportRouter from './incident-report.routes';
 
 const router = Router();

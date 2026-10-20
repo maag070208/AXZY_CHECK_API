@@ -15,8 +15,10 @@ export const getDataTable = async (req: Request, res: Response) => {
 
 export const createAssignment = async (req: Request, res: Response) => {
   try {
-    const { guardId, locationId, notes, tasks, assignedBy: bodyAssignedBy } = req.body;
-    const assignedBy = bodyAssignedBy;
+    const { guardId, locationId, notes, tasks } = req.body;
+    // Quien asigna es siempre el usuario autenticado, nunca un valor del body (S-03).
+    // @ts-ignore - req.user lo agrega `authenticate`
+    const assignedBy = req.user.id;
     console.log({
       assignedBy,
       guardId,

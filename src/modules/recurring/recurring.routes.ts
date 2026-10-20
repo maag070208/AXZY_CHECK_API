@@ -1,24 +1,25 @@
 import { Router } from "express";
 import { createRecurring, deleteRecurring, getRecurringList, toggleRecurring, assignGuard, getMyRecurring, updateRecurring, getDataTable } from "./recurring.controller";
-import validationMiddleware from "@src/core/middlewares/token-validator.middleware";
+import { authenticate } from "@src/modules/common/middlewares/auth.middleware";
+import { requireRole } from "@src/modules/common/middlewares/role.middleware";
 
 const router = Router();
 
-// All routes protected by token
-router.use(validationMiddleware);
+// Autenticación obligatoria en todas las rutas.
+router.use(authenticate);
 
-// Only ADMIN and SHIFT_GUARD should access modification routes
-// For now, validationMiddleware adds user to res.locals.user. 
-// We can check roles in controller or added middleware.
-// Assuming validationMiddleware is sufficient for authentication.
+// Gestión de rutas: solo ADMIN y SHIFT (Jefe de Guardias).
+const MANAGERS = ["ADMIN", "SHIFT"];
+// Ejecución: cualquier personal operativo consulta SUS rutas.
+const OPERATIONAL = ["ADMIN", "SHIFT", "GUARD", "MAINT"];
 
-router.post("/datatable", validationMiddleware, getDataTable);
-router.get("/", validationMiddleware, getRecurringList);
-router.get("/my-list", validationMiddleware, getMyRecurring);
-router.post("/", validationMiddleware, createRecurring);
-router.post("/:id/assign", validationMiddleware, assignGuard);
-router.put("/:id", validationMiddleware, updateRecurring);
-router.put("/:id/toggle", validationMiddleware, toggleRecurring);
-router.delete("/:id", validationMiddleware, deleteRecurring);
+router.post("/datatable", requireRole(MANAGERS), getDataTable);
+router.get("/", requireRole(MANAGERS), getRecurringList);
+router.get("/my-list", requireRole(OPERATIONAL), getMyRecurring);
+router.post("/", requireRole(MANAGERS), createRecurring);
+router.post("/:id/assign", requireRole(MANAGERS), assignGuard);
+router.put("/:id", requireRole(MANAGERS), updateRecurring);
+router.put("/:id/toggle", requireRole(MANAGERS), toggleRecurring);
+router.delete("/:id", requireRole(MANAGERS), deleteRecurring);
 
 export default router;

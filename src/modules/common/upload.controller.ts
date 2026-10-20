@@ -16,7 +16,8 @@ export const uploadFile = async (req: Request, res: Response) => {
     }
 
     const start = Date.now();
-    const user = res.locals.user;
+    // @ts-ignore - req.user lo agrega `authenticate`
+    const user = req.user as { username?: string; name?: string } | undefined;
     const locationName = req.body.location || "unknown";
     
     // Format: name_quiensubio_locacion_fechayhora_minuto_segudo

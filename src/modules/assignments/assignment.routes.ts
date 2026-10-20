@@ -1,21 +1,20 @@
-
 import { Router } from "express";
 import { createAssignment, getAllAssignments, getMyAssignments, updateStatus, toggleTask, getDataTable } from "./assignment.controller";
-import { authenticate } from "../common/middlewares/auth.middleware";
+import { requireRole } from "../common/middlewares/role.middleware";
 
 const router = Router();
 
-// Admin / Shift Guard Routes
-router.post("/", createAssignment); // TODO: Add Role Middleware
-router.post("/datatable", getDataTable);
-router.get("/", getAllAssignments); // TODO: Add Role Middleware
-router.get("/all", getAllAssignments);
+const MANAGERS = ["ADMIN", "SHIFT"];
 
-// Guard Routes
-router.get("/me", authenticate, getMyAssignments);
+// Jefe de guardias / administración: asignar y revisar.
+router.post("/", requireRole(MANAGERS), createAssignment);
+router.post("/datatable", requireRole(MANAGERS), getDataTable);
+router.get("/", requireRole(MANAGERS), getAllAssignments);
+router.get("/all", requireRole(MANAGERS), getAllAssignments);
+router.patch("/:id/status", requireRole(MANAGERS), updateStatus);
 
-// Shared / System
-router.patch("/:id/status", updateStatus);
+// Personal operativo: ver las suyas y completar tareas.
+router.get("/me", getMyAssignments);
 router.patch("/tasks/:taskId/toggle", toggleTask);
 
 export default router;

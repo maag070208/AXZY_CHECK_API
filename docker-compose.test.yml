@@ -1,0 +1,14 @@
+# Base de datos EXCLUSIVA para pruebas. No apunta a operación.
+# Uso: docker compose -f docker-compose.test.yml up -d
+services:
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: checkapp-postgres-test
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: test
+      POSTGRES_DB: checkapp_test
+    ports:
+      - "55433:5432"
+    tmpfs:
+      - /var/lib/postgresql/data

@@ -1,65 +1,8 @@
-import cors from "cors";
-import express from "express";
-import helmet from "helmet";
-import morgan from "morgan";
-import swaggerUi from "swagger-ui-express";
-import YAML from "yamljs";
-
-//middlewares
-import { createTResult } from "@src/core/mappers/tresult.mapper";
-
-//router
-import apiRouter from "@src/modules/api.router";
-
-//jobs
+import { app } from "@src/app";
 import { registerShiftAlertCron } from "@src/core/jobs/shift-alert.cron";
-
-//server
-const app = express();
+import { prismaClient } from "@src/core/config/database";
 
 const PORT = 4444;
-
-app.use([
-  express.json(),
-  helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }),
-  cors(),
-  morgan("dev"),
-]);
-
-app.use(
-  "/swagger",
-  swaggerUi.serve,
-  (req: express.Request, res: express.Response, next: express.NextFunction) => {
-    const swaggerDocument = YAML.load("./swagger.yaml");
-    const swaggerUiHandler = swaggerUi.setup(swaggerDocument);
-    swaggerUiHandler(req, res, next);
-  }
-);
-
-app.get("/swagger.json", (req, res) => {
-  const swaggerDocument = YAML.load("./swagger.yaml");
-  res.json(swaggerDocument);
-});
-
-
-// app.use(apiValidator());
-
-app.use("/api/v1", apiRouter);
-
-app.use(
-  (
-    err: any,
-    req: express.Request,
-    res: express.Response,
-    next: express.NextFunction
-  ) => {
-    console.log({ err });
-    console.log({ err: err.errors });
-    res
-      .status(err.status || 500)
-      .json(createTResult<any>(null, [err.message, err.errors]));
-  }
-);
 
 // Entrega de turno: alertas automáticas 7:00 AM / 7:00 PM (ajustes/bonaterra_ajuste_2.md, 4.2)
 registerShiftAlertCron();
@@ -69,3 +12,16 @@ const server = app.listen(PORT, "0.0.0.0", () => {
 });
 
 server.timeout = 300000; // 5 minutes timeout for uploads
+
+// Apagado ordenado: en cada despliegue, terminar peticiones en curso y cerrar la BD.
+const shutdown = (signal: string) => {
+  console.log(`[server] ${signal} recibido: cerrando...`);
+  server.close(async () => {
+    await prismaClient.$disconnect();
+    process.exit(0);
+  });
+  // Si algo se queda colgado, no bloquear el despliegue más de 20 s.
+  setTimeout(() => process.exit(1), 20000).unref();
+};
+process.on("SIGTERM", () => shutdown("SIGTERM"));
+process.on("SIGINT", () => shutdown("SIGINT"));
