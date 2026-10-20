@@ -1,71 +1,84 @@
 openapi: 3.0.3
-
 info:
-  title: AXZY PARKING API
-  description: API para control de estacionamiento, entradas, salidas, movimientos y evidencia.
-  version: 1.0.0
-
+  title: CheckApp API
+  description: 'API de CheckApp para la operación de seguridad de BARCELONA Residencial: usuarios, ubicaciones, rondas, kardex, incidencias, mantenimiento, casa club, propiedades, residentes, invitaciones, reportes y comunicación del equipo.'
+  version: 1.1.0
 servers:
-  - url: http://localhost:4444/api/v1
-    description: Local server
-
+- url: http://localhost:4444/api/v1
+  description: Local
+- url: https://axzy-checkapp-bonaterra-prod-api.up.railway.app/api/v1
+  description: API desplegada (Railway)
 tags:
-  - name: users
-    description: Gestión de usuarios y roles
-  - name: locations
-    description: Gestión de cajones de estacionamiento
-  - name: uploads
-    description: Carga de archivos
-  - name: kardex
-    description: Registro de rondines y evidencia
-  - name: schedules
-    description: Gestión de horarios de trabajo
-  - name: assignments
-    description: Control de tareas y zonas asignadas
-  - name: rounds
-    description: Seguimiento de recorridos de seguridad
-  - name: incidents
-    description: Reporte de anomalías detectadas
-  - name: maintenance
-    description: Solicitudes y seguimiento de mantenimiento
-  - name: properties
-    description: Gestión de casas y departamentos
-  - name: residents
-    description: Gestión de perfiles de residentes y sus accesos
-  - name: catalog-admin
-    description: "CRUD de administración de catálogos (Incidencias / Mantenimiento / Casa Club) — ajustes/bonaterra_ajuste_2.md punto 3"
-  - name: chat
-    description: "Chat grupal del equipo operativo — ajustes/bonaterra_ajuste_2.md punto 4.1"
-  - name: realtime
-    description: Emisión de tokens de Ably (solo-suscripción) para clientes WEB/APP
-  - name: shift-handover
-    description: "Entrega de turno — ajustes/bonaterra_ajuste_2.md punto 4.2"
-  - name: uniform
-    description: "Checklist de uniformidad y aseo — ajustes/bonaterra_ajuste_2.md punto 4.3"
-  - name: dashboard
-    description: "Dashboard administrativo en vivo del Home de WEB (ADMIN/SHIFT): rondas activas, guardias en turno y alertas operativas en tiempo real"
-
-
-
+- name: index
+  description: Health check del API
+- name: users
+  description: Usuarios, roles y autenticación
+- name: locations
+  description: Zonas y puntos de ronda (QR)
+- name: uploads
+  description: Carga de evidencias a S3
+- name: kardex
+  description: Escaneos, evidencias y bitácora
+- name: schedules
+  description: Horarios de trabajo
+- name: assignments
+  description: Asignaciones y tareas
+- name: recurring
+  description: Rutinas y rutas recurrentes
+- name: rounds
+  description: Rondas de seguridad
+- name: incidents
+  description: Reportes de incidencias
+- name: maintenance
+  description: Reportes de mantenimiento
+- name: club
+  description: Reportes de Casa Club
+- name: properties
+  description: Propiedades del residencial
+- name: residents
+  description: Residentes y contactos
+- name: invitations
+  description: Invitaciones y pases de visita
+- name: catalog
+  description: Catálogos de lectura para combos
+- name: catalog-admin
+  description: Administración de categorías y tipos
+- name: chat
+  description: Chat del equipo operativo
+- name: realtime
+  description: Tokens de Ably para tiempo real
+- name: shift-handover
+  description: Entrega de turno
+- name: uniform
+  description: Revisión de uniforme y presentación
+- name: dashboard
+  description: Dashboard operativo en vivo
+- name: reports
+  description: Reportes de guardias y PDFs ejecutivos
 paths:
-
-  ###########################################################################
-  # USERS
-  ###########################################################################
   /users:
     get:
-      tags: [users]
+      tags:
+      - users
       summary: Obtener todos los usuarios
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultUserArray'
-
+      security: []
+      parameters:
+      - name: q
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Filtra por nombre, apellido o usuario
     post:
-      tags: [users]
+      tags:
+      - users
       summary: Registrar nuevo usuario
       requestBody:
         required: true
@@ -74,16 +87,17 @@ paths:
             schema:
               $ref: '#/components/schemas/UserCreate'
       responses:
-        "201":
+        '201':
           description: Usuario creado exitosamente.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultUser'
-
+      security: []
   /users/datatable:
     post:
-      tags: [users]
+      tags:
+      - users
       summary: Obtener usuarios paginados con filtros y ordenamiento
       requestBody:
         required: true
@@ -92,16 +106,17 @@ paths:
             schema:
               $ref: '#/components/schemas/DataTableFetchParams'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultDataTable'
-
+      security: []
   /users/login:
     post:
-      tags: [users]
+      tags:
+      - users
       summary: Login
       requestBody:
         required: true
@@ -110,54 +125,50 @@ paths:
             schema:
               $ref: '#/components/schemas/UserLogin'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultLogin'
-        "401":
+        '401':
           description: Invalid credentials
-
-  ###########################################################################
-  # LOCATIONS
-  ###########################################################################
+      security: []
   /locations:
     get:
-      tags: [locations]
+      tags:
+      - locations
       summary: Listar locaciones
-
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultLocationArray'
+      security: []
     post:
-      tags: [locations]
+      tags:
+      - locations
       summary: Crear locación
       requestBody:
         required: true
         content:
           application/json:
             schema:
-               type: object
-               properties:
-                 aisle: { type: string }
-                 spot: { type: string }
-                 number: { type: string }
+              $ref: '#/components/schemas/LocationCreate'
       responses:
-        "201":
+        '201':
           description: Created
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultLocation'
-
+      security: []
   /locations/datatable:
     post:
-      tags: [locations]
+      tags:
+      - locations
       summary: Obtener locaciones paginadas con filtros y ordenamiento
       requestBody:
         required: true
@@ -166,19 +177,17 @@ paths:
             schema:
               $ref: '#/components/schemas/DataTableFetchParams'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultDataTable'
-
-  ###########################################################################
-  # UPLOADS
-  ###########################################################################
+      security: []
   /uploads:
     post:
-      tags: [uploads]
+      tags:
+      - uploads
       summary: Subir archivo (Imagen o Video)
       requestBody:
         required: true
@@ -190,20 +199,23 @@ paths:
                 file:
                   type: string
                   format: binary
+                location:
+                  type: string
+                  description: Texto opcional para el nombre del archivo
+              required:
+              - file
+              additionalProperties: true
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultUpload'
-
-  ###########################################################################
-  # KARDEX
-  ###########################################################################
   /kardex:
     post:
-      tags: [kardex]
+      tags:
+      - kardex
       summary: Crear registro de kardex
       requestBody:
         required: true
@@ -212,69 +224,137 @@ paths:
             schema:
               $ref: '#/components/schemas/KardexCreate'
       responses:
-        "201":
-           description: Le Created
-           content:
-             application/json:
-               schema:
-                 $ref: '#/components/schemas/TResultKardex'
+        '201':
+          description: Le Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultKardex'
     get:
-      tags: [kardex]
+      tags:
+      - kardex
       summary: Listar kardex (filtros opcionales)
       parameters:
-        - in: query
-          name: userId
-          schema:
-            type: integer
-        - in: query
-          name: locationId
-          schema:
-            type: integer
-        - in: query
-          name: startDate
-          schema:
-            type: string
-            format: date-time
-        - in: query
-          name: endDate
-          schema:
-            type: string
-            format: date-time
+      - in: query
+        name: userId
+        schema:
+          type: integer
+      - in: query
+        name: locationId
+        schema:
+          type: integer
+      - in: query
+        name: startDate
+        schema:
+          type: string
+          format: date-time
+      - in: query
+        name: endDate
+        schema:
+          type: string
+          format: date-time
+      - name: userId
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: locationId
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: startDate
+        in: query
+        required: false
+        schema:
+          type: string
+        description: ISO 8601
+      - name: endDate
+        in: query
+        required: false
+        schema:
+          type: string
+        description: ISO 8601
       responses:
-         "200":
-           description: OK
-           content:
-             application/json:
-               schema:
-                 $ref: '#/components/schemas/TResultKardexArray'
-  
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultKardexArray'
   /kardex/{id}:
     get:
-      tags: [kardex]
+      tags:
+      - kardex
       summary: Detalle de kardex
       parameters:
-        - in: path
-          name: id
-          required: true
-          schema: 
-            type: integer
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: integer
       responses:
-         "200":
-           description: OK
-           content:
-             application/json:
-               schema:
-                 $ref: '#/components/schemas/TResultKardex'
-
-
-
-
-  ###########################################################################
-  # SCHEDULES
-  ###########################################################################
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultKardex'
+    patch:
+      tags:
+      - kardex
+      summary: Editar escaneo
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/KardexUpdate'
+      responses:
+        '200':
+          description: Escaneo actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultKardex'
+        '400':
+          description: Solicitud inválida
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+    delete:
+      tags:
+      - kardex
+      summary: Eliminar escaneo
+      description: No borra los archivos de S3.
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Escaneo eliminado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultBoolean'
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
   /schedules/datatable:
     post:
-      tags: [schedules]
+      tags:
+      - schedules
       summary: Obtener horarios paginados con filtros y ordenamiento
       requestBody:
         required: true
@@ -283,19 +363,17 @@ paths:
             schema:
               $ref: '#/components/schemas/DataTableFetchParams'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultDataTable'
-
-  ###########################################################################
-  # ASSIGNMENTS
-  ###########################################################################
+      security: []
   /assignments/datatable:
     post:
-      tags: [assignments]
+      tags:
+      - assignments
       summary: Obtener asignaciones paginadas con filtros y ordenamiento
       requestBody:
         required: true
@@ -304,19 +382,17 @@ paths:
             schema:
               $ref: '#/components/schemas/DataTableFetchParams'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultDataTable'
-
-  ###########################################################################
-  # ROUNDS
-  ###########################################################################
+      security: []
   /rounds/datatable:
     post:
-      tags: [rounds]
+      tags:
+      - rounds
       summary: Obtener rondines paginados con filtros y ordenamiento
       requestBody:
         required: true
@@ -325,19 +401,16 @@ paths:
             schema:
               $ref: '#/components/schemas/DataTableFetchParams'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultDataTable'
-
-  ###########################################################################
-  # INCIDENTS
-  ###########################################################################
   /incidents/datatable:
     post:
-      tags: [incidents]
+      tags:
+      - incidents
       summary: Obtener incidencias paginadas con filtros y ordenamiento
       requestBody:
         required: true
@@ -346,19 +419,17 @@ paths:
             schema:
               $ref: '#/components/schemas/DataTableFetchParams'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultDataTable'
-
-  ###########################################################################
-  # MAINTENANCE
-  ###########################################################################
+      security: []
   /maintenance/datatable:
     post:
-      tags: [maintenance]
+      tags:
+      - maintenance
       summary: Obtener mantenimientos paginados con filtros y ordenamiento
       requestBody:
         required: true
@@ -367,29 +438,29 @@ paths:
             schema:
               $ref: '#/components/schemas/DataTableFetchParams'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultDataTable'
-
-  ###########################################################################
-  # PROPERTIES
-  ###########################################################################
+      security: []
   /properties:
     get:
-      tags: [properties]
+      tags:
+      - properties
       summary: Listar todas las propiedades
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultPropertyArray'
+      security: []
     post:
-      tags: [properties]
+      tags:
+      - properties
       summary: Crear nueva propiedad
       requestBody:
         required: true
@@ -398,16 +469,17 @@ paths:
             schema:
               $ref: '#/components/schemas/PropertyCreate'
       responses:
-        "201":
+        '201':
           description: Creado
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultProperty'
-
+      security: []
   /properties/datatable:
     post:
-      tags: [properties]
+      tags:
+      - properties
       summary: Obtener propiedades paginadas
       requestBody:
         required: true
@@ -416,37 +488,42 @@ paths:
             schema:
               $ref: '#/components/schemas/DataTableFetchParams'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultDataTable'
-
+      security: []
   /properties/{id}:
     get:
-      tags: [properties]
+      tags:
+      - properties
       summary: Detalle de propiedad
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultProperty'
+      security: []
     put:
-      tags: [properties]
+      tags:
+      - properties
       summary: Actualizar propiedad
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
@@ -454,44 +531,47 @@ paths:
             schema:
               $ref: '#/components/schemas/PropertyUpdate'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultProperty'
+      security: []
     delete:
-      tags: [properties]
+      tags:
+      - properties
       summary: Eliminar propiedad
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultProperty'
-
-  ###########################################################################
-  # RESIDENTS
-  ###########################################################################
+      security: []
   /residents:
     get:
-      tags: [residents]
+      tags:
+      - residents
       summary: Listar todos los residentes con sus perfiles
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultResidentArray'
+      security: []
     post:
-      tags: [residents]
+      tags:
+      - residents
       summary: Registrar nuevo residente (Usuario + Perfil)
       requestBody:
         required: true
@@ -500,37 +580,42 @@ paths:
             schema:
               $ref: '#/components/schemas/ResidentCreate'
       responses:
-        "201":
+        '201':
           description: Creado
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultResident'
-
+      security: []
   /residents/{id}:
     get:
-      tags: [residents]
+      tags:
+      - residents
       summary: Detalle de residente
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultResident'
+      security: []
     put:
-      tags: [residents]
+      tags:
+      - residents
       summary: Actualizar residente y su perfil
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
@@ -538,793 +623,3578 @@ paths:
             schema:
               $ref: '#/components/schemas/ResidentUpdate'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultResident'
+      security: []
     delete:
-      tags: [residents]
+      tags:
+      - residents
       summary: Eliminar residente
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultResident'
-
-  ###########################################################################
-  # CATALOG ADMIN — "3. CRUD de administración de catálogos" (solo ADMIN)
-  ###########################################################################
+      security: []
   /catalog-admin/categories:
     get:
-      tags: [catalog-admin]
+      tags:
+      - catalog-admin
       summary: Lista categorías de un catálogo (INCIDENT / MAINTENANCE / CASA_CLUB), incluidas inactivas
       parameters:
-        - name: type
-          in: query
-          required: false
-          schema: { type: string, enum: [INCIDENT, MAINTENANCE, CASA_CLUB] }
+      - name: type
+        in: query
+        required: false
+        schema:
+          type: string
+          enum:
+          - INCIDENT
+          - MAINTENANCE
+          - CASA_CLUB
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
     post:
-      tags: [catalog-admin]
+      tags:
+      - catalog-admin
       summary: Crea una categoría
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [name, value, type]
-              properties:
-                name: { type: string }
-                value: { type: string }
-                type: { type: string, enum: [INCIDENT, MAINTENANCE, CASA_CLUB] }
-                color: { type: string }
-                icon: { type: string }
+              $ref: '#/components/schemas/CatalogCategoryCreate'
       responses:
-        "201":
+        '201':
           description: Creada
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
-
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
   /catalog-admin/categories/reorder:
     put:
-      tags: [catalog-admin]
+      tags:
+      - catalog-admin
       summary: Reordena categorías (arreglo de ids en el nuevo orden)
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [ids]
-              properties:
-                ids: { type: array, items: { type: integer } }
+              $ref: '#/components/schemas/ReorderRequest'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
-
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
   /catalog-admin/categories/{id}/pin:
     put:
-      tags: [catalog-admin]
-      summary: "Fija una categoría al inicio (acceso rápido)"
+      tags:
+      - catalog-admin
+      summary: Fija una categoría al inicio (acceso rápido)
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
-
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
   /catalog-admin/categories/{id}:
     put:
-      tags: [catalog-admin]
+      tags:
+      - catalog-admin
       summary: Actualiza una categoría
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                name: { type: string }
-                value: { type: string }
-                color: { type: string }
-                icon: { type: string }
-                active: { type: boolean }
+              $ref: '#/components/schemas/CatalogCategoryUpdate'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
     delete:
-      tags: [catalog-admin]
+      tags:
+      - catalog-admin
       summary: Elimina una categoría (se desactiva si tiene historial asociado)
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
-
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
   /catalog-admin/types:
     get:
-      tags: [catalog-admin]
+      tags:
+      - catalog-admin
       summary: Lista tipos de una categoría, incluidos inactivos
       parameters:
-        - name: categoryId
-          in: query
-          required: false
-          schema: { type: integer }
+      - name: categoryId
+        in: query
+        required: false
+        schema:
+          type: integer
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
     post:
-      tags: [catalog-admin]
+      tags:
+      - catalog-admin
       summary: Crea un tipo de incidencia bajo una categoría
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [name, value, categoryId]
-              properties:
-                name: { type: string }
-                value: { type: string }
-                categoryId: { type: integer }
+              $ref: '#/components/schemas/CatalogTypeCreate'
       responses:
-        "201":
+        '201':
           description: Creado
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
-
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
   /catalog-admin/types/reorder:
     put:
-      tags: [catalog-admin]
+      tags:
+      - catalog-admin
       summary: Reordena tipos dentro de una categoría (arreglo de ids en el nuevo orden)
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [ids]
-              properties:
-                ids: { type: array, items: { type: integer } }
+              $ref: '#/components/schemas/ReorderRequest'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
-
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
   /catalog-admin/types/{id}/pin:
     put:
-      tags: [catalog-admin]
-      summary: "Fija un tipo al inicio de su categoría (acceso rápido)"
+      tags:
+      - catalog-admin
+      summary: Fija un tipo al inicio de su categoría (acceso rápido)
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
-
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
   /catalog-admin/types/{id}:
     put:
-      tags: [catalog-admin]
+      tags:
+      - catalog-admin
       summary: Actualiza un tipo (nombre, valor, categoría, activo)
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                name: { type: string }
-                value: { type: string }
-                categoryId: { type: integer }
-                active: { type: boolean }
+              $ref: '#/components/schemas/CatalogTypeUpdate'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
     delete:
-      tags: [catalog-admin]
+      tags:
+      - catalog-admin
       summary: Elimina un tipo (se desactiva si tiene historial asociado)
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
-
-  ###########################################################################
-  # CHAT — "4.1 Chat grupal" (ADMIN, GUARD, SHIFT, MAINT)
-  ###########################################################################
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
   /chat/messages:
     get:
-      tags: [chat]
+      tags:
+      - chat
       summary: Historial de mensajes, paginado por cursor (más recientes primero)
       parameters:
-        - name: cursor
-          in: query
-          required: false
-          schema: { type: integer }
-        - name: limit
-          in: query
-          required: false
-          schema: { type: integer, default: 30 }
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          type: integer
+        description: ID del mensaje más antiguo ya cargado
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          default: 30
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+      description: Requiere ADMIN, GUARD, SHIFT o MAINT.
     post:
-      tags: [chat]
+      tags:
+      - chat
       summary: Envía un mensaje al canal grupal del equipo operativo
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [message]
-              properties:
-                message: { type: string }
+              $ref: '#/components/schemas/ChatMessageCreate'
       responses:
-        "201":
+        '201':
           description: Creado
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
-
-  ###########################################################################
-  # REALTIME — tokens de Ably (solo-suscripción)
-  ###########################################################################
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+      description: Requiere ADMIN, GUARD, SHIFT o MAINT. Publica new-message en chat:team.
   /realtime/token:
     get:
-      tags: [realtime]
+      tags:
+      - realtime
       summary: Emite un TokenRequest de Ably (solo-suscripción) para el usuario autenticado
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
-        "503":
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '503':
           description: Ably no configurado/disponible
-
-  ###########################################################################
-  # SHIFT HANDOVER — "4.2 Entrega de turno" (ADMIN, SHIFT)
-  ###########################################################################
   /shift-handover:
     post:
-      tags: [shift-handover]
+      tags:
+      - shift-handover
       summary: Crea un reporte de entrega de turno con sus elementos (guardias)
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [shiftType, handoverDate, reportedToAdmin]
-              properties:
-                shiftType: { type: string, enum: [MATUTINO, NOCTURNO] }
-                handoverDate: { type: string, format: date }
-                credentialsCount: { type: integer }
-                tarjetonesCount: { type: integer }
-                novedades: { type: string }
-                checklistPhones: { type: boolean }
-                checklistTablet: { type: boolean }
-                checklistRadios: { type: boolean }
-                checklistKeys: { type: boolean }
-                checklistLogbook: { type: boolean }
-                checklistConsignas: { type: boolean }
-                reportedToAdmin: { type: boolean }
-                elements:
-                  type: array
-                  items:
-                    type: object
-                    properties:
-                      guardId: { type: integer }
-                      entryTime: { type: string }
-                      punctual: { type: boolean }
-                      observations: { type: string }
+              $ref: '#/components/schemas/ShiftHandoverCreate'
       responses:
-        "201":
+        '201':
           description: Creado
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
-
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+      description: Requiere ADMIN o SHIFT.
   /shift-handover/datatable:
     post:
-      tags: [shift-handover]
+      tags:
+      - shift-handover
       summary: Lista paginada de reportes de entrega de turno (WEB)
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/DataTableFetchParams' }
+            schema:
+              $ref: '#/components/schemas/DataTableFetchParams'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultDataTable' }
-
+              schema:
+                $ref: '#/components/schemas/TResultDataTable'
   /shift-handover/pending:
     get:
-      tags: [shift-handover]
+      tags:
+      - shift-handover
       summary: Indica si el reporte de turno del día está pendiente de enviarse
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
-
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
   /shift-handover/{id}:
     get:
-      tags: [shift-handover]
+      tags:
+      - shift-handover
       summary: Detalle de un reporte de entrega de turno
       parameters:
-        - name: id
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
-
-  ###########################################################################
-  # UNIFORM — "4.3 Uniforme" (ADMIN, SHIFT)
-  ###########################################################################
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
   /uniform:
     post:
-      tags: [uniform]
+      tags:
+      - uniform
       summary: Registra un checklist de uniformidad/aseo para un guardia
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              required: [guardId]
-              properties:
-                guardId: { type: integer }
-                pantalon: { type: boolean }
-                botas: { type: boolean }
-                cinturon: { type: boolean }
-                camisa: { type: boolean }
-                pluma: { type: boolean }
-                gorra: { type: boolean }
-                unas: { type: boolean }
-                orejas: { type: boolean }
-                desodorante: { type: boolean }
-                afeitado: { type: boolean }
-                peinado: { type: boolean }
-                notes: { type: string }
+              $ref: '#/components/schemas/UniformCheckCreate'
       responses:
-        "201":
+        '201':
           description: Creado
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
-
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+      description: Requiere ADMIN o SHIFT.
   /uniform/datatable:
     post:
-      tags: [uniform]
+      tags:
+      - uniform
       summary: Lista paginada de checklists de uniforme (WEB)
       requestBody:
         required: true
         content:
           application/json:
-            schema: { $ref: '#/components/schemas/DataTableFetchParams' }
+            schema:
+              $ref: '#/components/schemas/DataTableFetchParams'
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultDataTable' }
-
+              schema:
+                $ref: '#/components/schemas/TResultDataTable'
   /uniform/by-guard/{guardId}:
     get:
-      tags: [uniform]
+      tags:
+      - uniform
       summary: Historial de checklists de uniforme de un guardia
       parameters:
-        - name: guardId
-          in: path
-          required: true
-          schema: { type: integer }
+      - name: guardId
+        in: path
+        required: true
+        schema:
+          type: integer
       responses:
-        "200":
+        '200':
           description: OK
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
-
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
   /dashboard/live:
     get:
-      tags: [dashboard]
+      tags:
+      - dashboard
       summary: Foto en vivo del estado operativo (rondas activas, guardias en turno, alertas, mapa)
-      description: >
-        A diferencia de /reports (histórico por rango de fechas), este endpoint
-        siempre refleja el momento actual. Los clientes se suscriben además al
-        canal de Ably "dashboard:live-ops" (evento "refresh") vía /realtime/token
-        para saber cuándo volver a pedir este endpoint; también hay polling de
-        respaldo. Solo ADMIN/SHIFT.
+      description: Requiere ADMIN o SHIFT.
       responses:
-        "200":
-          description: OK
+        '200':
+          description: Snapshot operativo en vivo
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/TResultGeneric' }
-
+              schema:
+                $ref: '#/components/schemas/TResultDashboardLive'
+        '401':
+          description: No autenticado
+        '403':
+          description: Sin permiso
+        '500':
+          description: Error interno
+  /:
+    get:
+      tags:
+      - index
+      summary: Health check
+      description: Endpoint de bienvenida del API (no requiere token).
+      security: []
+      responses:
+        '200':
+          description: Servicio activo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+  /users/logout:
+    post:
+      tags:
+      - users
+      summary: Cerrar sesión
+      description: Marca isLoggedIn=false. Body opcional con id o userId.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LogoutRequest'
+      responses:
+        '200':
+          description: Sesión cerrada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultBoolean'
+        '500':
+          description: Error interno
+  /users/coaches:
+    get:
+      tags:
+      - users
+      summary: Listar coaches (residual)
+      description: Endpoint residual de otro proyecto. En BARCELONA responde 500 porque getCoaches no existe.
+      security: []
+      responses:
+        '500':
+          description: Error interno
+  /users/{id}:
+    put:
+      tags:
+      - users
+      summary: Actualizar usuario
+      security: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserUpdate'
+      responses:
+        '200':
+          description: Usuario actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultUser'
+        '400':
+          description: Solicitud inválida
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+    delete:
+      tags:
+      - users
+      summary: Eliminar usuario (lógico)
+      description: softDelete=true, active=false y renombra el username para liberar el nombre.
+      security: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Usuario eliminado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultBoolean'
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /users/{id}/password:
+    put:
+      tags:
+      - users
+      summary: Cambiar contraseña
+      security: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordChange'
+      responses:
+        '200':
+          description: Contraseña actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultBoolean'
+        '400':
+          description: Solicitud inválida
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /users/{id}/reset-password:
+    put:
+      tags:
+      - users
+      summary: Restablecer contraseña
+      description: No pide la contraseña actual.
+      security: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordReset'
+      responses:
+        '200':
+          description: Contraseña restablecida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultBoolean'
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /locations/{id}:
+    put:
+      tags:
+      - locations
+      summary: Actualizar ubicación
+      security: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LocationUpdate'
+      responses:
+        '200':
+          description: Ubicación actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultLocation'
+        '400':
+          description: Solicitud inválida
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+    delete:
+      tags:
+      - locations
+      summary: Eliminar ubicación
+      description: Borrado físico; falla si hay kardex o asignaciones que la referencian.
+      security: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Ubicación eliminada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultBoolean'
+        '500':
+          description: Error interno
+  /kardex/{id}/media:
+    delete:
+      tags:
+      - kardex
+      summary: Quitar evidencia de un escaneo
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: key
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Key del archivo en S3
+      responses:
+        '200':
+          description: Evidencia eliminada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultKardex'
+        '400':
+          description: Solicitud inválida
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /kardex/datatable:
+    post:
+      tags:
+      - kardex
+      summary: Listado paginado de kardex
+      description: Devuelve data.data (no rows) por compatibilidad histórica.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataTableFetchParams'
+      responses:
+        '200':
+          description: Listado paginado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDataTable'
+        '400':
+          description: Solicitud inválida
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /schedules:
+    get:
+      tags:
+      - schedules
+      summary: Listar horarios
+      security: []
+      responses:
+        '200':
+          description: Horarios activos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultArray'
+        '500':
+          description: Error interno
+    post:
+      tags:
+      - schedules
+      summary: Crear horario
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleCreate'
+      responses:
+        '201':
+          description: Horario creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '500':
+          description: Error interno
+  /schedules/{id}:
+    put:
+      tags:
+      - schedules
+      summary: Actualizar horario
+      security: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ScheduleUpdate'
+      responses:
+        '200':
+          description: Horario actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+    delete:
+      tags:
+      - schedules
+      summary: Eliminar horario
+      description: Borrado físico; falla si está asignado a guardias.
+      security: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Horario eliminado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultBoolean'
+        '400':
+          description: Solicitud inválida
+        '500':
+          description: Error interno
+  /assignments:
+    post:
+      tags:
+      - assignments
+      summary: Crear asignación
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentCreate'
+      responses:
+        '201':
+          description: Asignación creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '500':
+          description: Error interno
+    get:
+      tags:
+      - assignments
+      summary: Listar asignaciones
+      security: []
+      parameters:
+      - name: id
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: guardId
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: status
+        in: query
+        required: false
+        schema:
+          type: string
+        description: PENDING, CHECKING, UNDER_REVIEW, REVIEWED, ANOMALY
+      responses:
+        '200':
+          description: Asignaciones
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultArray'
+        '500':
+          description: Error interno
+  /assignments/all:
+    get:
+      tags:
+      - assignments
+      summary: Listar todas las asignaciones
+      security: []
+      responses:
+        '200':
+          description: Asignaciones
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultArray'
+        '500':
+          description: Error interno
+  /assignments/me:
+    get:
+      tags:
+      - assignments
+      summary: Mis asignaciones
+      description: Asignaciones PENDING o ANOMALY del guardia autenticado.
+      responses:
+        '200':
+          description: Asignaciones del guardia
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultArray'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /assignments/{id}/status:
+    patch:
+      tags:
+      - assignments
+      summary: Cambiar estado de asignación
+      security: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignmentStatusUpdate'
+      responses:
+        '200':
+          description: Estado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /assignments/tasks/{taskId}/toggle:
+    patch:
+      tags:
+      - assignments
+      summary: Alternar tarea completada
+      security: []
+      parameters:
+      - name: taskId
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Tarea actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /recurring:
+    get:
+      tags:
+      - recurring
+      summary: Listar rutinas
+      responses:
+        '200':
+          description: Rutinas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultArray'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+    post:
+      tags:
+      - recurring
+      summary: Crear rutina
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecurringCreate'
+      responses:
+        '201':
+          description: Rutina creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /recurring/datatable:
+    post:
+      tags:
+      - recurring
+      summary: Listado paginado de rutinas
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataTableFetchParams'
+      responses:
+        '200':
+          description: Listado paginado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDataTable'
+        '400':
+          description: Solicitud inválida
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /recurring/my-list:
+    get:
+      tags:
+      - recurring
+      summary: Mis rutinas
+      description: Rutinas activas del usuario autenticado con avance por zona.
+      responses:
+        '200':
+          description: Rutinas del usuario
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultArray'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /recurring/{id}:
+    put:
+      tags:
+      - recurring
+      summary: Actualizar rutina
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecurringCreate'
+      responses:
+        '200':
+          description: Rutina actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+    delete:
+      tags:
+      - recurring
+      summary: Eliminar rutina
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Rutina eliminada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultBoolean'
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /recurring/{id}/assign:
+    post:
+      tags:
+      - recurring
+      summary: Asignar guardias a rutina
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecurringAssign'
+      responses:
+        '200':
+          description: Guardias asignados
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /recurring/{id}/toggle:
+    put:
+      tags:
+      - recurring
+      summary: Activar/desactivar rutina
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecurringToggle'
+      responses:
+        '200':
+          description: Rutina actualizada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /rounds:
+    get:
+      tags:
+      - rounds
+      summary: Listar rondas
+      parameters:
+      - name: date
+        in: query
+        required: false
+        schema:
+          type: string
+        description: YYYY-MM-DD
+      - name: guardId
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Rondas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultArray'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /rounds/start:
+    post:
+      tags:
+      - rounds
+      summary: Iniciar ronda
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RoundStart'
+      responses:
+        '201':
+          description: Ronda iniciada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /rounds/current:
+    get:
+      tags:
+      - rounds
+      summary: Ronda actual
+      responses:
+        '200':
+          description: Ronda actual o null
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /rounds/{id}:
+    get:
+      tags:
+      - rounds
+      summary: Detalle de ronda
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Ronda y timeline
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /rounds/{id}/end:
+    put:
+      tags:
+      - rounds
+      summary: Terminar ronda
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Ronda terminada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /incidents:
+    post:
+      tags:
+      - incidents
+      summary: Crear incidencia
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportCreate'
+      responses:
+        '201':
+          description: Incidencia creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+    get:
+      tags:
+      - incidents
+      summary: Listar incidencias
+      parameters:
+      - name: startDate
+        in: query
+        required: false
+        schema:
+          type: string
+        description: ISO 8601
+      - name: endDate
+        in: query
+        required: false
+        schema:
+          type: string
+        description: ISO 8601
+      - name: guardId
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: category
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: title
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Incidencias
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultArray'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /incidents/pending-count:
+    get:
+      tags:
+      - incidents
+      summary: Pendientes de incidencia
+      responses:
+        '200':
+          description: Conteo de pendientes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /incidents/{id}/resolve:
+    put:
+      tags:
+      - incidents
+      summary: Atender incidencia
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Incidencia atendida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /incidents/{id}:
+    delete:
+      tags:
+      - incidents
+      summary: Eliminar incidencia
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Incidencia eliminada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultBoolean'
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /incidents/{id}/media:
+    delete:
+      tags:
+      - incidents
+      summary: Quitar evidencia de incidencia
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: key
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Key del archivo
+      responses:
+        '200':
+          description: Evidencia eliminada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /club:
+    post:
+      tags:
+      - club
+      summary: Crear reporte de Casa Club
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportCreate'
+      responses:
+        '201':
+          description: Reporte de casa club creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+    get:
+      tags:
+      - club
+      summary: Listar reporte de Casa Clubs
+      parameters:
+      - name: startDate
+        in: query
+        required: false
+        schema:
+          type: string
+        description: ISO 8601
+      - name: endDate
+        in: query
+        required: false
+        schema:
+          type: string
+        description: ISO 8601
+      - name: guardId
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: category
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: title
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Reporte de casa clubs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultArray'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /club/pending-count:
+    get:
+      tags:
+      - club
+      summary: Pendientes de reporte de Casa Club
+      responses:
+        '200':
+          description: Conteo de pendientes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /club/{id}/resolve:
+    put:
+      tags:
+      - club
+      summary: Atender reporte de Casa Club
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Reporte de casa club atendida
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /club/{id}:
+    delete:
+      tags:
+      - club
+      summary: Eliminar reporte de Casa Club
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Reporte de casa club eliminada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultBoolean'
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /club/{id}/media:
+    delete:
+      tags:
+      - club
+      summary: Quitar evidencia de reporte de Casa Club
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: key
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Key del archivo
+      responses:
+        '200':
+          description: Evidencia eliminada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /maintenance:
+    post:
+      tags:
+      - maintenance
+      summary: Crear reporte de mantenimiento
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReportCreate'
+      responses:
+        '201':
+          description: Mantenimiento creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+    get:
+      tags:
+      - maintenance
+      summary: Listar mantenimientos
+      parameters:
+      - name: startDate
+        in: query
+        required: false
+        schema:
+          type: string
+        description: ISO 8601
+      - name: endDate
+        in: query
+        required: false
+        schema:
+          type: string
+        description: ISO 8601
+      - name: guardId
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: category
+        in: query
+        required: false
+        schema:
+          type: string
+      - name: title
+        in: query
+        required: false
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Mantenimientos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultArray'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /maintenance/pending-count:
+    get:
+      tags:
+      - maintenance
+      summary: Pendientes de mantenimiento
+      responses:
+        '200':
+          description: Conteo de pendientes
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /maintenance/{id}/resolve:
+    put:
+      tags:
+      - maintenance
+      summary: Atender mantenimiento
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Mantenimiento atendido
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /maintenance/{id}:
+    delete:
+      tags:
+      - maintenance
+      summary: Eliminar mantenimiento
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Mantenimiento eliminado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultBoolean'
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /maintenance/{id}/media:
+    delete:
+      tags:
+      - maintenance
+      summary: Quitar evidencia de mantenimiento
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: key
+        in: query
+        required: false
+        schema:
+          type: string
+        description: Key del archivo
+      responses:
+        '200':
+          description: Evidencia eliminada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /residents/datatable:
+    post:
+      tags:
+      - residents
+      summary: Listado paginado de residentes
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataTableFetchParams'
+      responses:
+        '200':
+          description: Listado paginado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDataTable'
+        '400':
+          description: Solicitud inválida
+        '500':
+          description: Error interno
+  /residents/catalog/relationships:
+    get:
+      tags:
+      - residents
+      summary: Catálogo de parentescos
+      security: []
+      responses:
+        '200':
+          description: Parentescos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultArray'
+        '500':
+          description: Error interno
+  /residents/{id}/contacts:
+    get:
+      tags:
+      - residents
+      summary: Listar contactos del residente
+      security: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Contactos
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultArray'
+        '400':
+          description: Solicitud inválida
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+    post:
+      tags:
+      - residents
+      summary: Agregar contacto al residente
+      security: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResidentContactCreate'
+      responses:
+        '201':
+          description: Contacto creado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /residents/contacts/{contactId}:
+    put:
+      tags:
+      - residents
+      summary: Editar contacto
+      security: []
+      parameters:
+      - name: contactId
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResidentContactUpdate'
+      responses:
+        '200':
+          description: Contacto actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+    delete:
+      tags:
+      - residents
+      summary: Desactivar contacto
+      security: []
+      parameters:
+      - name: contactId
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Contacto desactivado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultBoolean'
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /invitations:
+    post:
+      tags:
+      - invitations
+      summary: Crear invitación
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationCreate'
+      responses:
+        '201':
+          description: Invitación creada
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '500':
+          description: Error interno
+  /invitations/datatable:
+    post:
+      tags:
+      - invitations
+      summary: Listado paginado de invitaciones
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataTableFetchParams'
+      responses:
+        '200':
+          description: Listado paginado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDataTable'
+        '400':
+          description: Solicitud inválida
+        '500':
+          description: Error interno
+  /invitations/{id}:
+    get:
+      tags:
+      - invitations
+      summary: Detalle de invitación por id o código
+      security: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+        description: ID numérico o código AXZ-XXXXXX
+      responses:
+        '200':
+          description: Invitación
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /invitations/{id}/status:
+    put:
+      tags:
+      - invitations
+      summary: Cambiar estado de invitación
+      security: []
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InvitationStatusUpdate'
+      responses:
+        '200':
+          description: Estado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /catalog/{key}:
+    get:
+      tags:
+      - catalog
+      summary: Leer catálogo por clave
+      security: []
+      parameters:
+      - name: key
+        in: path
+        required: true
+        schema:
+          type: string
+          enum:
+          - property_type
+          - property_status
+          - invitation_type
+          - invitation_status
+          - resident_relationship
+          - role
+          - property
+          - guard
+          - incident_category
+          - incident_type
+          - club_category
+          - club_type
+      responses:
+        '200':
+          description: Elementos del catálogo
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultArray'
+        '404':
+          description: No encontrado
+        '500':
+          description: Error interno
+  /reports/guards/stats:
+    get:
+      tags:
+      - reports
+      summary: KPIs de guardias
+      description: Totales de escaneos, incidencias y omisiones.
+      parameters:
+      - &id001
+        name: startDate
+        in: query
+        required: true
+        schema:
+          type: string
+        description: ISO 8601 / YYYY-MM-DD
+      - &id002
+        name: endDate
+        in: query
+        required: true
+        schema:
+          type: string
+        description: ISO 8601 / YYYY-MM-DD
+      - name: guardId
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Reporte
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /reports/guards/top-performance:
+    get:
+      tags:
+      - reports
+      summary: Top 5 de guardias
+      description: Guardias con más escaneos en el rango.
+      parameters:
+      - *id001
+      - *id002
+      responses:
+        '200':
+          description: Reporte
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /reports/guards/distribution:
+    get:
+      tags:
+      - reports
+      summary: Distribución de actividad
+      description: Alias de stats.
+      parameters:
+      - *id001
+      - *id002
+      - name: guardId
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Reporte
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /reports/guards/detail:
+    get:
+      tags:
+      - reports
+      summary: Detalle por guardia
+      description: Resumen por guardia en el rango.
+      parameters:
+      - *id001
+      - *id002
+      - name: guardId
+        in: query
+        required: false
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Reporte
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /reports/guards/workload:
+    get:
+      tags:
+      - reports
+      summary: Carga de trabajo
+      description: Comparativo de carga por guardia.
+      parameters:
+      - *id001
+      - *id002
+      responses:
+        '200':
+          description: Reporte
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /reports/guards/detail-breakdown/{id}:
+    get:
+      tags:
+      - reports
+      summary: Detalle de omisiones por guardia
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      - name: startDate
+        in: query
+        required: true
+        schema:
+          type: string
+      - name: endDate
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: Puntos omitidos y rondas incompletas
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
+        '400':
+          description: Solicitud inválida
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /reports/incidents/pdf:
+    get:
+      tags:
+      - reports
+      summary: PDF de incidencias
+      parameters:
+      - name: startDate
+        in: query
+        required: true
+        schema:
+          type: string
+        description: ISO 8601 datetime
+      - name: endDate
+        in: query
+        required: true
+        schema:
+          type: string
+        description: ISO 8601 datetime
+      - name: ids
+        in: query
+        required: false
+        schema:
+          type: string
+        description: IDs separados por coma
+      - name: includeImages
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+      - name: includeLocation
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+      responses:
+        '200':
+          description: PDF de incidencias
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Solicitud inválida
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /reports/club/pdf:
+    get:
+      tags:
+      - reports
+      summary: PDF de Casa Club
+      parameters:
+      - name: startDate
+        in: query
+        required: true
+        schema:
+          type: string
+        description: ISO 8601 datetime
+      - name: endDate
+        in: query
+        required: true
+        schema:
+          type: string
+        description: ISO 8601 datetime
+      - name: ids
+        in: query
+        required: false
+        schema:
+          type: string
+        description: IDs separados por coma
+      - name: includeImages
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+      - name: includeLocation
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+      responses:
+        '200':
+          description: PDF de casa club
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Solicitud inválida
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /maintenance/report/pdf:
+    get:
+      tags:
+      - reports
+      summary: PDF de mantenimientos
+      parameters:
+      - name: startDate
+        in: query
+        required: true
+        schema:
+          type: string
+        description: ISO 8601 datetime
+      - name: endDate
+        in: query
+        required: true
+        schema:
+          type: string
+        description: ISO 8601 datetime
+      - name: ids
+        in: query
+        required: false
+        schema:
+          type: string
+        description: IDs separados por coma
+      - name: includeImages
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+      - name: includeLocation
+        in: query
+        required: false
+        schema:
+          type: boolean
+          default: true
+      responses:
+        '200':
+          description: PDF de mantenimientos
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '400':
+          description: Solicitud inválida
+        '401':
+          description: No autenticado
+        '500':
+          description: Error interno
+  /club/datatable:
+    post:
+      tags:
+      - club
+      summary: Listado paginado de Casa Club
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DataTableFetchParams'
+      responses:
+        '200':
+          description: Listado paginado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDataTable'
+        '400':
+          description: Solicitud inválida
+        '500':
+          description: Error interno
 components:
   schemas:
     TResultGeneric:
       type: object
       properties:
-        success: { type: boolean }
-        data: { type: object, additionalProperties: true, nullable: true }
-        messages: { type: array, items: { type: string } }
-
+        success:
+          type: boolean
+        data:
+          type: object
+          properties: {}
+          additionalProperties: true
+          nullable: true
+        messages:
+          type: array
+          items:
+            type: string
     DataTableFetchParams:
       type: object
       properties:
-        page: { type: integer, default: 1 }
-        limit: { type: integer, default: 10 }
-        filters: { type: object, additionalProperties: true }
+        page:
+          type: integer
+          default: 1
+        limit:
+          type: integer
+          default: 10
+        filters:
+          type: object
+          additionalProperties: true
         sort:
           type: object
           properties:
-            key: { type: string }
-            direction: { type: string, enum: [asc, desc] }
-
+            key:
+              type: string
+            direction:
+              type: string
+              enum:
+              - asc
+              - desc
     TResultDataTable:
       type: object
       properties:
-        success: { type: boolean }
+        success:
+          type: boolean
         data:
           type: object
           properties:
-            rows: { type: array, items: { type: object } }
-            total: { type: integer }
-        messages: { type: array, items: { type: string } }
-
-    ################################################################
-    # TResult WRAPPERS
-    ################################################################
+            rows:
+              type: array
+              items:
+                type: object
+                properties: {}
+                additionalProperties: true
+            total:
+              type: integer
+          additionalProperties: true
+        messages:
+          type: array
+          items:
+            type: string
     TResultString:
       type: object
       properties:
-        data: { type: string }
-        error: { type: string, nullable: true }
-
+        success:
+          type: boolean
+        data:
+          type: string
+        messages:
+          type: array
+          items:
+            type: string
     TResultUser:
       type: object
       properties:
-        data: { $ref: '#/components/schemas/User' }
-        error: { type: string, nullable: true }
-
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/User'
+        messages:
+          type: array
+          items:
+            type: string
     TResultUserArray:
       type: object
       properties:
+        success:
+          type: boolean
         data:
           type: array
-          items: { $ref: '#/components/schemas/User' }
-        error: { type: string, nullable: true }
-
+          items:
+            $ref: '#/components/schemas/User'
+        messages:
+          type: array
+          items:
+            type: string
     TResultLogin:
       type: object
       properties:
-        data: { type: string, description: JWT generado }
-        error: { type: string, nullable: true }
-    
+        success:
+          type: boolean
+        data:
+          type: string
+          description: JWT generado
+        messages:
+          type: array
+          items:
+            type: string
     TResultLocation:
-       type: object
-       properties:
-         data: { $ref: '#/components/schemas/Location' }
-         error: { type: string, nullable: true }
-    
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/Location'
+        messages:
+          type: array
+          items:
+            type: string
     TResultLocationArray:
-       type: object
-       properties:
-         data:
-           type: array
-           items: { $ref: '#/components/schemas/Location' }
-         error: { type: string, nullable: true }
-
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Location'
+        messages:
+          type: array
+          items:
+            type: string
     TResultUpload:
-       type: object
-       properties:
-         data:
-           type: object
-           properties:
-             url: { type: string }
-             mimetype: { type: string }
-             size: { type: integer }
-         error: { type: string, nullable: true }
-
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: object
+          properties:
+            url:
+              type: string
+            type:
+              type: string
+              enum:
+              - IMAGE
+              - VIDEO
+            mimetype:
+              type: string
+            size:
+              type: integer
+            bucket:
+              type: string
+            key:
+              type: string
+          additionalProperties: true
+        messages:
+          type: array
+          items:
+            type: string
     TResultKardex:
-       type: object
-       properties:
-         data: { $ref: '#/components/schemas/Kardex' }
-         error: { type: string, nullable: true }
-
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/Kardex'
+        messages:
+          type: array
+          items:
+            type: string
     TResultKardexArray:
-       type: object
-       properties:
-         data:
-           type: array
-           items: { $ref: '#/components/schemas/Kardex' }
-         error: { type: string, nullable: true }
-
-
-
-    ################################################################
-    # ENTITIES
-    ################################################################
-
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Kardex'
+        messages:
+          type: array
+          items:
+            type: string
     User:
       type: object
       properties:
-        id: { type: integer }
-        name: { type: string }
-        lastName: { type: string }
-        username: { type: string }
-
-        role: 
-           type: string
-           enum: [ADMIN, SHIFT_GUARD, GUARD, MANTENIMIENTO, RESIDENT]
+        id:
+          type: integer
+        name:
+          type: string
+        lastName:
+          type: string
+        username:
+          type: string
+        role:
+          $ref: '#/components/schemas/Role'
+        roleId:
+          type: integer
+        scheduleId:
+          type: integer
+        propertyId:
+          type: integer
+        active:
+          type: boolean
+        isLoggedIn:
+          type: boolean
+        softDelete:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      additionalProperties: true
     UserCreate:
       type: object
-      required: [name, username, password]
-
       properties:
-        name: { type: string }
-        lastName: { type: string }
-        username: { type: string }
-
-        password: { type: string }
-        role: 
-           type: string
-           enum: [ADMIN, SHIFT_GUARD, GUARD, MANTENIMIENTO, RESIDENT]
+        name:
+          type: string
+        lastName:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+        roleId:
+          type: integer
+        role:
+          type: string
+          enum:
+          - ADMIN
+          - GUARD
+          - SHIFT
+          - MAINT
+          - RESDN
+        scheduleId:
+          type: integer
+        shiftStart:
+          type: string
+          example: 08:00
+        shiftEnd:
+          type: string
+          example: '20:00'
+      required:
+      - name
+      - username
+      - password
+      additionalProperties: true
     UserLogin:
       type: object
-      required: [username, password]
-
+      required:
+      - username
+      - password
       properties:
-        username: { type: string }
-
-        password: { type: string }
-    
+        username:
+          type: string
+        password:
+          type: string
     Location:
-       type: object
-       properties:
-         id: { type: integer }
-         name: { type: string }
-         aisle: { type: string }
-         spot: { type: string }
-         number: { type: string }
-         isOccupied: { type: boolean }
-    
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        aisle:
+          type: string
+        spot:
+          type: string
+        number:
+          type: string
+        active:
+          type: boolean
+        softDelete:
+          type: boolean
+      additionalProperties: true
     Kardex:
-       type: object
-       properties:
-         id: { type: integer }
-         userId: { type: integer }
-         locationId: { type: integer }
-         timestamp: { type: string, format: date-time }
-         notes: { type: string }
-         media: 
-           type: array
-           items:
-             type: object
-             properties:
-                type: { type: string, enum: [IMAGE, VIDEO] }
-                url: { type: string }
-
-    ################################################################
-    # PROPERTY SCHEMAS
-    ################################################################
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        locationId:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+        notes:
+          type: string
+        media:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaItem'
+        latitude:
+          type: number
+        longitude:
+          type: number
+        scanType:
+          type: string
+          enum:
+          - ASSIGNMENT
+          - RECURRING
+          - FREE
+        assignmentId:
+          type: integer
+          nullable: true
+        user:
+          type: object
+          properties: {}
+          additionalProperties: true
+        location:
+          $ref: '#/components/schemas/Location'
+      additionalProperties: true
     TResultProperty:
       type: object
       properties:
-        data: { $ref: '#/components/schemas/Property' }
-        error: { type: string, nullable: true }
-
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/Property'
+        messages:
+          type: array
+          items:
+            type: string
     TResultPropertyArray:
       type: object
       properties:
+        success:
+          type: boolean
         data:
           type: array
-          items: { $ref: '#/components/schemas/Property' }
-        error: { type: string, nullable: true }
-
+          items:
+            $ref: '#/components/schemas/Property'
+        messages:
+          type: array
+          items:
+            type: string
     Property:
       type: object
       properties:
-        id: { type: integer }
-        identifier: { type: string }
-        name: { type: string }
-        type: { type: string, enum: [CASA, DEPARTAMENTO] }
-        mainStreet: { type: string }
-        betweenStreets: { type: string }
-        latitude: { type: number }
-        longitude: { type: number }
-        isInhabited: { type: boolean }
-        isForRent: { type: boolean }
-
+        id:
+          type: integer
+        identifier:
+          type: string
+        name:
+          type: string
+        mainStreet:
+          type: string
+        betweenStreets:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        typeId:
+          type: integer
+        statusId:
+          type: integer
+        type:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            value:
+              type: string
+          additionalProperties: true
+        status:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            value:
+              type: string
+          additionalProperties: true
+        active:
+          type: boolean
+        softDelete:
+          type: boolean
+      additionalProperties: true
     PropertyCreate:
       type: object
-      required: [identifier, name, type, mainStreet]
       properties:
-        identifier: { type: string }
-        name: { type: string }
-        type: { type: string, enum: [CASA, DEPARTAMENTO] }
-        mainStreet: { type: string }
-        betweenStreets: { type: string }
-        latitude: { type: number }
-        longitude: { type: number }
-        isInhabited: { type: boolean }
-        isForRent: { type: boolean }
-
+        identifier:
+          type: string
+        name:
+          type: string
+        mainStreet:
+          type: string
+        betweenStreets:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        typeId:
+          type: integer
+        statusId:
+          type: integer
+        active:
+          type: boolean
+      required:
+      - identifier
+      - name
+      - mainStreet
+      additionalProperties: true
     PropertyUpdate:
       type: object
       properties:
-        identifier: { type: string }
-        name: { type: string }
-        type: { type: string, enum: [CASA, DEPARTAMENTO] }
-        mainStreet: { type: string }
-        betweenStreets: { type: string }
-        latitude: { type: number }
-        longitude: { type: number }
-        isInhabited: { type: boolean }
-        isForRent: { type: boolean }
-
-    ################################################################
-    # RESIDENT SCHEMAS
-    ################################################################
+        identifier:
+          type: string
+        name:
+          type: string
+        mainStreet:
+          type: string
+        betweenStreets:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        typeId:
+          type: integer
+        statusId:
+          type: integer
+        active:
+          type: boolean
+      additionalProperties: true
     TResultResident:
       type: object
       properties:
-        data: { $ref: '#/components/schemas/User' } # Retorna el usuario con su perfil
-        error: { type: string, nullable: true }
-
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/Resident'
+        messages:
+          type: array
+          items:
+            type: string
     TResultResidentArray:
       type: object
       properties:
+        success:
+          type: boolean
         data:
           type: array
-          items: { $ref: '#/components/schemas/User' }
-        error: { type: string, nullable: true }
-
+          items:
+            $ref: '#/components/schemas/Resident'
+        messages:
+          type: array
+          items:
+            type: string
     ResidentCreate:
       type: object
-      required: [name, username, password]
+      required:
+      - name
+      - username
+      - password
       properties:
-        name: { type: string }
-        lastName: { type: string }
-        username: { type: string }
-        password: { type: string }
-        propertyId: { type: integer }
-        firstName: { type: string }
-        fatherLastName: { type: string }
-        motherLastName: { type: string }
-        phoneNumber: { type: string }
-        email: { type: string }
-        ineFrontUrl: { type: string }
-        ineBackUrl: { type: string }
-        emergencyContact: { type: string }
-        emergencyPhone: { type: string }
-        notes: { type: string }
-
+        name:
+          type: string
+        lastName:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+        propertyId:
+          type: integer
+        firstName:
+          type: string
+        fatherLastName:
+          type: string
+        motherLastName:
+          type: string
+        phoneNumber:
+          type: string
+        email:
+          type: string
+        ineFrontUrl:
+          type: string
+        ineBackUrl:
+          type: string
+        emergencyContact:
+          type: string
+        emergencyPhone:
+          type: string
+        notes:
+          type: string
     ResidentUpdate:
       type: object
       properties:
-        name: { type: string }
-        lastName: { type: string }
-        username: { type: string }
-        password: { type: string }
-        propertyId: { type: integer }
-        firstName: { type: string }
-        fatherLastName: { type: string }
-        motherLastName: { type: string }
-        phoneNumber: { type: string }
-        email: { type: string }
-        ineFrontUrl: { type: string }
-        ineBackUrl: { type: string }
-        emergencyContact: { type: string }
-        emergencyPhone: { type: string }
-        notes: { type: string }
-
+        name:
+          type: string
+        lastName:
+          type: string
+        username:
+          type: string
+        password:
+          type: string
+        propertyId:
+          type: integer
+        firstName:
+          type: string
+        fatherLastName:
+          type: string
+        motherLastName:
+          type: string
+        phoneNumber:
+          type: string
+        email:
+          type: string
+        ineFrontUrl:
+          type: string
+        ineBackUrl:
+          type: string
+        emergencyContact:
+          type: string
+        emergencyPhone:
+          type: string
+        notes:
+          type: string
     ResidentProfile:
       type: object
       properties:
-        id: { type: integer }
-        userId: { type: integer }
-        firstName: { type: string }
-        fatherLastName: { type: string }
-        motherLastName: { type: string }
-        phoneNumber: { type: string }
-        email: { type: string }
-        ineFrontUrl: { type: string }
-        ineBackUrl: { type: string }
-        emergencyContact: { type: string }
-        emergencyPhone: { type: string }
-        notes: { type: string }
-    
+        id:
+          type: integer
+        userId:
+          type: integer
+        firstName:
+          type: string
+        fatherLastName:
+          type: string
+        motherLastName:
+          type: string
+        phoneNumber:
+          type: string
+        email:
+          type: string
+        ineFrontUrl:
+          type: string
+        ineBackUrl:
+          type: string
+        emergencyContact:
+          type: string
+        emergencyPhone:
+          type: string
+        notes:
+          type: string
     KardexCreate:
-       type: object
-       required: [userId, locationId]
-       properties:
-         userId: { type: integer }
-         locationId: { type: integer }
-         notes: { type: string }
-         media:
-           type: array
-           items:
-             type: object
-             properties:
-               type: { type: string, enum: [IMAGE, VIDEO] }
-               url: { type: string }
+      type: object
+      properties:
+        userId:
+          type: integer
+        locationId:
+          type: integer
+        notes:
+          type: string
+        media:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaItem'
+        latitude:
+          type: number
+        longitude:
+          type: number
+        assignmentId:
+          type: integer
+      required:
+      - userId
+      - locationId
+      additionalProperties: true
+    TResultArray:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: array
+          items:
+            type: object
+            properties: {}
+            additionalProperties: true
+        messages:
+          type: array
+          items:
+            type: string
+    TResultBoolean:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          type: boolean
+        messages:
+          type: array
+          items:
+            type: string
+    Role:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        value:
+          type: string
+      additionalProperties: true
+    UserUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        lastName:
+          type: string
+        username:
+          type: string
+        roleId:
+          type: integer
+        role:
+          type: string
+          enum:
+          - ADMIN
+          - GUARD
+          - SHIFT
+          - MAINT
+          - RESDN
+        scheduleId:
+          type: integer
+        shiftStart:
+          type: string
+        shiftEnd:
+          type: string
+      additionalProperties: true
+    PasswordChange:
+      type: object
+      properties:
+        oldPassword:
+          type: string
+          format: password
+        newPassword:
+          type: string
+          format: password
+      required:
+      - oldPassword
+      - newPassword
+      additionalProperties: true
+    PasswordReset:
+      type: object
+      properties:
+        newPassword:
+          type: string
+          format: password
+      required:
+      - newPassword
+      additionalProperties: true
+    LogoutRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+      additionalProperties: true
+    LocationCreate:
+      type: object
+      properties:
+        name:
+          type: string
+        aisle:
+          type: string
+        spot:
+          type: string
+        number:
+          type: string
+      additionalProperties: true
+    LocationUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        aisle:
+          type: string
+        spot:
+          type: string
+        number:
+          type: string
+        active:
+          type: boolean
+      additionalProperties: true
+    MediaItem:
+      type: object
+      properties:
+        type:
+          type: string
+          enum:
+          - IMAGE
+          - VIDEO
+        url:
+          type: string
+        key:
+          type: string
+      additionalProperties: true
+    KardexUpdate:
+      type: object
+      properties:
+        notes:
+          type: string
+        media:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaItem'
+        latitude:
+          type: number
+        longitude:
+          type: number
+      additionalProperties: true
+    ResidentContact:
+      type: object
+      properties:
+        id:
+          type: integer
+        userId:
+          type: integer
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        relationship:
+          type: string
+        active:
+          type: boolean
+      additionalProperties: true
+    ResidentContactCreate:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        relationship:
+          type: string
+      required:
+      - name
+      additionalProperties: true
+    ResidentContactUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        relationship:
+          type: string
+      additionalProperties: true
+    Resident:
+      allOf:
+      - $ref: '#/components/schemas/User'
+      - type: object
+        properties:
+          residentProfile:
+            $ref: '#/components/schemas/ResidentProfile'
+          property:
+            $ref: '#/components/schemas/Property'
+          contacts:
+            type: array
+            items:
+              $ref: '#/components/schemas/ResidentContact'
+        additionalProperties: true
+    Schedule:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        startTime:
+          type: string
+          example: 08:00
+        endTime:
+          type: string
+          example: '20:00'
+        active:
+          type: boolean
+      additionalProperties: true
+    ScheduleCreate:
+      type: object
+      properties:
+        name:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+      required:
+      - name
+      - startTime
+      - endTime
+      additionalProperties: true
+    ScheduleUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+        active:
+          type: boolean
+      additionalProperties: true
+    ReportCreate:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        category:
+          type: string
+          description: Texto libre histórico (mantenimiento)
+        categoryId:
+          type: integer
+        typeId:
+          type: integer
+        media:
+          type: array
+          items:
+            $ref: '#/components/schemas/MediaItem'
+        latitude:
+          type: number
+        longitude:
+          type: number
+        clientRef:
+          type: string
+          description: Referencia del cliente para reintentos offline
+        createdAt:
+          type: string
+          format: date-time
+      additionalProperties: true
+    AssignmentTaskInput:
+      type: object
+      properties:
+        description:
+          type: string
+        reqPhoto:
+          type: boolean
+      required:
+      - description
+      additionalProperties: true
+    AssignmentCreate:
+      type: object
+      properties:
+        guardId:
+          type: integer
+        locationId:
+          type: integer
+        assignedBy:
+          type: integer
+        notes:
+          type: string
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssignmentTaskInput'
+      required:
+      - guardId
+      - locationId
+      - assignedBy
+      additionalProperties: true
+    AssignmentStatusUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - PENDING
+          - CHECKING
+          - UNDER_REVIEW
+          - REVIEWED
+          - ANOMALY
+      required:
+      - status
+      additionalProperties: true
+    RecurringTaskInput:
+      type: object
+      properties:
+        description:
+          type: string
+        reqPhoto:
+          type: boolean
+      required:
+      - description
+      additionalProperties: true
+    RecurringLocationInput:
+      type: object
+      properties:
+        locationId:
+          type: integer
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecurringTaskInput'
+      required:
+      - locationId
+      additionalProperties: true
+    RecurringCreate:
+      type: object
+      properties:
+        title:
+          type: string
+        locations:
+          type: array
+          items:
+            $ref: '#/components/schemas/RecurringLocationInput'
+        guardIds:
+          type: array
+          items:
+            type: integer
+      required:
+      - title
+      - locations
+      additionalProperties: true
+    RecurringToggle:
+      type: object
+      properties:
+        active:
+          type: boolean
+      required:
+      - active
+      additionalProperties: true
+    RecurringAssign:
+      type: object
+      properties:
+        guardIds:
+          type: array
+          items:
+            type: integer
+      required:
+      - guardIds
+      additionalProperties: true
+    RoundStart:
+      type: object
+      properties:
+        recurringConfigId:
+          type: integer
+        guardId:
+          type: integer
+      additionalProperties: true
+    InvitationCreate:
+      type: object
+      properties:
+        guestName:
+          type: string
+        propertyId:
+          type: integer
+        createdById:
+          type: integer
+        typeId:
+          type: integer
+        validFrom:
+          type: string
+          format: date-time
+        validUntil:
+          type: string
+          format: date-time
+        notes:
+          type: string
+      required:
+      - guestName
+      - propertyId
+      - createdById
+      - typeId
+      - validFrom
+      - validUntil
+      additionalProperties: true
+    InvitationStatusUpdate:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+          - PENDING
+          - ENTERED
+          - EXITED
+          - EXPIRED
+          - CANCELLED
+      required:
+      - status
+      additionalProperties: true
+    ChatMessageCreate:
+      type: object
+      properties:
+        message:
+          type: string
+          minLength: 1
+      required:
+      - message
+      additionalProperties: true
+    ShiftHandoverElement:
+      type: object
+      properties:
+        guardId:
+          type: integer
+        entryTime:
+          type: string
+          example: '19:05'
+        punctual:
+          type: boolean
+        observations:
+          type: string
+      required:
+      - guardId
+      - entryTime
+      additionalProperties: true
+    ShiftHandoverCreate:
+      type: object
+      properties:
+        shiftType:
+          type: string
+          enum:
+          - MATUTINO
+          - NOCTURNO
+        handoverDate:
+          type: string
+          format: date
+          example: '2026-10-19'
+        credentialsCount:
+          type: integer
+        tarjetonesCount:
+          type: integer
+        novedades:
+          type: string
+        checklistPhones:
+          type: boolean
+        checklistTablet:
+          type: boolean
+        checklistRadios:
+          type: boolean
+        checklistKeys:
+          type: boolean
+        checklistLogbook:
+          type: boolean
+        checklistConsignas:
+          type: boolean
+        reportedToAdmin:
+          type: boolean
+        elements:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShiftHandoverElement'
+      required:
+      - shiftType
+      - handoverDate
+      - reportedToAdmin
+      additionalProperties: true
+    UniformCheckCreate:
+      type: object
+      properties:
+        guardId:
+          type: integer
+        pantalon:
+          type: boolean
+        botas:
+          type: boolean
+        cinturon:
+          type: boolean
+        camisa:
+          type: boolean
+        pluma:
+          type: boolean
+        gorra:
+          type: boolean
+        unas:
+          type: boolean
+        orejas:
+          type: boolean
+        desodorante:
+          type: boolean
+        afeitado:
+          type: boolean
+        peinado:
+          type: boolean
+        notes:
+          type: string
+      required:
+      - guardId
+      additionalProperties: true
+    ReorderRequest:
+      type: object
+      properties:
+        ids:
+          type: array
+          items:
+            type: integer
+      required:
+      - ids
+      additionalProperties: true
+    CatalogCategoryCreate:
+      type: object
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+        type:
+          type: string
+          enum:
+          - INCIDENT
+          - MAINTENANCE
+          - CASA_CLUB
+        color:
+          type: string
+        icon:
+          type: string
+      required:
+      - name
+      - value
+      - type
+      additionalProperties: true
+    CatalogCategoryUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+        color:
+          type: string
+        icon:
+          type: string
+        active:
+          type: boolean
+      additionalProperties: true
+    CatalogTypeCreate:
+      type: object
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+        categoryId:
+          type: integer
+      required:
+      - name
+      - value
+      - categoryId
+      additionalProperties: true
+    CatalogTypeUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+        value:
+          type: string
+        categoryId:
+          type: integer
+        active:
+          type: boolean
+      additionalProperties: true
+    DashboardLive:
+      type: object
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        kpis:
+          type: object
+          properties: {}
+          additionalProperties: true
+        activeRounds:
+          type: array
+          items:
+            type: object
+            properties: {}
+            additionalProperties: true
+        mapPoints:
+          type: array
+          items:
+            type: object
+            properties: {}
+            additionalProperties: true
+        guardsOnShift:
+          type: array
+          items:
+            type: object
+            properties: {}
+            additionalProperties: true
+        alerts:
+          type: array
+          items:
+            type: object
+            properties: {}
+            additionalProperties: true
+        uncoveredRoutes:
+          type: array
+          items:
+            type: object
+            properties: {}
+            additionalProperties: true
+      additionalProperties: true
+    TResultDashboardLive:
+      type: object
+      properties:
+        success:
+          type: boolean
+        data:
+          $ref: '#/components/schemas/DashboardLive'
+        messages:
+          type: array
+          items:
+            type: string
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: 'JWT obtenido en POST /users/login. Enviar como: Authorization: Bearer <token>.'
+security:
+- bearerAuth: []

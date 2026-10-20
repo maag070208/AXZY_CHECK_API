@@ -1,5 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 import { hackerLog } from "./logger";
+import { permissionsSeed } from "./permissions";
 
 export const catalogsSeed = async (prisma: PrismaClient) => {
     hackerLog.info('CATALOG', 'Initializing Base Catalogs');
@@ -70,4 +71,5 @@ export const catalogsSeed = async (prisma: PrismaClient) => {
     }
 
     hackerLog.success('CATALOG', 'Base catalogs synchronized');
+    await permissionsSeed(prisma);
 };
