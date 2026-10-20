@@ -179,6 +179,9 @@ model Invitation {
   property    Property         @relation(fields: [propertyId], references: [id])
   type        InvitationType   @relation(fields: [typeId], references: [id])
 
+  statusId                Int?
+  invitationStatusCatalog InvitationStatusCatalog? @relation(fields: [statusId], references: [id])
+
   @@index([code])
   @@index([propertyId, status])
 }
@@ -214,6 +217,9 @@ model Kardex {
   location     Location    @relation(fields: [locationId], references: [id])
   user         User        @relation(fields: [userId], references: [id])
 
+  scanTypeId      Int?
+  scanTypeCatalog ScanTypeCatalog? @relation(fields: [scanTypeId], references: [id])
+
   @@index([userId])
   @@index([locationId])
   @@index([timestamp])
@@ -233,6 +239,9 @@ model Assignment {
   location   Location         @relation(fields: [locationId], references: [id])
   tasks      AssignmentTask[]
   kardex     Kardex[]
+
+  statusId                Int?
+  assignmentStatusCatalog AssignmentStatusCatalog? @relation(fields: [statusId], references: [id])
 
   @@index([guardId])
   @@index([locationId])
@@ -337,6 +346,9 @@ model Incident {
   resolvedBy   User?             @relation("IncidentResolver", fields: [resolvedById], references: [id])
   type         IncidentType?     @relation(fields: [typeId], references: [id])
 
+  statusId              Int?
+  incidentStatusCatalog IncidentStatusCatalog? @relation(fields: [statusId], references: [id])
+
   @@index([kind, status, createdAt(sort: Desc)])
 }
 
@@ -349,6 +361,9 @@ model Round {
   recurringConfigurationId Int?
   guard                    User                    @relation("GuardRounds", fields: [guardId], references: [id])
   recurringConfiguration   RecurringConfiguration? @relation(fields: [recurringConfigurationId], references: [id])
+
+  statusId           Int?
+  roundStatusCatalog RoundStatusCatalog? @relation(fields: [statusId], references: [id])
 
   @@index([guardId, status])
   @@index([recurringConfigurationId, status])
@@ -476,6 +491,9 @@ model Maintenance {
   guard        User              @relation(fields: [guardId], references: [id])
   resolvedBy   User?             @relation("MaintenanceResolver", fields: [resolvedById], references: [id])
   type         IncidentType?     @relation(fields: [typeId], references: [id])
+
+  statusId                 Int?
+  maintenanceStatusCatalog MaintenanceStatusCatalog? @relation(fields: [statusId], references: [id])
 
   @@index([status, createdAt(sort: Desc)])
 }
@@ -616,4 +634,70 @@ enum MaintenanceStatus {
 enum ShiftType {
   MATUTINO
   NOCTURNO
+}
+
+/// Catálogo de AssignmentStatus (T-F0-13): la columna enum sigue vigente; esta FK se llena en doble escritura.
+model AssignmentStatusCatalog {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique
+  value       String
+  order       Int          @default(0)
+  active      Boolean      @default(true)
+  isSystem    Boolean      @default(true)
+  assignments Assignment[]
+}
+
+/// Catálogo de InvitationStatus (T-F0-13): la columna enum sigue vigente; esta FK se llena en doble escritura.
+model InvitationStatusCatalog {
+  id          Int          @id @default(autoincrement())
+  name        String       @unique
+  value       String
+  order       Int          @default(0)
+  active      Boolean      @default(true)
+  isSystem    Boolean      @default(true)
+  invitations Invitation[]
+}
+
+/// Catálogo de ScanType (T-F0-13): la columna enum sigue vigente; esta FK se llena en doble escritura.
+model ScanTypeCatalog {
+  id       Int      @id @default(autoincrement())
+  name     String   @unique
+  value    String
+  order    Int      @default(0)
+  active   Boolean  @default(true)
+  isSystem Boolean  @default(true)
+  kardexs  Kardex[]
+}
+
+/// Catálogo de IncidentStatus (T-F0-13): la columna enum sigue vigente; esta FK se llena en doble escritura.
+model IncidentStatusCatalog {
+  id        Int        @id @default(autoincrement())
+  name      String     @unique
+  value     String
+  order     Int        @default(0)
+  active    Boolean    @default(true)
+  isSystem  Boolean    @default(true)
+  incidents Incident[]
+}
+
+/// Catálogo de RoundStatus (T-F0-13): la columna enum sigue vigente; esta FK se llena en doble escritura.
+model RoundStatusCatalog {
+  id       Int     @id @default(autoincrement())
+  name     String  @unique
+  value    String
+  order    Int     @default(0)
+  active   Boolean @default(true)
+  isSystem Boolean @default(true)
+  rounds   Round[]
+}
+
+/// Catálogo de MaintenanceStatus (T-F0-13): la columna enum sigue vigente; esta FK se llena en doble escritura.
+model MaintenanceStatusCatalog {
+  id           Int           @id @default(autoincrement())
+  name         String        @unique
+  value        String
+  order        Int           @default(0)
+  active       Boolean       @default(true)
+  isSystem     Boolean       @default(true)
+  maintenances Maintenance[]
 }

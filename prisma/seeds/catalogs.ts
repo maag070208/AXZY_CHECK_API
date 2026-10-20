@@ -70,6 +70,27 @@ export const catalogsSeed = async (prisma: PrismaClient) => {
         });
     }
 
+    // 5. Catálogos de estados y tipos (T-F0-13): reflejan los valores de los enums.
+    const enumCatalogs = {
+        assignmentStatusCatalog: [['PENDING', 'Pendiente'], ['CHECKING', 'En revisión'], ['UNDER_REVIEW', 'Bajo revisión'], ['REVIEWED', 'Revisada'], ['ANOMALY', 'Anomalía']],
+        invitationStatusCatalog: [['PENDING', 'Pendiente'], ['ENTERED', 'Ingresó'], ['EXITED', 'Salió'], ['EXPIRED', 'Vencida'], ['CANCELLED', 'Cancelada']],
+        scanTypeCatalog: [['ASSIGNMENT', 'Asignación'], ['RECURRING', 'Recurrente'], ['FREE', 'Libre']],
+        incidentStatusCatalog: [['PENDING', 'Pendiente'], ['ATTENDED', 'Atendido']],
+        roundStatusCatalog: [['IN_PROGRESS', 'En curso'], ['COMPLETED', 'Completada']],
+        maintenanceStatusCatalog: [['PENDING', 'Pendiente'], ['ATTENDED', 'Atendido']],
+    } as const;
+
+    for (const [model, values] of Object.entries(enumCatalogs)) {
+        const delegate = (prisma as any)[model];
+        for (const [index, [name, value]] of values.entries()) {
+            await delegate.upsert({
+                where: { name },
+                update: { value, order: index },
+                create: { name, value, order: index, isSystem: true },
+            });
+        }
+    }
+
     hackerLog.success('CATALOG', 'Base catalogs synchronized');
     await permissionsSeed(prisma);
 };
