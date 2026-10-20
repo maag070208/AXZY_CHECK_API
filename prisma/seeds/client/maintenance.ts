@@ -90,6 +90,7 @@ export const maintenanceCatalogsSeed = async (prisma: PrismaClient) => {
         } else {
             createdCat = await prisma.incidentCategory.create({
                 data: {
+                    isSystem: true,
                     name: cat.name,
                     value: cat.value,
                     type: cat.type,

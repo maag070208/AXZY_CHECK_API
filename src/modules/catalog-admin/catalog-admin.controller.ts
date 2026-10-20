@@ -1,4 +1,5 @@
-import { Request, Response } from "express";
+import { NextFunction, Request, Response } from "express";
+
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import * as catalogAdminService from "./catalog-admin.service";
 
@@ -34,7 +35,7 @@ export const createCategory = async (req: Request, res: Response) => {
 };
 
 /** @description PUT /catalog-admin/categories/:id */
-export const updateCategory = async (req: Request, res: Response) => {
+export const updateCategory = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const { name, value, color, icon, active } = req.body;
@@ -46,13 +47,13 @@ export const updateCategory = async (req: Request, res: Response) => {
       active,
     });
     return res.status(200).json(createTResult(category));
-  } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+  } catch (error) {
+    return next(error);
   }
 };
 
 /** @description DELETE /catalog-admin/categories/:id — 1st call soft-disables, 2nd call deletes permanently. */
-export const deleteCategory = async (req: Request, res: Response) => {
+export const deleteCategory = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
     const result = await catalogAdminService.deleteCategory(Number(id));
@@ -60,8 +61,8 @@ export const deleteCategory = async (req: Request, res: Response) => {
       ? "La categoría se desactivó. Elimínala de nuevo para borrarla permanentemente"
       : "La categoría se eliminó permanentemente";
     return res.status(200).json(createTResult({ ...result, message }));
-  } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+  } catch (error) {
+    return next(error);
   }
 };
 

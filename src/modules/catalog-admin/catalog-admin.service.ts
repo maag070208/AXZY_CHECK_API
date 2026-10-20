@@ -1,3 +1,4 @@
+import { AppError } from "@src/core/errors/app-error";
 import { prismaClient } from "@src/core/config/database";
 
 /**
@@ -67,6 +68,10 @@ export const updateCategory = async (
   id: number,
   data: Partial<{ name: string; value: string; color: string; icon: string; active: boolean }>,
 ) => {
+  const category = await prismaClient.incidentCategory.findUnique({ where: { id } });
+  if (category?.isSystem && data.name !== undefined && data.name !== category.name) {
+    throw new AppError("CATEGORY_SYSTEM", "Una categoría del sistema no se renombra; solo puede desactivarse", 409);
+  }
   return prismaClient.incidentCategory.update({ where: { id }, data });
 };
 
@@ -78,12 +83,15 @@ export const updateCategory = async (
 export const deleteCategory = async (id: number) => {
   const category = await prismaClient.incidentCategory.findUnique({ where: { id } });
   if (!category) {
-    throw new Error("Categoría no encontrada");
+    throw new AppError("CATEGORY_NOT_FOUND", "Categoría no encontrada", 404);
   }
 
   if (category.active) {
     await prismaClient.incidentCategory.update({ where: { id }, data: { active: false } });
     return { softDeleted: true };
+  }
+  if (category.isSystem) {
+    throw new AppError("CATEGORY_SYSTEM", "Una categoría del sistema no se borra; solo puede desactivarse", 409);
   }
 
   await prismaClient.$transaction([

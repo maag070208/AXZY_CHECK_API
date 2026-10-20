@@ -42,7 +42,7 @@ export const clubCatalogsSeed = async (prisma: PrismaClient) => {
         });
     } else {
         category = await prisma.incidentCategory.create({
-            data: casaClubCategory,
+            data: { ...casaClubCategory, isSystem: true },
             select: { id: true },
         });
     }

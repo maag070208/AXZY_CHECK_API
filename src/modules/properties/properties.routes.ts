@@ -13,8 +13,8 @@ const router = Router();
 
 router.post("/datatable", getDataTable);
 
-router.get("/", getProperties);
-router.get("/:id", getProperty);
+router.get("/", requirePermission("properties.view"), getProperties);
+router.get("/:id", requirePermission("properties.view"), getProperty);
 router.post("/", requirePermission("properties.manage"), validate({ body: createPropertyBody }), addProperty);
 router.put("/:id", requirePermission("properties.manage"), validate({ params: idParam, body: updatePropertyBody }), putProperty);
 router.delete("/:id", requirePermission("properties.manage"), removeProperty);
