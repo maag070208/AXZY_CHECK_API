@@ -17,7 +17,6 @@ const storageService = new StorageService();
 export const createIncident = async (req: Request, res: Response) => {
   try {
     const { title, categoryId, typeId, description, media, latitude, longitude } = req.body;
-    // @ts-ignore
     const guardId = req.user?.id;
 
     if (!guardId) {
@@ -65,7 +64,6 @@ export const getIncidents = async (req: Request, res: Response) => {
 export const resolveIncident = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        // @ts-ignore
         const userId = req.user?.id;
 
         if (!userId) {

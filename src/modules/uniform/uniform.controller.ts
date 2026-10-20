@@ -5,7 +5,6 @@ import * as uniformService from "./uniform.service";
 /** @description POST /uniform — records a uniform/grooming checklist for a guard. */
 export const createUniformCheck = async (req: Request, res: Response) => {
   try {
-    // @ts-ignore - attached by `authenticate`
     const evaluatorId = req.user?.id;
     if (!evaluatorId) {
       return res.status(401).json(createTResult(null, ["Usuario no autenticado"]));

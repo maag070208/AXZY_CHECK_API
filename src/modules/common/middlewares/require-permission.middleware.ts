@@ -13,7 +13,6 @@ const FORBIDDEN_MESSAGE = "No tienes permisos para realizar esta acción";
 export const requirePermission = (code: PermissionCode) => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // @ts-ignore - req.user lo agrega `authenticate`
       const role: string | undefined = req.user?.role;
       if (!role || !(await roleHasPermission(role, code))) {
         return res.status(403).json(createTResult(null, [FORBIDDEN_MESSAGE]));
@@ -33,7 +32,6 @@ export const requirePermission = (code: PermissionCode) => {
 export const selfOrPermission = (code: PermissionCode, param = "id") => {
   return async (req: Request, res: Response, next: NextFunction) => {
     try {
-      // @ts-ignore - req.user lo agrega `authenticate`
       const user = req.user as { id: number; role: string } | undefined;
       if (!user) {
         return res.status(401).json(createTResult(null, ["No token provided"]));

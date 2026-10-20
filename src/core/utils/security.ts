@@ -8,7 +8,7 @@ export const hashPassword = async (password: string) =>
 export const comparePassword = async (password: string, hash: string) =>
   await bcrypt.compare(password, hash);
 
-export const generateJWT = async (payload: any | {}) =>
+export const generateJWT = async (payload: Record<string, unknown>) =>
   jwt.sign(payload, secretKey, {
     expiresIn: '1d',
   });

@@ -16,8 +16,7 @@ export const authenticate = async (req: Request, res: Response, next: NextFuncti
         }
 
         const decoded = await verifyToken(token);
-        // @ts-ignore
-        req.user = decoded;
+        req.user = decoded as NonNullable<Request["user"]>;
         next();
     } catch (error) {
         return res.status(401).json(createTResult(null, ['Invalid or expired token']));

@@ -14,7 +14,6 @@ export const getDataTable = async (req: Request, res: Response) => {
 export const createMaintenance = async (req: Request, res: Response) => {
   try {
     const { title, category, description, media, latitude, longitude, categoryId, typeId } = req.body;
-    // @ts-ignore
     const guardId = req.user?.id;
 
     if (!guardId) {
@@ -63,7 +62,6 @@ export const getMaintenances = async (req: Request, res: Response) => {
 export const resolveMaintenance = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { id } = req.params;
-        // @ts-ignore
         const userId = req.user?.id;
 
         if (!userId) {

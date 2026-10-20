@@ -26,7 +26,6 @@ export const getMessages = async (req: Request, res: Response) => {
  */
 export const createMessage = async (req: Request, res: Response) => {
   try {
-    // @ts-ignore - attached by `authenticate`
     const userId = req.user?.id;
     const { message } = req.body;
 

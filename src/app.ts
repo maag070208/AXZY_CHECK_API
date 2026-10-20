@@ -6,7 +6,6 @@ import swaggerUi from "swagger-ui-express";
 import YAML from "yamljs";
 
 //middlewares
-import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { prismaClient } from "@src/core/config/database";
 import { redactResponseSecrets } from "@src/core/middlewares/redact-secrets.middleware";
 import { errorHandler } from "@src/core/middlewares/error-handler.middleware";

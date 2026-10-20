@@ -61,14 +61,15 @@ export const getCatalog = async (key: string) => {
                 select: { ...selectFields, categoryId: true, order: true },
                 orderBy: [{ order: 'asc' }, { value: 'asc' }]
             });
-        case CatalogKey.PROPERTY:
+        case CatalogKey.PROPERTY: {
             const properties = await prismaClient.property.findMany({ 
                 where: { softDelete: false },
                 select: { id: true, identifier: true, name: true },
                 orderBy: { identifier: 'asc' }
             });
             return properties.map(p => ({ id: p.id, name: p.identifier, value: p.name }));
-        case CatalogKey.GUARD:
+        }
+        case CatalogKey.GUARD: {
             const guards = await prismaClient.user.findMany({
                 where: { 
                     role: { name: 'GUARD' }, 
@@ -79,6 +80,7 @@ export const getCatalog = async (key: string) => {
                 orderBy: { name: 'asc' }
             });
             return guards.map(g => ({ id: g.id, name: g.name, value: `${g.name} ${g.lastName}` }));
+        }
         default:
             throw new Error(`Catalog key "${key}" not found`);
     }

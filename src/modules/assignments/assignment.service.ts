@@ -1,6 +1,6 @@
 
 import { prismaClient } from "@src/core/config/database";
-import { PrismaClient, AssignmentStatus } from "@prisma/client";
+import { AssignmentStatus } from "@prisma/client";
 import { AppError } from "@src/core/errors/app-error";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { ASSIGNMENT_TRANSITIONS, assertStatusUpdated, assertTransition } from "@src/core/transitions/transitions";

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { emptyable, numberish, positiveId, optionalLatitude, optionalLongitude } from "@src/core/validation/common";
+import { emptyable, positiveId, optionalLatitude, optionalLongitude } from "@src/core/validation/common";
 
 export const createClubBody = z.object({
   title: z.string().trim().min(1, "es obligatorio").max(200),

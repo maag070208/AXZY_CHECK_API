@@ -1,5 +1,4 @@
 import { Prisma } from "@prisma/client";
-import { prismaClient } from "@src/core/config/database";
 import { recountResidents } from "@src/modules/properties/resident-count";
 import { todayDateOnly } from "@src/modules/properties/occupancy.service";
 

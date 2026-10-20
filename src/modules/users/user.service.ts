@@ -1,7 +1,7 @@
 import { prismaClient } from "@src/core/config/database";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
-import { syncLegacyResident, closeResidentsOfUser } from "@src/modules/residents/legacy-sync";
+import { syncLegacyResident } from "@src/modules/residents/legacy-sync";
 
 export const getUsers = async (search?: string) => {
   if (!search) {

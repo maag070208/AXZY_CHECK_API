@@ -24,7 +24,6 @@ export const startRound = async (req: Request, res: Response) => {
 
 export const endRound = async (req: Request, res: Response) => {
   const { id } = req.params;
-  // @ts-ignore - req.user lo agrega `authenticate`
   const actor = req.user as { id: number; role: string };
   const result = await roundService.endRound(Number(id), actor);
   if (!result.success && (result as any).code === "FORBIDDEN") {

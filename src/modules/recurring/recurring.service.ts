@@ -165,7 +165,7 @@ export const updateRecurringConfiguration = async (id: number, title: string, lo
             };
         }
 
-        const updatedConfig = await prisma.recurringConfiguration.update({
+        await prisma.recurringConfiguration.update({
             where: { id },
             data: dataToUpdate
         });

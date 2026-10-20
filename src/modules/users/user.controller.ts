@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { getSetting } from "@src/core/settings/app-settings.service";
-import { addUser, getUserByUsername, getUsers, getDataTableUsers } from "./user.service";
+import { addUser, deleteUser as deleteUserService, getDataTableUsers, getUserById, getUserByUsername, getUsers, updateUser } from "./user.service";
 
 export const getDataTable = async (req: Request, res: Response) => {
   try {
@@ -87,7 +87,6 @@ export const login = async (req: Request, res: Response) => {
     }
 
     // Update logged in status
-    const { updateUser } = require('./user.service');
     await updateUser(user.id, { isLoggedIn: true });
 
     const tokenPayload = {
@@ -108,9 +107,8 @@ export const logout = async (req: Request, res: Response) => {
   try {
     // La identidad viene SOLO del token. No se acepta un id en el body: así nadie
     // puede desconectar a otro usuario (antes existía un fallback por body).
-    // @ts-ignore - req.user lo agrega `authenticate`
     const userId = req.user?.id;
-    const { updateUser } = require("./user.service");
+    if (!userId) return res.status(401).json(createTResult(null, ["No autenticado"]));
     await updateUser(userId, { isLoggedIn: false });
     return res.status(200).json(createTResult(true));
   } catch (error: any) {
@@ -164,15 +162,6 @@ export const createUser = async (req: Request, res: Response) => {
   }
 };
 
-export const getCoachesList = async (req: Request, res: Response) => {
-  try {
-    const { getCoaches } = require("./user.service");
-    const coaches = await getCoaches();
-    return res.status(200).json(createTResult(coaches));
-  } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
-  }
-};
 export const updateUserProfile = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
@@ -180,13 +169,10 @@ export const updateUserProfile = async (req: Request, res: Response) => {
 
     // Solo ADMIN puede cambiar rol y horario. Sin esto, un guardia podría
     // cambiarse su propio rol a ADMIN usando PUT /users/:id sobre sí mismo.
-    // @ts-ignore - req.user lo agrega `authenticate`
     const isAdmin = req.user?.role === "ADMIN";
     const adminOnly = isAdmin
       ? { roleId: roleId ? Number(roleId) : undefined, role, scheduleId: scheduleId ? Number(scheduleId) : undefined, shiftStart, shiftEnd }
       : {};
-
-    const { updateUser, getUserByUsername } = require("./user.service");
 
     if (username) {
       const existing = await getUserByUsername(username);
@@ -217,7 +203,6 @@ export const changePassword = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { oldPassword, newPassword } = req.body;
-    const { getUserById, updateUser } = require("./user.service");
 
     const user = await getUserById(Number(id));
     if (!user) {
@@ -244,7 +229,6 @@ export const resetPassword = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { newPassword } = req.body;
-    const { updateUser } = require("./user.service");
 
     // TODO: Verify ADMIN role here if middleware doesn't.
     // Assuming this endpoint is protected/admin-only.
@@ -261,7 +245,6 @@ export const resetPassword = async (req: Request, res: Response) => {
 export const deleteUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { deleteUser: deleteUserService } = require("./user.service");
     await deleteUserService(Number(id));
     return res.status(200).json(createTResult(true));
   } catch (error: any) {

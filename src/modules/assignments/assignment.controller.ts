@@ -17,8 +17,7 @@ export const createAssignment = async (req: Request, res: Response) => {
   try {
     const { guardId, locationId, notes, tasks } = req.body;
     // Quien asigna es siempre el usuario autenticado, nunca un valor del body (S-03).
-    // @ts-ignore - req.user lo agrega `authenticate`
-    const assignedBy = req.user.id;
+    const assignedBy = req.user!.id;
     const result = await assignmentService.createAssignment({
       guardId: Number(guardId),
       locationId: Number(locationId),
@@ -35,7 +34,6 @@ export const createAssignment = async (req: Request, res: Response) => {
 
 export const getMyAssignments = async (req: Request, res: Response) => {
   try {
-    // @ts-ignore
     const userId = req.user?.id;
     const { guardId: queryGuardId } = req.query;
     const guardId =  userId ? Number(userId) : Number(queryGuardId);

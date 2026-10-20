@@ -372,7 +372,7 @@ const renderExecutiveNarrative = (
 const renderCategoryBreakdown = (
     doc: PDFKit.PDFDocument,
     items: PdfReportItem[],
-    config: PdfDocumentConfig,
+    _config: PdfDocumentConfig,
 ): void => {
     if (items.length === 0) return;
     drawSectionTitle(doc, "Distribución por Categoría");

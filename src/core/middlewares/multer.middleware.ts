@@ -1,6 +1,4 @@
 import multer from "multer";
-import path from "path";
-import fs from "fs";
 import { ALLOWED_MEDIA_TYPES } from "@src/core/constants/media";
 
 // Ensure upload directory exists

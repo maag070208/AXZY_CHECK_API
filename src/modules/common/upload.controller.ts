@@ -15,8 +15,6 @@ export const uploadFile = async (req: Request, res: Response) => {
       throw new Error("Storage bucket name not configured");
     }
 
-    const start = Date.now();
-    // @ts-ignore - req.user lo agrega `authenticate`
     const user = req.user as { username?: string; name?: string } | undefined;
     const locationName = req.body.location || "unknown";
     

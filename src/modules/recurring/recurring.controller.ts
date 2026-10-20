@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
-import { getAllRecurringConfigurations, createRecurringConfiguration, deleteRecurringConfiguration, toggleRecurringConfiguration, getRecurringConfigById, assignConfigurationToGuards, getRecurringConfigurationsForUser, updateRecurringConfiguration, getDataTableRecurring } from "./recurring.service";
+import { getAllRecurringConfigurations, createRecurringConfiguration, deleteRecurringConfiguration, toggleRecurringConfiguration, assignConfigurationToGuards, getRecurringConfigurationsForUser, updateRecurringConfiguration, getDataTableRecurring } from "./recurring.service";
 
 export const getDataTable = async (req: Request, res: Response) => {
     try {
@@ -92,8 +92,7 @@ export const assignGuard = async (req: Request, res: Response) => {
 
 export const getMyRecurring = async (req: Request, res: Response) => {
     try {
-        // @ts-ignore - req.user lo agrega `authenticate`
-        const userId = req.user.id;
+        const userId = req.user!.id;
         const list = await getRecurringConfigurationsForUser(userId);
         return res.status(200).json(createTResult(list));
     } catch (error: any) {

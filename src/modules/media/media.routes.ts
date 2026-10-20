@@ -16,8 +16,7 @@ const presignBody = z.object({
 // La identidad viene solo del token (req.user, puesto por authenticate en el guard global).
 router.post("/presign", validate({ body: presignBody }), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // @ts-ignore - req.user lo agrega `authenticate`
-    const result = await presignMedia(req.user.id, req.body);
+    const result = await presignMedia(req.user!.id, req.body);
     return res.status(201).json(createTResult(result));
   } catch (error) {
     return next(error);
@@ -26,8 +25,7 @@ router.post("/presign", validate({ body: presignBody }), async (req: Request, re
 
 router.post("/:id/confirm", validate({ params: idParam }), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    // @ts-ignore - req.user lo agrega `authenticate`
-    const result = await confirmMedia(req.user.id, req.params.id);
+    const result = await confirmMedia(req.user!.id, Number(req.params.id));
     return res.status(200).json(createTResult(result));
   } catch (error) {
     return next(error);

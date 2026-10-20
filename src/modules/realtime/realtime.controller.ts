@@ -12,7 +12,6 @@ import { createSubscribeTokenRequest } from "@src/core/config/ably";
  */
 export const getRealtimeToken = async (req: Request, res: Response) => {
   try {
-    // @ts-ignore - attached by `authenticate`
     const userId = req.user?.id;
     if (!userId) {
       return res.status(401).json(createTResult(null, ["Usuario no autenticado"]));

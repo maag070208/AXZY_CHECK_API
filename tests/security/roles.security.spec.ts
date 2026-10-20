@@ -5,7 +5,7 @@
  */
 import request from "supertest";
 import { app } from "@src/app";
-import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
+import { resetDatabase, disconnectDatabase } from "../setup/db";
 import { buildUser, tokenFor, RoleName } from "../factories";
 
 beforeEach(async () => {

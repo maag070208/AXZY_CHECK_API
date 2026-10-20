@@ -2,7 +2,7 @@ import Router from "express";
 import { validate } from "@src/core/validation/validate";
 import { idParam } from "@src/core/validation/common";
 import { loginBody, createUserBody, updateUserBody, changePasswordBody, resetPasswordBody } from "./user.schemas";
-import { createUser, getAllUsers, login, getCoachesList, updateUserProfile, changePassword, logout, resetPassword, deleteUser, getDataTable } from "./user.controller";
+import { createUser, getAllUsers, login, updateUserProfile, changePassword, logout, resetPassword, deleteUser, getDataTable } from "./user.controller";
 import { requirePermission } from "@src/modules/common/middlewares/require-permission.middleware";
 import { loginRateLimiter } from "@src/core/middlewares/rate-limit.middleware";
 import { selfOrPermission } from "@src/modules/common/middlewares/require-permission.middleware";
@@ -14,7 +14,6 @@ const router = Router();
 
 router.post("/datatable", requirePermission("users.read"), getDataTable);
 router.get("/", requirePermission("users.read"), getAllUsers);
-router.get("/coaches", requirePermission("users.manage"), getCoachesList);
 router.post("/login", loginRateLimiter, validate({ body: loginBody }), login);
 router.post("/", requirePermission("users.manage"), validate({ body: createUserBody }), createUser);
 // Perfil propio (cualquiera) o cualquier usuario (ADMIN). Los campos de rol se filtran en el controlador.

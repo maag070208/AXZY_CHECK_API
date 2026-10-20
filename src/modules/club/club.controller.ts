@@ -17,7 +17,6 @@ const storageService = new StorageService();
 export const createClub = async (req: Request, res: Response) => {
   try {
     const { title, categoryId, typeId, description, media, latitude, longitude, clientRef, createdAt } = req.body;
-    // @ts-ignore
     const guardId = req.user?.id;
 
     if (!guardId) {
@@ -66,7 +65,6 @@ export const getClubs = async (req: Request, res: Response) => {
 export const resolveClub = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        // @ts-ignore
         const userId = req.user?.id;
 
         if (!userId) {
