@@ -9,6 +9,7 @@ import { changeOccupancyBody, changeOwnershipBody } from "./occupancy.schemas";
 import { getPropertyOccupancy, postPropertyOccupancy, postPropertyOwnership } from "./occupancy.controller";
 import { addHouseholdResidentBody } from "../residents/household.schemas";
 import { importProperties, IMPORT_MAX_ROWS } from "./property-import";
+import { listKinds, listOccupancyStatuses, occupancyStats } from "./occupancy.service";
 import { z } from "zod";
 import { getHousehold, postHouseholdResident } from "../residents/household.controller";
 
@@ -17,6 +18,29 @@ const router = Router();
 router.post("/datatable", getDataTable);
 
 router.get("/", requirePermission("properties.view"), getProperties);
+
+// Catálogos y estadísticas de ocupación (A1). Antes de /:id: son rutas fijas.
+router.get("/kinds", requirePermission("properties.view"), async (_req, res, next) => {
+  try {
+    return res.status(200).json(createTResult(await listKinds()));
+  } catch (error) {
+    return next(error);
+  }
+});
+router.get("/occupancy-statuses", requirePermission("properties.view"), async (_req, res, next) => {
+  try {
+    return res.status(200).json(createTResult(await listOccupancyStatuses()));
+  } catch (error) {
+    return next(error);
+  }
+});
+router.get("/stats/occupancy", requirePermission("properties.view"), async (_req, res, next) => {
+  try {
+    return res.status(200).json(createTResult(await occupancyStats()));
+  } catch (error) {
+    return next(error);
+  }
+});
 
 // Importación desde CSV (T-A1-07): filas válidas se crean; las inválidas se reportan.
 const importBody = z.object({ rows: z.array(z.unknown()).max(IMPORT_MAX_ROWS) });

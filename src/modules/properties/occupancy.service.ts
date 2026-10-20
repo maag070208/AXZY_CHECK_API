@@ -193,3 +193,55 @@ export const changeOwnership = async (
     await tx.property.update({ where: { id: propertyId }, data: { ownerPersonId: input.toPersonId } });
     return change;
   });
+
+/** Tipos de unidad activos para formularios. */
+export const listKinds = () =>
+  prismaClient.propertyKind.findMany({
+    where: { active: true },
+    orderBy: { order: "asc" },
+    select: { id: true, code: true, name: true, isUnitContainer: true },
+  });
+
+/** Estados de ocupación activos y a qué estados se puede pasar desde cada uno (datos de transiciones). */
+export const listOccupancyStatuses = async () => {
+  const statuses = await prismaClient.occupancyStatus.findMany({
+    where: { active: true },
+    orderBy: { order: "asc" },
+    include: { fromTransitions: { select: { toStatus: { select: { code: true } } } } },
+  });
+  return statuses.map((s) => ({
+    id: s.id,
+    code: s.code,
+    name: s.name,
+    isOccupied: s.isOccupied,
+    allowsResidents: s.allowsResidents,
+    allowedNext: s.fromTransitions.map((t) => t.toStatus.code),
+  }));
+};
+
+/** Conteo de propiedades por estado y residentes totales/sobreocupación (dashboard de ocupación). */
+export const occupancyStats = async () => {
+  const [byStatus, totals, overcrowded] = await Promise.all([
+    prismaClient.property.groupBy({
+      by: ["occupancyStatusId"],
+      where: { softDelete: false },
+      _count: { _all: true },
+    }),
+    prismaClient.property.aggregate({
+      where: { softDelete: false },
+      _sum: { residentCount: true },
+      _count: { _all: true },
+    }),
+    prismaClient.$queryRaw<{ n: number }[]>`
+      SELECT COUNT(*)::int AS n FROM "Property"
+      WHERE "softDelete" = false AND "maxResidents" IS NOT NULL AND "residentCount" > "maxResidents"`,
+  ]);
+  const statuses = await prismaClient.occupancyStatus.findMany({ select: { id: true, code: true, name: true } });
+  const countById = new Map(byStatus.map((row) => [row.occupancyStatusId, row._count._all]));
+  return {
+    properties: totals._count._all,
+    residents: totals._sum.residentCount ?? 0,
+    overcrowded: overcrowded[0]?.n ?? 0,
+    byStatus: statuses.map((s) => ({ code: s.code, name: s.name, count: countById.get(s.id) ?? 0 })),
+  };
+};

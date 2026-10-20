@@ -29,6 +29,7 @@ import { CATALOG_REGISTRY } from "@src/core/catalogs/registry";
 import settingsRoute from "./settings/settings.routes";
 import mediaRoute from "./media/media.routes";
 import buildingsRoute from "./buildings/buildings.routes";
+import personsRoute from "./persons/persons.routes";
 
 
 const apiRouter = Router();
@@ -63,6 +64,7 @@ apiRouter.use("/dashboard", dashboardRoute);
 apiRouter.use("/settings", settingsRoute);
 apiRouter.use("/media", mediaRoute);
 apiRouter.use("/buildings", buildingsRoute);
+apiRouter.use("/persons", personsRoute);
 
 // Catálogos administrables (T-F0-04): un router generado por cada entrada del registro.
 apiRouter.get("/catalogs", (_req, res) =>
