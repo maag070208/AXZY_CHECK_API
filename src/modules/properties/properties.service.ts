@@ -174,6 +174,51 @@ export const createProperty = async (data: any) => {
     });
 };
 
+/** Códigos legados (PropertyType/PropertyStatus) que la base aún exige, según el tipo y la ocupación. */
+const LEGACY_TYPE_FOR_KIND: Record<string, string> = { HOUSE: "CASA", APARTMENT: "DEPA", LOT: "TERRE" };
+const LEGACY_STATUS_FOR_OCCUPANCY: Record<string, string> = {
+    VACANT: "VACNT",
+    OWNER_OCCUPIED: "HABIT",
+    RENTED: "HABIT",
+    UNDER_CONSTRUCTION: "CONST",
+    BLOCKED: "BLOCK",
+};
+
+/** Alta desde la importación: usa los catálogos nuevos y llena los legados que la base exige. */
+export const createPropertyForImport = async (data: {
+    identifier: string;
+    name: string;
+    mainStreet: string;
+    floor: number | null;
+    unitNumber: string | null;
+    kindId: number;
+    occupancyStatusId: number;
+}) => {
+    return prismaClient.$transaction(async (tx) => {
+        const kind = await tx.propertyKind.findUniqueOrThrow({ where: { id: data.kindId } });
+        const occupancy = await tx.occupancyStatus.findUniqueOrThrow({ where: { id: data.occupancyStatusId } });
+        const legacyType = await tx.propertyType.findUniqueOrThrow({ where: { name: LEGACY_TYPE_FOR_KIND[kind.code] ?? "CASA" } });
+        const legacyStatus = await tx.propertyStatus.findUniqueOrThrow({ where: { name: LEGACY_STATUS_FOR_OCCUPANCY[occupancy.code] ?? "VACNT" } });
+        const property = await tx.property.create({
+            data: {
+                identifier: data.identifier,
+                name: data.name,
+                mainStreet: data.mainStreet,
+                floor: data.floor,
+                unitNumber: data.unitNumber,
+                kindId: data.kindId,
+                occupancyStatusId: data.occupancyStatusId,
+                typeId: legacyType.id,
+                statusId: legacyStatus.id,
+            },
+        });
+        await tx.occupancyPeriod.create({
+            data: { propertyId: property.id, statusId: data.occupancyStatusId, startDate: await todayDateOnly() },
+        });
+        return property;
+    });
+};
+
 export const updateProperty = async (id: number, data: any) => {
     // El tipo y la ocupación no se cambian aquí: la ocupación tiene su propio endpoint (A1).
     // Solo cambia lo que el cliente envió: un campo ausente no se borra.
