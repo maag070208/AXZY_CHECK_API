@@ -69,7 +69,7 @@ const CARD_GAP = 14;
 const IMAGE_FIT = "cover" as "cover" | "contain";
 const PHOTO_COLUMNS = 4;
 const PHOTO_GAP = 8;
-const PHOTO_HEIGHT = 124;
+const PHOTO_HEIGHT = 116;
 
 /** Zona horaria para fechas/horas (evita depender de la zona del servidor). */
 const REPORT_TIME_ZONE = process.env.REPORT_TIME_ZONE ?? "America/Tijuana";
@@ -506,9 +506,7 @@ const renderSummaryCard = (
 
     const paragraphs = buildNarrative(items, config);
 
-    // Se mide con la fuente en negrita (más ancha) para no desbordar la tarjeta.
-    doc.font(F.bold).fontSize(9.5);
-    const heights = paragraphs.map((p) => doc.heightOfString(p.replace(/\*\*/g, ""), { width: innerW, lineGap: 3 }));
+    const heights = paragraphs.map((p) => richHeight(doc, p, innerW, 9.5, 3));
     const body = heights.reduce((a, b) => a + b, 0) + (paragraphs.length - 1) * 8;
     const h = CARD_HEAD + body + CARD_PAD;
 
@@ -846,7 +844,7 @@ const renderItemHeaderCard = (
         descH = doc.heightOfString(item.description.trim(), { width: innerW, lineGap: 3 });
     }
 
-    const tilesH = 48;
+    const tilesH = 44;
     let h = 30 + titleH;
     if (chips.length > 0) h += 8 + 18;
     h += 14 + tilesH;
@@ -914,7 +912,7 @@ const renderMetaTiles = (
     const fields: Array<{ label: string; value: string; sub?: string; weight: number }> = [
         { label: "Fecha y hora", value: created.date, sub: `${created.time} h`, weight: 0.24 },
         { label: "Reportado por", value: item.guardName || item.guardUsername || "—", weight: 0.3 },
-        { label: "ID sistema", value: `#${item.id}`, weight: 0.14 },
+        { label: "ID", value: `#${item.id}`, weight: 0.12 },
     ];
 
     if (item.status === "ATTENDED" && item.resolvedByName) {
@@ -922,7 +920,7 @@ const renderMetaTiles = (
             label: "Atendido por",
             value: item.resolvedByName,
             sub: item.resolvedAt ? formatDateTime(item.resolvedAt) : undefined,
-            weight: 0.32,
+            weight: 0.34,
         });
     } else {
         fields[0].weight = 0.3;
@@ -944,7 +942,7 @@ const renderMetaTiles = (
             .fillColor(COLOR.ink)
             .text(fitText(doc, f.value, w - 22, 9.2, F.bold), cx + 11, y + 22, { lineBreak: false });
         if (f.sub) {
-            doc.font(F.regular).fontSize(7.8).fillColor(COLOR.muted).text(f.sub, cx + 11, y + 34, { lineBreak: false });
+            doc.font(F.regular).fontSize(7.8).fillColor(COLOR.muted).text(f.sub, cx + 11, y + 33, { lineBreak: false });
         }
         cx += w + gap;
     });
@@ -956,53 +954,54 @@ const renderMetaTiles = (
 
 const renderLocationCard = async (doc: PDFKit.PDFDocument, startY: number, lat: number, lng: number): Promise<number> => {
     const x = PAGE_MARGIN;
+    const pad = 14;
     const mapW = 290;
-    const mapH = 112;
-    const h = mapH + CARD_PAD * 2 - 4;
+    const mapH = 96;
+    const h = mapH + pad * 2;
     const mapsUrl = `https://www.google.com/maps?q=${lat},${lng}`;
 
-    const staticUrl = buildStaticMapUrl(lat, lng, mapW, mapH);
+    // Se pide el mapa en mayor resolución y se reduce al dibujarlo: el logo y la
+    // atribución de Google quedan proporcionalmente más pequeños.
+    const staticUrl = buildStaticMapUrl(lat, lng, 640, Math.round((640 * mapH) / mapW));
     const mapBuf = staticUrl ? await fetchImageBuffer(staticUrl) : null;
 
     const y = ensure(doc, startY, h);
     card(doc, x, y, CONTENT_WIDTH, h);
 
-    const top = y + (h - mapH) / 2;
-    let infoX = x + CARD_PAD;
+    const top = y + pad;
+    let infoX = x + pad;
 
     if (mapBuf) {
         let drawn = false;
         try {
             doc.save();
-            doc.roundedRect(x + CARD_PAD, top, mapW, mapH, 9).clip();
-            doc.image(mapBuf, x + CARD_PAD, top, { cover: [mapW, mapH], align: "center", valign: "center" });
+            doc.roundedRect(x + pad, top, mapW, mapH, 9).clip();
+            doc.image(mapBuf, x + pad, top, { cover: [mapW, mapH], align: "center", valign: "center" });
             doc.restore();
-            doc.roundedRect(x + CARD_PAD, top, mapW, mapH, 9).lineWidth(0.75).strokeColor(COLOR.line).stroke();
+            doc.roundedRect(x + pad, top, mapW, mapH, 9).lineWidth(0.75).strokeColor(COLOR.line).stroke();
             drawn = true;
         } catch {
             doc.restore();
         }
-        if (drawn) infoX = x + CARD_PAD + mapW + 16;
+        if (drawn) infoX = x + pad + mapW + 16;
     }
 
-    const infoW = x + CONTENT_WIDTH - CARD_PAD - infoX;
-    let cy = top + 2;
+    const infoW = x + CONTENT_WIDTH - pad - infoX;
 
-    label(doc, "Ubicación registrada", infoX, cy, infoW, COLOR.accentDark);
-    cy += 16;
+    label(doc, "Ubicación registrada", infoX, top + 2, infoW, COLOR.accentDark);
 
-    const tileH = 32;
-    [
-        { name: "Latitud", value: lat.toFixed(6) },
-        { name: "Longitud", value: lng.toFixed(6) },
-    ].forEach((t) => {
-        doc.roundedRect(infoX, cy, infoW, tileH, 8).lineWidth(0.75).fillAndStroke(COLOR.wash, COLOR.line);
-        label(doc, t.name, infoX + 11, cy + 7, infoW - 20);
-        doc.font(F.mono).fontSize(9.5).fillColor(COLOR.ink).text(t.value, infoX + 11, cy + 18, { lineBreak: false });
-        cy += tileH + 6;
-    });
+    // Una sola tarjeta con las coordenadas
+    const tileY = top + 18;
+    const tileH = 34;
+    doc.roundedRect(infoX, tileY, infoW, tileH, 8).lineWidth(0.75).fillAndStroke(COLOR.wash, COLOR.line);
+    label(doc, "Coordenadas", infoX + 11, tileY + 8, infoW - 20);
+    doc
+        .font(F.mono)
+        .fontSize(8.5)
+        .fillColor(COLOR.ink)
+        .text(`${lat.toFixed(6)}, ${lng.toFixed(6)}`, infoX + 11, tileY + 20, { lineBreak: false });
 
-    drawButton(doc, "Abrir en Google Maps", mapsUrl, infoX, cy + 2, { icon: "pin" });
+    drawButton(doc, "Abrir en Google Maps", mapsUrl, infoX, tileY + tileH + 10, { icon: "pin" });
 
     return y + h;
 };
@@ -1028,9 +1027,9 @@ const renderEvidenceCard = async (doc: PDFKit.PDFDocument, startY: number, media
     for (let s = 0; s < images.length; s += PHOTO_COLUMNS) {
         units.push({ kind: "photos", from: s, to: Math.min(s + PHOTO_COLUMNS, images.length), h: PHOTO_HEIGHT + 26 });
     }
-    videos.forEach((v, i) => units.push({ kind: "video", item: v, n: i + 1, of: videos.length, h: 54 }));
+    videos.forEach((v, i) => units.push({ kind: "video", item: v, n: i + 1, of: videos.length, h: 50 }));
 
-    const HEAD = 46;
+    const HEAD = 42;
     const PAD_B = 8;
     const total = HEAD + units.reduce((a, u) => a + u.h, 0) + PAD_B;
     const pageSpan = CONTENT_BOTTOM - HEADER_OFFSET;
@@ -1058,10 +1057,10 @@ const renderEvidenceCard = async (doc: PDFKit.PDFDocument, startY: number, media
         const h = HEAD + used + PAD_B;
         card(doc, x, y, CONTENT_WIDTH, h);
 
-        label(doc, first ? "Evidencia adjunta" : "Evidencia adjunta · continuación", x + CARD_PAD, y + 19, 260, COLOR.accentDark);
+        label(doc, first ? "Evidencia adjunta" : "Evidencia adjunta · continuación", x + CARD_PAD, y + 17, 260, COLOR.accentDark);
         const countText = `${media.length} ${media.length === 1 ? "archivo" : "archivos"}`;
         const cw = pillWidth(doc, countText, { size: 6.8, spacing: 0.2 });
-        pill(doc, x + CONTENT_WIDTH - CARD_PAD - cw, y + 14, countText, COLOR.muted, COLOR.wash, {
+        pill(doc, x + CONTENT_WIDTH - CARD_PAD - cw, y + 12, countText, COLOR.muted, COLOR.wash, {
             size: 6.8,
             spacing: 0.2,
             border: COLOR.line,
@@ -1129,7 +1128,7 @@ const drawVideoRow = (
     y: number,
     width: number,
 ): void => {
-    const h = 44;
+    const h = 42;
     doc.roundedRect(x, y, width, h, 10).lineWidth(0.75).fillAndStroke(COLOR.wash, COLOR.line);
 
     const cy = y + h / 2;
@@ -1140,12 +1139,12 @@ const drawVideoRow = (
         .font(F.bold)
         .fontSize(9)
         .fillColor(COLOR.ink)
-        .text(u.of > 1 ? `Video ${u.n}` : "Video adjunto", x + 48, y + 11, { lineBreak: false });
+        .text(u.of > 1 ? `Video ${u.n}` : "Video adjunto", x + 48, y + 10, { lineBreak: false });
     doc
         .font(F.regular)
         .fontSize(7.8)
         .fillColor(COLOR.muted)
-        .text("Se abre en el navegador", x + 48, y + 25, { lineBreak: false });
+        .text("Se abre en el navegador", x + 48, y + 24, { lineBreak: false });
 
     drawButton(doc, "Reproducir", u.item.url, x + width - 12, y + (h - 22) / 2, { right: true, icon: "play" });
 };
@@ -1350,6 +1349,82 @@ const fitText = (
     return `${t.trimEnd()}…`;
 };
 
+interface RichPiece {
+    text: string;
+    bold: boolean;
+    dx: number;
+}
+
+/** Divide un texto con **negritas** en palabras (cada palabra puede mezclar tramos). */
+const tokenizeRich = (text: string): Array<Array<{ text: string; bold: boolean }>> => {
+    const tokens: Array<Array<{ text: string; bold: boolean }>> = [];
+    let cur: Array<{ text: string; bold: boolean }> = [];
+
+    text.split("**").forEach((seg, i) => {
+        const bold = i % 2 === 1;
+        let buf = "";
+        for (const ch of seg) {
+            if (/\s/.test(ch)) {
+                if (buf) {
+                    cur.push({ text: buf, bold });
+                    buf = "";
+                }
+                if (cur.length) {
+                    tokens.push(cur);
+                    cur = [];
+                }
+            } else {
+                buf += ch;
+            }
+        }
+        if (buf) cur.push({ text: buf, bold });
+    });
+
+    if (cur.length) tokens.push(cur);
+    return tokens;
+};
+
+/**
+ * Maquetación propia de texto con negritas (la opción `continued` de PDFKit
+ * rompe la línea al cambiar de fuente). Devuelve las líneas con su posición.
+ */
+const layoutRich = (doc: PDFKit.PDFDocument, text: string, width: number, size: number): RichPiece[][] => {
+    const measure = (t: string, bold: boolean): number => {
+        doc.font(bold ? F.bold : F.regular).fontSize(size);
+        return doc.widthOfString(t);
+    };
+
+    const space = measure(" ", false);
+    const lines: RichPiece[][] = [];
+    let line: RichPiece[] = [];
+    let cx = 0;
+
+    tokenizeRich(text).forEach((tok) => {
+        const tokW = tok.reduce((acc, r) => acc + measure(r.text, r.bold), 0);
+        if (cx > 0 && cx + space + tokW > width) {
+            lines.push(line);
+            line = [];
+            cx = 0;
+        }
+        if (cx > 0) cx += space;
+
+        let dx = cx;
+        tok.forEach((r) => {
+            line.push({ text: r.text, bold: r.bold, dx });
+            dx += measure(r.text, r.bold);
+        });
+        cx += tokW;
+    });
+
+    if (line.length) lines.push(line);
+    return lines;
+};
+
+const richHeight = (doc: PDFKit.PDFDocument, text: string, width: number, size: number, lineGap: number): number => {
+    const lines = layoutRich(doc, text, width, size);
+    return Math.max(lines.length, 1) * (size * 1.2 + lineGap) - lineGap;
+};
+
 /** Párrafo con soporte de **negritas**. Devuelve la y final. */
 const richText = (
     doc: PDFKit.PDFDocument,
@@ -1360,23 +1435,20 @@ const richText = (
     size: number,
     lineGap: number,
 ): number => {
-    const startsBold = text.startsWith("**");
-    const parts = text.split("**").filter((p, i, arr) => p.length > 0 || i === arr.length - 1);
+    const lines = layoutRich(doc, text, width, size);
+    const lineH = size * 1.2 + lineGap;
 
-    parts.forEach((part, i) => {
-        const bold = startsBold ? i % 2 === 0 : i % 2 === 1;
-        doc
-            .font(bold ? F.bold : F.regular)
-            .fontSize(size)
-            .fillColor(bold ? COLOR.ink : COLOR.text)
-            .text(part, i === 0 ? x : undefined, i === 0 ? y : undefined, {
-                width,
-                lineGap,
-                continued: i < parts.length - 1,
-            });
+    lines.forEach((ln, li) => {
+        ln.forEach((piece) => {
+            doc
+                .font(piece.bold ? F.bold : F.regular)
+                .fontSize(size)
+                .fillColor(piece.bold ? COLOR.ink : COLOR.text)
+                .text(piece.text, x + piece.dx, y + li * lineH, { lineBreak: false });
+        });
     });
 
-    return doc.y;
+    return y + Math.max(lines.length, 1) * lineH - lineGap;
 };
 
 /* ----- Iconos vectoriales (sin depender de glifos Unicode) ----- */
@@ -1531,7 +1603,7 @@ const buildStaticMapUrl = (lat: number, lng: number, width: number, height: numb
 
     const params = new URLSearchParams({
         center: `${lat},${lng}`,
-        zoom: "17",
+        zoom: "18",
         size: `${Math.min(Math.round(width), 640)}x${Math.min(Math.round(height), 640)}`,
         scale: "2",
         maptype: "roadmap",
