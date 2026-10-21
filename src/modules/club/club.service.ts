@@ -1,4 +1,7 @@
 import { prismaClient } from "@src/core/config/database";
+import { AppError } from "@src/core/errors/app-error";
+import { assertStatusUpdated, assertTransition, INCIDENT_TRANSITIONS } from "@src/core/transitions/transitions";
+import { LIST_MAX_ROWS } from "@src/core/constants/limits";
 import { USER_PUBLIC_SELECT } from "@src/core/constants/user-select";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
@@ -14,7 +17,7 @@ const CLUB_TYPE = 'CASA_CLUB';
 export const getDataTableClub = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
     const prismaParams = getPrismaPaginationParams(params);
 
-    const searchVal = String(params.filters.search || "").trim();
+    const searchVal = String(params.filters?.search || "").trim();
     if (searchVal.length > 0) {
         delete prismaParams.where.search;
         prismaParams.where.OR = [
@@ -25,8 +28,11 @@ export const getDataTableClub = async (params: ITDataTableFetchParams): Promise<
         ];
     }
 
-    if (params.filters.status && params.filters.status !== 'ALL') {
+    // "ALL" significa sin filtro de estado; el util genérico ya lo habría copiado tal cual al where.
+    if (params.filters?.status && params.filters.status !== 'ALL') {
         prismaParams.where.status = params.filters.status;
+    } else {
+        delete prismaParams.where.status;
     }
 
     delete prismaParams.where.kind;
@@ -105,11 +111,12 @@ export const getClubs = async (filters: {
     }
 
     if (filters.guardId) whereClause.guardId = filters.guardId;
-    if (filters.category) whereClause.category = filters.category;
+    if (filters.category) whereClause.category = { OR: [{ name: filters.category }, { value: filters.category }] };
     if (filters.title) whereClause.title = { contains: filters.title, mode: 'insensitive' };
 
     return prismaClient.incident.findMany({
         where: whereClause,
+        take: LIST_MAX_ROWS,
         include: {
             guard: { select: USER_PUBLIC_SELECT },
             resolvedBy: { select: USER_PUBLIC_SELECT },
@@ -121,13 +128,19 @@ export const getClubs = async (filters: {
 };
 
 export const resolveClub = async (id: number, userId: number) => {
-    return prismaClient.incident.update({
+    // Solo reportes de casa club (no incidencias) y solo una vez, igual que incidencias y mantenimiento.
+    const current = await prismaClient.incident.findFirst({ where: { id, kind: CLUB_TYPE }, select: { status: true } });
+    if (!current) throw new AppError("CLUB_NOT_FOUND", "Reporte de casa club no encontrado", 404);
+    assertTransition(INCIDENT_TRANSITIONS, current.status, "ATTENDED");
+
+    const { count } = await prismaClient.incident.updateMany({
+        where: { id, kind: CLUB_TYPE, status: current.status },
+        data: { status: 'ATTENDED', resolvedAt: new Date(), resolvedById: userId },
+    });
+    assertStatusUpdated(count);
+
+    return prismaClient.incident.findUniqueOrThrow({
         where: { id },
-        data: {
-            status: 'ATTENDED',
-            resolvedAt: new Date(),
-            resolvedById: userId
-        },
         include: {
             guard: { select: USER_PUBLIC_SELECT },
             resolvedBy: { select: USER_PUBLIC_SELECT },

@@ -2,8 +2,18 @@ import { Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { registerCheck, getKardex, getKardexById, updateKardex, getDataTableKardex, deleteKardex, updateKardexMedia } from "./kardex.service";
 import { StorageService } from "../storage/storage.service";
+import { roleHasPermission } from "@src/core/permissions/permissions.service";
+import { respondError } from "@src/core/errors/http-error";
 
 const storageService = new StorageService();
+
+const FORBIDDEN_MESSAGE = "No tienes permisos para realizar esta acción";
+
+/** ¿Quien llama es el dueño del registro (`ownerId`) o tiene el permiso de supervisión kardex.manage? */
+const canActOnBehalf = async (req: Request, ownerId: number): Promise<boolean> => {
+  const user = req.user as { id: number; role: string };
+  return Number(user.id) === ownerId || (await roleHasPermission(user.role, "kardex.manage"));
+};
 
 export const createKardexEntry = async (req: Request, res: Response) => {
   try {
@@ -11,6 +21,12 @@ export const createKardexEntry = async (req: Request, res: Response) => {
 
     if (!userId || !locationId) {
       return res.status(400).json(createTResult(null, ["userId and locationId are required"]));
+    }
+
+    // Un escaneo es evidencia de quien lo hace: solo se registra a nombre propio. La supervisión
+    // (kardex.manage) puede capturar a nombre de un guardia.
+    if (!(await canActOnBehalf(req, Number(userId)))) {
+      return res.status(403).json(createTResult(null, [FORBIDDEN_MESSAGE]));
     }
 
     const entry = await registerCheck({
@@ -25,7 +41,7 @@ export const createKardexEntry = async (req: Request, res: Response) => {
 
     return res.status(201).json(createTResult(entry));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -33,6 +49,14 @@ export const updateKardexEntry = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const { notes, media, latitude, longitude } = req.body;
+
+    const existing = await getKardexById(Number(id));
+    if (!existing) {
+      return res.status(404).json(createTResult(null, ["Registro no encontrado"]));
+    }
+    if (!(await canActOnBehalf(req, existing.userId))) {
+      return res.status(403).json(createTResult(null, [FORBIDDEN_MESSAGE]));
+    }
 
     const entry = await updateKardex(Number(id), {
       notes,
@@ -43,7 +67,7 @@ export const updateKardexEntry = async (req: Request, res: Response) => {
 
     return res.status(200).json(createTResult(entry));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -60,7 +84,7 @@ export const getKardexEntries = async (req: Request, res: Response) => {
 
     return res.status(200).json(createTResult(entries));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -81,7 +105,7 @@ export const getKardexDetail = async (req: Request, res: Response) => {
 
     return res.status(200).json(createTResult(entry));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -99,7 +123,7 @@ export const getDataTableKardexEntries = async (req: Request, res: Response) => 
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     console.error(error);
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -120,7 +144,7 @@ export const deleteKardexEntry = async (req: Request, res: Response) => {
     await deleteKardex(Number(id));
     return res.status(200).json(createTResult(true));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -160,6 +184,6 @@ export const deleteMedia = async (req: Request, res: Response) => {
 
     return res.status(200).json(createTResult(true));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };

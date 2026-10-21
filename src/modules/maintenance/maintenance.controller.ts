@@ -1,13 +1,14 @@
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { NextFunction, Request, Response } from "express";
 import * as maintenanceService from "./maintenance.service";
+import { respondError } from "@src/core/errors/http-error";
 
 export const getDataTable = async (req: Request, res: Response) => {
   try {
     const result = await maintenanceService.getDataTableMaintenances(req.body);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -37,7 +38,7 @@ export const createMaintenance = async (req: Request, res: Response) => {
 
     return res.status(201).json(createTResult(result));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -55,7 +56,7 @@ export const getMaintenances = async (req: Request, res: Response) => {
         const result = await maintenanceService.getMaintenances(filters);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };
 
@@ -80,7 +81,7 @@ export const getPendingCount = async (req: Request, res: Response) => {
         const count = await maintenanceService.getPendingMaintenancesCount();
         return res.status(200).json(createTResult({ count }));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };
 
@@ -95,7 +96,7 @@ export const deleteMaintenance = async (req: Request, res: Response) => {
         await maintenanceService.deleteMaintenance(Number(id));
         return res.status(200).json(createTResult(true));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };
 
@@ -123,6 +124,6 @@ export const deleteMedia = async (req: Request, res: Response) => {
         await maintenanceService.updateMaintenanceMedia(Number(id), updatedMedia);
         return res.status(200).json(createTResult(true));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };

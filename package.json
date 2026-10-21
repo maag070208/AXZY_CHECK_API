@@ -17,6 +17,8 @@
     "prisma:restore": "npx prisma migrate reset",
     "prisma:regenerate": "pnpm prisma:generate && pnpm prisma:migrate && pnpm prisma:seed",
     "test": "jest",
+    "test:e2e": "jest tests/e2e",
+    "test:coverage": "jest --coverage",
     "test:unit": "jest --testPathIgnorePatterns 'contract' 'security'",
     "test:contract": "jest --testPathPattern contract",
     "test:security": "jest --testPathPattern security",

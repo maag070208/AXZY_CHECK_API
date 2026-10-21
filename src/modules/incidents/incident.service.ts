@@ -24,7 +24,7 @@ export const getDataTableIncidents = async (params: ITDataTableFetchParams): Pro
     prismaParams.where.kind = INCIDENT_KIND;
 
     // Handle combined search (if any)
-    const searchVal = String(params.filters.search || "").trim();
+    const searchVal = String(params.filters?.search || "").trim();
     if (searchVal.length > 0) {
         delete prismaParams.where.search; // Remove generic search added by util
         prismaParams.where.OR = [
@@ -36,8 +36,11 @@ export const getDataTableIncidents = async (params: ITDataTableFetchParams): Pro
     }
 
     // Handle status enum (Prisma enums don't support 'contains')
-    if (params.filters.status && params.filters.status !== 'ALL') {
+    // "ALL" significa sin filtro de estado; el util genérico ya lo habría copiado tal cual al where.
+    if (params.filters?.status && params.filters.status !== 'ALL') {
         prismaParams.where.status = params.filters.status;
+    } else {
+        delete prismaParams.where.status;
     }
 
     const [rows, total] = await Promise.all([
@@ -136,7 +139,7 @@ export const getIncidents = async (filters: {
     }
 
     if (filters.guardId) whereClause.guardId = filters.guardId;
-    if (filters.category) whereClause.category = filters.category;
+    if (filters.category) whereClause.category = { OR: [{ name: filters.category }, { value: filters.category }] };
     if (filters.title) whereClause.title = { contains: filters.title, mode: 'insensitive' };
 
     return prismaClient.incident.findMany({

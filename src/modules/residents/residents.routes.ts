@@ -19,6 +19,7 @@ import {
     putContact, 
     removeContact 
 } from "./contacts.controller";
+import { requireStaff, selfOrStaff } from "@src/modules/common/middlewares/role-scope.middleware";
 import { validate } from "@src/core/validation/validate";
 import { idParam, positiveId } from "@src/core/validation/common";
 import { z } from "zod";
@@ -28,9 +29,9 @@ const contactIdParam = z.object({ contactId: positiveId });
 
 const router = Router();
 
-router.post("/datatable", getDataTable);
+router.post("/datatable", requireStaff, getDataTable);
 
-router.get("/", getResidents);
+router.get("/", requireStaff, getResidents);
 router.get("/catalog/relationships", getRelationships);
 
 // Tipos de residente (A2) para el formulario de alta desde la propiedad.
@@ -46,13 +47,13 @@ router.get("/kinds", requirePermission("properties.view"), async (_req, res, nex
     return next(error);
   }
 });
-router.get("/:id", getResident);
+router.get("/:id", selfOrStaff(), getResident);
 router.post("/", requirePermission("residents.manage"), validate({ body: addResidentBody }), addResident);
 router.put("/:id", requirePermission("residents.manage"), validate({ params: idParam, body: putResidentBody }), putResident);
 router.delete("/:id", requirePermission("residents.manage"), removeResident);
 
 // Resident Contacts Routes
-router.get("/:id/contacts", getResidentContacts);
+router.get("/:id/contacts", selfOrStaff(), getResidentContacts);
 router.post("/:id/contacts", requirePermission("residents.manage"), validate({ params: idParam, body: contactBody }), addContact);
 router.put("/contacts/:contactId", requirePermission("residents.manage"), validate({ params: contactIdParam, body: putContactBody }), putContact);
 router.delete("/contacts/:contactId", requirePermission("residents.manage"), removeContact);

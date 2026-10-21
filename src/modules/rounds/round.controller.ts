@@ -1,13 +1,14 @@
 import { Request, Response } from 'express';
 import * as roundService from './round.service';
 import { createTResult } from "@src/core/mappers/tresult.mapper";
+import { respondError } from "@src/core/errors/http-error";
 
 export const getDataTable = async (req: Request, res: Response) => {
   try {
     const result = await roundService.getDataTableRounds(req.body);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 

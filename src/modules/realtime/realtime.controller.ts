@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { createSubscribeTokenRequest } from "@src/core/config/ably";
+import { respondError } from "@src/core/errors/http-error";
 
 /**
  * @description Issues a subscribe-only Ably TokenRequest for the authenticated
@@ -26,6 +27,6 @@ export const getRealtimeToken = async (req: Request, res: Response) => {
 
     return res.status(200).json(createTResult(tokenRequest));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };

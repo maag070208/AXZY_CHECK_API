@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import * as shiftHandoverService from "./shift-handover.service";
+import { respondError } from "@src/core/errors/http-error";
 
 /** @description POST /shift-handover — creates a report with its elements. */
 export const createShiftHandover = async (req: Request, res: Response) => {
@@ -70,7 +71,7 @@ export const createShiftHandover = async (req: Request, res: Response) => {
         .status(400)
         .json(createTResult(null, ["Ya existe un reporte de entrega de turno para este turno y fecha"]));
     }
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };
 
@@ -80,7 +81,7 @@ export const getDataTable = async (req: Request, res: Response) => {
     const result = await shiftHandoverService.getDataTableShiftHandovers(req.body);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };
 
@@ -90,7 +91,7 @@ export const getPending = async (req: Request, res: Response) => {
     const result = await shiftHandoverService.getPendingShiftHandover();
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };
 
@@ -104,6 +105,6 @@ export const getById = async (req: Request, res: Response) => {
     }
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };

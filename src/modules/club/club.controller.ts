@@ -2,13 +2,14 @@ import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { Request, Response } from "express";
 import { StorageService } from "../storage/storage.service";
 import * as clubService from "./club.service";
+import { respondError } from "@src/core/errors/http-error";
 
 export const getDataTable = async (req: Request, res: Response) => {
   try {
     const result = await clubService.getDataTableClub(req.body);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -40,7 +41,7 @@ export const createClub = async (req: Request, res: Response) => {
 
     return res.status(201).json(createTResult(result));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -58,7 +59,7 @@ export const getClubs = async (req: Request, res: Response) => {
         const result = await clubService.getClubs(filters);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };
 
@@ -74,7 +75,7 @@ export const resolveClub = async (req: Request, res: Response) => {
         const result = await clubService.resolveClub(Number(id), Number(userId));
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };
 
@@ -83,7 +84,7 @@ export const getPendingCount = async (req: Request, res: Response) => {
         const count = await clubService.getPendingClubsCount();
         return res.status(200).json(createTResult({ count }));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };
 
@@ -98,7 +99,7 @@ export const deleteClub = async (req: Request, res: Response) => {
         await clubService.deleteClub(Number(id));
         return res.status(200).json(createTResult(true));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };
 
@@ -135,6 +136,6 @@ export const deleteMedia = async (req: Request, res: Response) => {
 
         return res.status(200).json(createTResult(true));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };

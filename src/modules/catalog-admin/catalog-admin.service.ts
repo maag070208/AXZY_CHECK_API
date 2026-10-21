@@ -169,7 +169,7 @@ export const updateType = async (
 export const deleteType = async (id: number) => {
   const type = await prismaClient.incidentType.findUnique({ where: { id } });
   if (!type) {
-    throw new Error("Tipo no encontrado");
+    throw new AppError("TYPE_NOT_FOUND", "Tipo no encontrado", 404);
   }
 
   if (type.active) {

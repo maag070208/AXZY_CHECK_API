@@ -1,14 +1,15 @@
 import { prismaClient } from "@src/core/config/database"; // Consistent with other modules
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
-import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
+import { AppError } from "@src/core/errors/app-error";
+import { clampLimit, getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 
 const prisma = prismaClient;
 
 export const getDataTableLocations = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
   try {
     const { page, limit, filters } = params;
-    const take = Number(limit) || 10;
-    const skip = (Math.max(1, Number(page)) - 1) * take;
+    const take = clampLimit(limit);
+    const skip = (Math.max(1, Math.trunc(Number(page)) || 1) - 1) * take;
     const searchTerm = filters?.name || "";
 
     if (searchTerm) {
@@ -106,7 +107,16 @@ export const deleteLocation = async (id: number) => {
         where: { id },
     });
 
-    if (!location) throw new Error("Location not found");
+    if (!location) throw new AppError("LOCATION_NOT_FOUND", "Ubicación no encontrada", 404);
+
+    // Con historial (bitácora o asignaciones) no se borra: se perdería la evidencia de las rondas.
+    const [scans, assignments] = await Promise.all([
+        prisma.kardex.count({ where: { locationId: id } }),
+        prisma.assignment.count({ where: { locationId: id } }),
+    ]);
+    if (scans > 0 || assignments > 0) {
+        throw new AppError("LOCATION_IN_USE", "La ubicación tiene registros en la bitácora o asignaciones y no puede eliminarse", 409);
+    }
 
     // 1. Remove from any Recurring configurations
     // First find all recurring locations linked to this location

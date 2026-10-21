@@ -3,13 +3,14 @@ import { NextFunction, Request, Response } from "express";
 import * as assignmentService from "./assignment.service";
 import { AssignmentStatus } from "@prisma/client";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
+import { respondError } from "@src/core/errors/http-error";
 
 export const getDataTable = async (req: Request, res: Response) => {
   try {
     const result = await assignmentService.getDataTableAssignments(req.body);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -28,7 +29,7 @@ export const createAssignment = async (req: Request, res: Response) => {
 
     return res.status(201).json(createTResult(result));
   } catch (error: any) {
-    return res.status(400).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -43,7 +44,7 @@ export const getMyAssignments = async (req: Request, res: Response) => {
     const result = await assignmentService.getAssignmentsByGuard(Number(guardId));
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -57,7 +58,7 @@ export const getAllAssignments = async (req: Request, res: Response) => {
         });
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 }
 
@@ -75,9 +76,9 @@ export const updateStatus = async (req: Request, res: Response, next: NextFuncti
 export const toggleTask = async (req: Request, res: Response) => {
     try {
         const { taskId } = req.params;
-        const result = await assignmentService.toggleAssignmentTask(Number(taskId));
+        const result = await assignmentService.toggleAssignmentTask(Number(taskId), req.user as { id: number; role: string });
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 }

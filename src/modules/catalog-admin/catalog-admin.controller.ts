@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import * as catalogAdminService from "./catalog-admin.service";
+import { respondError } from "@src/core/errors/http-error";
 
 /**
  * @description GET /catalog-admin/categories?type=INCIDENT|MAINTENANCE|CASA_CLUB
@@ -13,7 +14,7 @@ export const getCategories = async (req: Request, res: Response) => {
     const result = await catalogAdminService.getCategories(type ? String(type) : undefined);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };
 
@@ -30,7 +31,7 @@ export const createCategory = async (req: Request, res: Response) => {
     const category = await catalogAdminService.createCategory({ name, value, type, color, icon });
     return res.status(201).json(createTResult(category));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };
 
@@ -76,7 +77,7 @@ export const reorderCategories = async (req: Request, res: Response) => {
     await catalogAdminService.reorderCategories(ids);
     return res.status(200).json(createTResult(true));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };
 
@@ -87,7 +88,7 @@ export const pinCategory = async (req: Request, res: Response) => {
     const category = await catalogAdminService.pinCategory(Number(id));
     return res.status(200).json(createTResult(category));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };
 
@@ -98,7 +99,7 @@ export const getTypes = async (req: Request, res: Response) => {
     const result = await catalogAdminService.getTypes(categoryId ? Number(categoryId) : undefined);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };
 
@@ -112,7 +113,7 @@ export const createType = async (req: Request, res: Response) => {
     const type = await catalogAdminService.createType({ name, value, categoryId: Number(categoryId) });
     return res.status(201).json(createTResult(type));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };
 
@@ -129,7 +130,7 @@ export const updateType = async (req: Request, res: Response) => {
     });
     return res.status(200).json(createTResult(type));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };
 
@@ -143,7 +144,7 @@ export const deleteType = async (req: Request, res: Response) => {
       : "El tipo se eliminó permanentemente";
     return res.status(200).json(createTResult({ ...result, message }));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };
 
@@ -157,7 +158,7 @@ export const reorderTypes = async (req: Request, res: Response) => {
     await catalogAdminService.reorderTypes(ids);
     return res.status(200).json(createTResult(true));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };
 
@@ -168,6 +169,6 @@ export const pinType = async (req: Request, res: Response) => {
     const type = await catalogAdminService.pinType(Number(id));
     return res.status(200).json(createTResult(type));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };

@@ -1,4 +1,5 @@
 import multer from "multer";
+import { AppError } from "@src/core/errors/app-error";
 import { ALLOWED_MEDIA_TYPES } from "@src/core/constants/media";
 
 // Ensure upload directory exists
@@ -11,7 +12,7 @@ const fileFilter = (req: any, file: any, cb: any) => {
   if (allowedMimes.includes(file.mimetype)) {
     cb(null, true);
   } else {
-    cb(new Error("Invalid file type. Only images and videos are allowed."), false);
+    cb(new AppError("FILE_TYPE_INVALID", "Tipo de archivo no permitido: solo imágenes y videos.", 400), false);
   }
 };
 

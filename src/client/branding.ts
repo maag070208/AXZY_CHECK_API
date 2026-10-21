@@ -5,4 +5,6 @@
  */
 export const branding = {
   maintenanceReportTitle: "Mantenimientos del Sitio",
+  /** Zona horaria por defecto de los PDF (REPORT_TIME_ZONE la reemplaza). */
+  reportTimeZone: "America/Tijuana",
 } as const;

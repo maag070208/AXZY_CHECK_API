@@ -16,4 +16,7 @@ module.exports = {
   maxWorkers: 1,
   testTimeout: 30000,
   clearMocks: true,
+  // Cobertura de TODO el código del API (también el que ninguna prueba toca): `pnpm test:coverage`.
+  collectCoverageFrom: ["src/**/*.ts", "!src/**/*.d.ts"],
+  coverageReporters: ["text-summary", "text", "json-summary", "lcov"],
 };

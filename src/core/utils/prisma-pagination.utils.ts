@@ -1,15 +1,22 @@
 import { ITDataTableFetchParams } from "../dto/datatable.dto";
+import { DATATABLE_MAX_LIMIT } from "../constants/limits";
+
+/** Filas por página: el valor pedido, entre 1 y DATATABLE_MAX_LIMIT (10 si no es un número). */
+export const clampLimit = (limit: unknown): number => {
+  const n = Math.trunc(Number(limit));
+  return n > 0 ? Math.min(n, DATATABLE_MAX_LIMIT) : 10;
+};
 
 /**
  * Converts ITDataTableFetchParams into Prisma query options.
  * Handles pagination (skip/take), sorting (orderBy), and filtering (where).
  */
 export function getPrismaPaginationParams(params: ITDataTableFetchParams) {
-  const { page, limit, filters, sort } = params;
+  const { page, limit, filters, sort } = params ?? ({} as ITDataTableFetchParams);
 
   // Pagination
-  const take = Number(limit) || 10;
-  const skip = (Math.max(1, Number(page)) - 1) * take;
+  const take = clampLimit(limit);
+  const skip = (Math.max(1, Math.trunc(Number(page)) || 1) - 1) * take;
 
   // Sorting
   const orderBy = sort?.key

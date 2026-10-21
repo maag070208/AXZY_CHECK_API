@@ -8,7 +8,7 @@ export const getDataTable = async (req: Request, res: Response) => {
     const result = await getDataTableUsers(req.body);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -17,19 +17,27 @@ import {
   generateJWT,
   hashPassword,
 } from "@src/core/utils/security";
+import { respondError } from "@src/core/errors/http-error";
 
 export const login = async (req: Request, res: Response) => {
   try {
     const { username, password } = req.body;
     const user = await getUserByUsername(username);
+    // Mismo mensaje con usuario inexistente o clave errónea: no se revela qué cuentas existen.
+    const invalidCredentials = () => res.status(401).json(createTResult("", ["Usuario o contraseña incorrectos"]));
     if (!user) {
-      return res.status(401).json(createTResult("", ["User not found"]));
+      return invalidCredentials();
     }
 
     const isPasswordValid = await comparePassword(password, user.password);
 
     if (!isPasswordValid) {
-      return res.status(401).json(createTResult("", ["Contraseña invalida"]));
+      return invalidCredentials();
+    }
+
+    // Solo quien conoce la clave se entera de que su cuenta está desactivada.
+    if (!user.active) {
+      return res.status(403).json(createTResult("", ["Tu cuenta está desactivada"]));
     }
 
     // SHIFT CHECK - Validar por horario del schedule
@@ -99,7 +107,7 @@ export const login = async (req: Request, res: Response) => {
 
     return res.status(200).json(createTResult(await generateJWT(tokenPayload)));
   } catch (error: any) {
-    return res.status(500).json(createTResult("", error.message));
+    return respondError(res, error);
   }
 };
 
@@ -112,7 +120,7 @@ export const logout = async (req: Request, res: Response) => {
     await updateUser(userId, { isLoggedIn: false });
     return res.status(200).json(createTResult(true));
   } catch (error: any) {
-    return res.status(500).json(createTResult("", error.message));
+    return respondError(res, error);
   }
 };
 
@@ -123,7 +131,7 @@ export const getAllUsers = async (req: Request, res: Response) => {
 
     return res.status(200).json(createTResult(users));
   } catch (error: any) {
-    return res.status(500).json(createTResult("", error.message));
+    return respondError(res, error);
   }
 };
 
@@ -158,7 +166,7 @@ export const createUser = async (req: Request, res: Response) => {
     const { password: _omit, ...safeUser } = user as typeof user & { password?: string };
     return res.status(201).json(createTResult(safeUser));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -195,7 +203,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
     if (error.code === 'P2002') {
       return res.status(400).json(createTResult(null, ["El nombre de usuario ya está registrado"]));
     }
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -221,7 +229,7 @@ export const changePassword = async (req: Request, res: Response) => {
 
     return res.status(200).json(createTResult(true));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -238,16 +246,19 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     return res.status(200).json(createTResult(true));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
 export const deleteUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    await deleteUserService(Number(id));
+    const deleted = await deleteUserService(Number(id));
+    if (!deleted) {
+      return res.status(404).json(createTResult(null, ["Usuario no encontrado"]));
+    }
     return res.status(200).json(createTResult(true));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };

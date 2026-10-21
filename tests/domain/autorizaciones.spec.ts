@@ -93,9 +93,17 @@ describe("API de autorizaciones", () => {
     const bad = await request(app)
       .post(`/api/v1/properties/${property.id}/authorizations`)
       .set("Authorization", admin)
-      .send({ personId: person.id, days: [1], startTime: "16:00", endTime: "08:00", validFrom: "2026-01-01" });
+      .send({ personId: person.id, days: [1], startTime: "16:00", endTime: "16:00", validFrom: "2026-01-01" });
     expect(bad.status).toBe(400);
     expect(bad.body.code).toBe("SCHEDULE_INVALID");
+
+    // Un horario que cruza la medianoche (16:00 → 08:00) es válido: decideAccess lo soporta.
+    const night = await prisma.person.create({ data: { firstName: "Noche" } });
+    const overnight = await request(app)
+      .post(`/api/v1/properties/${property.id}/authorizations`)
+      .set("Authorization", admin)
+      .send({ personId: night.id, days: [1], startTime: "16:00", endTime: "08:00", validFrom: "2026-01-01" });
+    expect(overnight.status).toBe(201);
 
     const guard = `Bearer ${tokenFor(await buildUser("GUARD"))}`;
     const none = await request(app).get(`/api/v1/authorizations/check?propertyId=${property.id}&personId=${person.id}`).set("Authorization", guard);

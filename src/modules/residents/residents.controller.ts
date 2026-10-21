@@ -11,13 +11,14 @@ import {
 } from "./residents.service";
 import { getUserByUsername } from "../users/user.service";
 import { hashPassword } from "@src/core/utils/security";
+import { respondError } from "@src/core/errors/http-error";
 
 export const getResidents = async (req: Request, res: Response) => {
     try {
         const result = await getResidentsList();
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };
 
@@ -26,7 +27,7 @@ export const getDataTable = async (req: Request, res: Response) => {
         const result = await getDataTableResidents(req.body);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };
 
@@ -39,7 +40,7 @@ export const getResident = async (req: Request, res: Response) => {
         }
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };
 
@@ -83,7 +84,7 @@ export const addResident = async (req: Request, res: Response) => {
         const result = await createResidentUser(userData, profileData);
         return res.status(201).json(createTResult(result));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };
 
@@ -124,7 +125,7 @@ export const putResident = async (req: Request, res: Response) => {
         const result = await updateResidentUser(Number(id), userData, profileData);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };
 
@@ -134,7 +135,7 @@ export const removeResident = async (req: Request, res: Response) => {
         const result = await deleteResidentUser(Number(id));
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };
 
@@ -143,6 +144,6 @@ export const getRelationships = async (req: Request, res: Response) => {
         const result = await getRelationshipsList();
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };

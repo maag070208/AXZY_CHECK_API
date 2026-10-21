@@ -2,6 +2,7 @@ import { prismaClient } from "@src/core/config/database";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 import { syncLegacyResident } from "@src/modules/residents/legacy-sync";
+import { AppError } from "@src/core/errors/app-error";
 
 export const getUsers = async (search?: string) => {
   if (!search) {
@@ -27,8 +28,10 @@ export const getUsers = async (search?: string) => {
 };
 
 export const getDataTableUsers = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
-  const { pendingTasks, ...restFilters } = (params.filters ?? {}) as Record<string, unknown>;
-  const prismaParams = getPrismaPaginationParams({ ...params, filters: restFilters as any });
+  const { pendingTasks, password: _hidden, ...restFilters } = (params.filters ?? {}) as Record<string, unknown>;
+  // Ni filtrar ni ordenar por la clave: permitiría adivinar el hash carácter por carácter.
+  const sort = params.sort?.key === "password" ? undefined : params.sort;
+  const prismaParams = getPrismaPaginationParams({ ...params, sort, filters: restFilters as any });
 
   const where: any = {
     ...prismaParams.where,
@@ -74,6 +77,9 @@ export const addUser = async (data: any) => {
   if (!targetRoleId && roleName) {
       const roleObj = await prismaClient.role.findUnique({ where: { name: roleName } });
       if (roleObj) targetRoleId = roleObj.id;
+  }
+  if (!targetRoleId || !(await prismaClient.role.findUnique({ where: { id: Number(targetRoleId) }, select: { id: true } }))) {
+      throw new AppError("ROLE_NOT_FOUND", "El rol indicado no existe", 400);
   }
 
   // Auto-Assign Recurring Configs if Guard/Staff

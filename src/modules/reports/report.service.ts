@@ -1,8 +1,15 @@
 
 import { prismaClient } from "@src/core/config/database";
+import { logger } from "@src/core/logger/logger";
 import { TResult } from '@src/core/dto/TResult';
 
 const prisma = prismaClient;
+
+/** El detalle va al log del servidor; al cliente un mensaje genérico (E-19). */
+const failure = (error: any): string => {
+    logger.error({ err: { name: error?.name, message: error?.message } }, 'error en reportes de desempeño');
+    return 'No se pudo generar el reporte';
+};
 
 export interface IGuardReportFilters {
     startDate: string;
@@ -114,7 +121,7 @@ export const getGuardGeneralStats = async (filters: IGuardReportFilters): Promis
             messages: []
         };
     } catch (error: any) {
-        return { success: false, data: null, messages: [error.message] };
+        return { success: false, data: null, messages: [failure(error)] };
     }
 };
 
@@ -154,7 +161,7 @@ export const getTopPerformanceGuards = async (filters: IGuardReportFilters): Pro
 
         return { success: true, data: result, messages: [] };
     } catch (error: any) {
-        return { success: false, data: [], messages: [error.message] };
+        return { success: false, data: [], messages: [failure(error)] };
     }
 };
 
@@ -212,7 +219,7 @@ export const getWorkloadComparison = async (filters: IGuardReportFilters): Promi
 
         return { success: true, data: result, messages: [] };
     } catch (error: any) {
-        return { success: false, data: [], messages: [error.message] };
+        return { success: false, data: [], messages: [failure(error)] };
     }
 };
 
@@ -302,7 +309,7 @@ export const getGuardDetailedReport = async (filters: IGuardReportFilters): Prom
 
         return { success: true, data: reportData, messages: [] };
     } catch (error: any) {
-        return { success: false, data: [], messages: [error.message] };
+        return { success: false, data: [], messages: [failure(error)] };
     }
 };
 
@@ -371,6 +378,6 @@ export const getGuardDetailBreakdown = async (filters: IGuardReportFilters): Pro
 
         return { success: true, data: { missedPoints, incompleteRounds }, messages: [] };
     } catch (error: any) {
-        return { success: false, data: null, messages: [error.message] };
+        return { success: false, data: null, messages: [failure(error)] };
     }
 };

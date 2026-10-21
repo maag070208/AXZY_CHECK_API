@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import * as uniformService from "./uniform.service";
+import { respondError } from "@src/core/errors/http-error";
 
 /** @description POST /uniform — records a uniform/grooming checklist for a guard. */
 export const createUniformCheck = async (req: Request, res: Response) => {
@@ -36,7 +37,7 @@ export const createUniformCheck = async (req: Request, res: Response) => {
 
     return res.status(201).json(createTResult(created));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };
 
@@ -46,7 +47,7 @@ export const getDataTable = async (req: Request, res: Response) => {
     const result = await uniformService.getDataTableUniformChecks(req.body);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };
 
@@ -57,6 +58,6 @@ export const getByGuard = async (req: Request, res: Response) => {
     const result = await uniformService.getUniformChecksByGuard(Number(guardId));
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };

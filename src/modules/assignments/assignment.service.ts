@@ -2,6 +2,7 @@
 import { prismaClient } from "@src/core/config/database";
 import { AssignmentStatus } from "@prisma/client";
 import { AppError } from "@src/core/errors/app-error";
+import { roleHasPermission } from "@src/core/permissions/permissions.service";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { ASSIGNMENT_TRANSITIONS, assertStatusUpdated, assertTransition } from "@src/core/transitions/transitions";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
@@ -45,7 +46,7 @@ export const createAssignment = async (data: {
   const isAllowed = guard?.role?.name === "GUARD" || guard?.role?.name === "SHIFT" || guard?.role?.name === "MAINT";
 
   if (!guard || !isAllowed) {
-    throw new Error("Invalid guard ID or user is not a GUARD, SHIFT or MAINT");
+    throw new AppError("ASSIGNEE_INVALID", "El usuario indicado no existe o no es personal operativo (guardia, jefe de turno o mantenimiento)", 400);
   }
 
   // Duplicate Check: Guard + Location + Active Status
@@ -65,7 +66,12 @@ export const createAssignment = async (data: {
   });
 
   if (activeAssignment) {
-    throw new Error("El guardia ya tiene una asignación activa para esta ubicación.");
+    throw new AppError("ASSIGNMENT_DUPLICATE", "El guardia ya tiene una asignación activa para esta ubicación.", 409);
+  }
+
+  const location = await prisma.location.findFirst({ where: { id: data.locationId, softDelete: false }, select: { id: true } });
+  if (!location) {
+    throw new AppError("LOCATION_NOT_FOUND", "Ubicación no encontrada", 404);
   }
 
   return prisma.assignment.create({
@@ -148,9 +154,13 @@ export const updateAssignmentStatus = async (id: number, status: AssignmentStatu
 }
 
 // Toggle task completion
-export const toggleAssignmentTask = async (taskId: number) => {
-    const task = await prisma.assignmentTask.findUnique({ where: { id: taskId } });
-    if (!task) throw new Error("Task not found");
+export const toggleAssignmentTask = async (taskId: number, actor: { id: number; role: string }) => {
+    const task = await prisma.assignmentTask.findUnique({ where: { id: taskId }, include: { assignment: { select: { guardId: true } } } });
+    if (!task) throw new AppError("TASK_NOT_FOUND", "Tarea no encontrada", 404);
+    // Cada guardia completa solo las tareas de SUS asignaciones; la supervisión puede con todas.
+    if (task.assignment.guardId !== Number(actor.id) && !(await roleHasPermission(actor.role, "assignments.manage"))) {
+        throw new AppError("FORBIDDEN", "No tienes permisos para realizar esta acción", 403);
+    }
 
     return prisma.assignmentTask.update({
         where: { id: taskId },

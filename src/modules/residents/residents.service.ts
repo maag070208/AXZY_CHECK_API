@@ -1,7 +1,17 @@
 import { prismaClient } from "@src/core/config/database";
+import { AppError } from "@src/core/errors/app-error";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 import { syncLegacyResident, closeResidentsOfUser } from "./legacy-sync";
+
+type Tx = Parameters<Parameters<typeof prismaClient.$transaction>[0]>[0];
+
+/** La cuenta existe, no está eliminada y es de residente; si no, 404. */
+const assertResidentAccount = async (tx: Tx, id: number) => {
+    const user = await tx.user.findFirst({ where: { id, softDelete: false, role: { name: 'RESDN' } }, select: { id: true, username: true } });
+    if (!user) throw new AppError("RESIDENT_NOT_FOUND", "Residente no encontrado", 404);
+    return user;
+};
 
 export const getResidentsList = async () => {
     return prismaClient.user.findMany({
@@ -127,8 +137,9 @@ export const getDataTableResidents = async (params: ITDataTableFetchParams): Pro
 };
 
 export const getResidentById = async (id: number) => {
-    return prismaClient.user.findUnique({
-        where: { id },
+    // Solo cuentas de residente: este endpoint no debe servir para leer a otros roles.
+    return prismaClient.user.findFirst({
+        where: { id, softDelete: false, role: { name: 'RESDN' } },
         include: { residentProfile: true, property: true }
     });
 };
@@ -158,6 +169,7 @@ export const createResidentUser = async (userData: any, profileData: any) => {
 export const updateResidentUser = async (id: number, userData: any, profileData: any) => {
     const { propertyId, ...rest } = userData;
     return prismaClient.$transaction(async (tx) => {
+    await assertResidentAccount(tx, id);
     const updated = await tx.user.update({
         where: { id },
         data: {
@@ -179,8 +191,14 @@ export const updateResidentUser = async (id: number, userData: any, profileData:
 
 export const deleteResidentUser = async (id: number) => {
     return prismaClient.$transaction(async (tx) => {
+        const user = await assertResidentAccount(tx, id);
         await closeResidentsOfUser(tx, id);
-        return tx.user.delete({ where: { id } });
+        // Baja lógica, igual que en usuarios: el borrado físico chocaba con el perfil, los contactos y las
+        // invitaciones de la cuenta (siempre fallaba) y habría perdido el historial de accesos.
+        return tx.user.update({
+            where: { id },
+            data: { softDelete: true, active: false, propertyId: null, username: `${user.username}_deleted_${Date.now()}` },
+        });
     });
 };
 

@@ -12,6 +12,7 @@ import { clientSettingsSeed } from "./seeds/client/settings";
 import { securitySeed } from "./seeds/demo/security";
 import { propertiesSeed } from "./seeds/demo/properties";
 import { invitationsSeed } from "./seeds/demo/invitations";
+import { flowsSeed } from "./seeds/flows";
 
 const prisma = new PrismaClient();
 
@@ -20,6 +21,8 @@ const prisma = new PrismaClient();
  * client  → valores propios de la instalación (horarios, ubicaciones, catálogos, correos, zona).
  * demo    → usuarios y propiedades de ejemplo con contraseñas conocidas. Solo con SEED_DEMO=true
  *           y nunca en producción.
+ * flows   → datos mínimos de cada flujo de negocio (personal por rol, rondas, propiedades, reportes,
+ *           accesos). Solo con SEED_FLOWS=true y nunca en producción; son los mismos que usan las pruebas e2e.
  */
 async function main() {
   hackerLog.header('Master Seeding Sequence');
@@ -41,6 +44,12 @@ async function main() {
     await invitationsSeed(prisma);
   } else {
     hackerLog.info('DEMO', 'Datos de demostración omitidos (SEED_DEMO no es "true")');
+  }
+
+  if (process.env.SEED_FLOWS === "true") {
+    await flowsSeed(prisma);
+  } else {
+    hackerLog.info('FLOWS', 'Datos de flujos omitidos (SEED_FLOWS no es "true")');
   }
 
   hackerLog.divider();

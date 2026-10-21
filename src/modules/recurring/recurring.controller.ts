@@ -1,13 +1,14 @@
 import { Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { getAllRecurringConfigurations, createRecurringConfiguration, deleteRecurringConfiguration, toggleRecurringConfiguration, assignConfigurationToGuards, getRecurringConfigurationsForUser, updateRecurringConfiguration, getDataTableRecurring } from "./recurring.service";
+import { respondError } from "@src/core/errors/http-error";
 
 export const getDataTable = async (req: Request, res: Response) => {
     try {
         const result = await getDataTableRecurring(req.body);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };
 
@@ -16,7 +17,7 @@ export const getRecurringList = async (req: Request, res: Response) => {
     const list = await getAllRecurringConfigurations();
     return res.status(200).json(createTResult(list));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -33,7 +34,7 @@ export const createRecurring = async (req: Request, res: Response) => {
     return res.status(201).json(createTResult(created));
   } catch (error: any) {
     console.log(error);
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };
 
@@ -44,7 +45,7 @@ export const toggleRecurring = async (req: Request, res: Response) => {
         const updated = await toggleRecurringConfiguration(Number(id), active);
         return res.status(200).json(createTResult(updated));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };
 
@@ -60,7 +61,7 @@ export const updateRecurring = async (req: Request, res: Response) => {
         const updated = await updateRecurringConfiguration(Number(id), title, locations, guardIds);
         return res.status(200).json(createTResult(updated));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };
 
@@ -70,7 +71,7 @@ export const deleteRecurring = async (req: Request, res: Response) => {
         await deleteRecurringConfiguration(Number(id));
         return res.status(200).json(createTResult(true));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };
 
@@ -86,7 +87,7 @@ export const assignGuard = async (req: Request, res: Response) => {
         const updated = await assignConfigurationToGuards(Number(id), guardIds);
         return res.status(200).json(createTResult(updated));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 };
 
@@ -96,6 +97,6 @@ export const getMyRecurring = async (req: Request, res: Response) => {
         const list = await getRecurringConfigurationsForUser(userId);
         return res.status(200).json(createTResult(list));
     } catch (error: any) {
-        return res.status(500).json(createTResult(null, error.message));
+        return respondError(res, error);
     }
 }

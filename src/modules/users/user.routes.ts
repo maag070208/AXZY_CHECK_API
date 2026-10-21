@@ -21,6 +21,6 @@ router.put("/:id", selfOrPermission("users.manage"), validate({ params: idParam,
 router.put("/:id/password", selfOrPermission("users.manage"), validate({ params: idParam, body: changePasswordBody }), changePassword);
 router.put("/:id/reset-password", requirePermission("users.manage"), validate({ params: idParam, body: resetPasswordBody }), resetPassword);
 router.post("/logout", logout);
-router.delete("/:id", requirePermission("users.manage"), deleteUser);
+router.delete("/:id", requirePermission("users.manage"), validate({ params: idParam }), deleteUser);
 
 export default router;

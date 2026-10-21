@@ -1,4 +1,5 @@
 import { prismaClient } from "@src/core/config/database";
+import { LIST_MAX_ROWS } from "@src/core/constants/limits";
 
 /**
  * @description Roles allowed to participate in the operational team's group
@@ -27,11 +28,12 @@ const messageSelect = {
  * @param limit Page size (default 30).
  */
 export const getMessages = async (cursor?: number, limit = 30) => {
+  const take = Number.isFinite(limit) && limit > 0 ? Math.min(Math.trunc(limit), LIST_MAX_ROWS) : 30;
   const messages = await prismaClient.chatMessage.findMany({
     where: cursor ? { id: { lt: cursor } } : undefined,
     select: messageSelect,
     orderBy: { id: "desc" },
-    take: limit,
+    take,
   });
   return messages;
 };

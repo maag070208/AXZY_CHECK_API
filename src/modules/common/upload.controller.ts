@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
+import { AppError } from "@src/core/errors/app-error";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { StorageService } from "../storage/storage.service";
+import { respondError } from "@src/core/errors/http-error";
 
 const storageService = new StorageService();
 
@@ -12,7 +14,7 @@ export const uploadFile = async (req: Request, res: Response) => {
 
     const bucketName = process.env.AWS_BUCKET_NAME;
     if (!bucketName) {
-      throw new Error("Storage bucket name not configured");
+      throw new AppError("STORAGE_NOT_CONFIGURED", "El almacenamiento de archivos no está disponible", 503);
     }
 
     const user = req.user as { username?: string; name?: string } | undefined;
@@ -48,6 +50,6 @@ export const uploadFile = async (req: Request, res: Response) => {
       })
     );
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, error.message));
+    return respondError(res, error);
   }
 };

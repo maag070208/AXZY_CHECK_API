@@ -67,7 +67,7 @@ export const documentReadUrl = async (personId: number, documentId: number) => {
   });
   if (!doc) throw new AppError("DOCUMENT_NOT_FOUND", "Documento no encontrado", 404);
   const bucket = process.env.AWS_BUCKET_NAME;
-  if (!bucket) throw new Error("Storage bucket name not configured");
+  if (!bucket) throw new AppError("STORAGE_NOT_CONFIGURED", "El almacenamiento de archivos no está disponible", 503);
   return { url: await storage.getSignedReadUrl(bucket, doc.mediaFile.key, READ_URL_TTL_SECONDS), expiresInSeconds: READ_URL_TTL_SECONDS };
 };
 

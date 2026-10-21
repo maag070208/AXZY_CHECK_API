@@ -1,3 +1,4 @@
+import "@src/core/middlewares/async-errors";
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
@@ -10,6 +11,7 @@ import { prismaClient } from "@src/core/config/database";
 import { redactResponseSecrets } from "@src/core/middlewares/redact-secrets.middleware";
 import { errorHandler } from "@src/core/middlewares/error-handler.middleware";
 import { requestContext } from "@src/core/middlewares/request-context.middleware";
+import { rejectNullBytes } from "@src/core/middlewares/reject-null-bytes.middleware";
 
 //router
 import apiRouter from "@src/modules/api.router";
@@ -27,6 +29,7 @@ const allowedOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5002,http:
 app.use([
   requestContext,
   express.json({ limit: "1mb" }), // S-17 / E-17: límite de tamaño del body
+  rejectNullBytes, // Postgres no admite \u0000 en textos: 400 en lugar de 500
   redactResponseSecrets, // ninguna respuesta lleva la clave password (S-09)
   helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }),
   cors({ origin: allowedOrigins }),

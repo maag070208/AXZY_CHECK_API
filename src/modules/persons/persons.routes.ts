@@ -4,7 +4,7 @@ import { prismaClient } from "@src/core/config/database";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { requirePermission } from "@src/modules/common/middlewares/require-permission.middleware";
 import { validate } from "@src/core/validation/validate";
-import { emptyable } from "@src/core/validation/common";
+import { emptyable, flag } from "@src/core/validation/common";
 import { findDuplicates } from "@src/modules/residents/household.service";
 import { documentReadUrl, expiringDocuments, listDocuments, uploadDocument } from "./documents.service";
 import { createResidentAccount } from "./account.service";
@@ -18,6 +18,8 @@ const personBody = z.object({
   lastName: z.string().trim().max(80).nullish(),
   phone: z.string().trim().max(30).nullish(),
   email: emptyable(z.string().trim().email("no es un correo válido")),
+  // Sin declararlo Zod lo descartaba y el aviso de duplicado (409) nunca se podía confirmar.
+  confirmNewPerson: flag.optional(),
 });
 
 // Búsqueda de personas para asignar titular, propietario o inquilino (A2).

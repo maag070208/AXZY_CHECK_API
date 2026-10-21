@@ -10,7 +10,7 @@ const storage = new StorageService();
 
 const bucketName = (): string => {
   const bucket = process.env.AWS_BUCKET_NAME;
-  if (!bucket) throw new Error("Storage bucket name not configured");
+  if (!bucket) throw new AppError("STORAGE_NOT_CONFIGURED", "El almacenamiento de archivos no está disponible", 503);
   return bucket;
 };
 

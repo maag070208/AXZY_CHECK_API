@@ -59,7 +59,24 @@ export const getDataTableInvitations = async (params: ITDataTableFetchParams): P
     return { rows, total };
 };
 
+/** ¿La propiedad indicada es la de la cuenta de residente? (el residente solo invita a la suya). */
+export const residentOwnsProperty = async (userId: number, propertyId: number): Promise<boolean> => {
+    const user = await prismaClient.user.findUnique({ where: { id: userId }, select: { propertyId: true } });
+    return user?.propertyId != null && user.propertyId === propertyId;
+};
+
+/** Quién creó la invitación, o null si no existe. */
+export const getInvitationOwner = async (id: number): Promise<number | null> => {
+    const row = await prismaClient.invitation.findUnique({ where: { id }, select: { createdById: true } });
+    return row?.createdById ?? null;
+};
+
 export const createInvitation = async (data: { guestName: string, createdById: number, propertyId: number, validFrom: Date, validUntil: Date, notes?: string, typeId: number }) => {
+    const property = await prismaClient.property.findFirst({ where: { id: data.propertyId, softDelete: false }, select: { id: true } });
+    if (!property) throw new AppError("PROPERTY_NOT_FOUND", "Propiedad no encontrada", 404);
+    const type = await prismaClient.invitationType.findFirst({ where: { id: data.typeId, active: true }, select: { id: true } });
+    if (!type) throw new AppError("INVITATION_TYPE_INVALID", "Tipo de invitación no válido", 400);
+
     let uniqueCode = generateCode();
     
     // Ensure uniqueness
@@ -101,9 +118,17 @@ export const getInvitationByIdOrCode = async (identifier: string) => {
 };
 
 export const updateInvitationStatus = async (id: number, status: 'ENTERED' | 'EXITED' | 'CANCELLED', reason?: string) => {
-    const current = await prismaClient.invitation.findUnique({ where: { id }, select: { status: true, notes: true } });
+    const current = await prismaClient.invitation.findUnique({ where: { id }, select: { status: true, notes: true, validFrom: true, validUntil: true } });
     if (!current) throw new AppError("INVITATION_NOT_FOUND", "Invitación no encontrada", 404);
     assertTransition(INVITATION_TRANSITIONS, current.status, status);
+
+    // La entrada solo vale dentro de la ventana que la residente definió.
+    if (status === 'ENTERED') {
+        const now = new Date();
+        if (now < current.validFrom || now > current.validUntil) {
+            throw new AppError("INVITATION_NOT_VALID", "La invitación no está vigente en este momento", 409);
+        }
+    }
 
     const data: any = { status };
     if (status === 'ENTERED') data.entryTime = new Date();

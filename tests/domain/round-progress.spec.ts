@@ -42,14 +42,14 @@ describe("avance de rondas", () => {
 
     await prisma.kardex.createMany({
       data: [
-        { userId: guard.id, locationId: points[0].id, timestamp: new Date(start.getTime() + 1000), notes: "a" },
+        { userId: guard.id, locationId: points[0].id, timestamp: new Date(start.getTime() + 1000), notes: "a", media: ["foto.jpg"] },
         // Mismo punto dos veces: cuenta una sola vez.
-        { userId: guard.id, locationId: points[0].id, timestamp: new Date(start.getTime() + 2000), notes: "b" },
-        { userId: guard.id, locationId: points[1].id, timestamp: new Date(start.getTime() + 3000), notes: "c" },
+        { userId: guard.id, locationId: points[0].id, timestamp: new Date(start.getTime() + 2000), notes: "b", media: ["foto.jpg"] },
+        { userId: guard.id, locationId: points[1].id, timestamp: new Date(start.getTime() + 3000), notes: "c", media: ["foto.jpg"] },
         // Antes del inicio de la ronda: no cuenta.
-        { userId: guard.id, locationId: points[2].id, timestamp: new Date(start.getTime() - 5000), notes: "x" },
+        { userId: guard.id, locationId: points[2].id, timestamp: new Date(start.getTime() - 5000), notes: "x", media: ["foto.jpg"] },
         // De otro guardia: no cuenta.
-        { userId: other.id, locationId: points[3].id, timestamp: new Date(start.getTime() + 4000), notes: "y" },
+        { userId: other.id, locationId: points[3].id, timestamp: new Date(start.getTime() + 4000), notes: "y", media: ["foto.jpg"] },
       ],
     });
 
@@ -78,7 +78,7 @@ describe("avance de rondas", () => {
       data: { guardId: guard.id, startTime: start, endTime: end, status: "COMPLETED", recurringConfigurationId: config.id },
     });
     await prisma.kardex.create({
-      data: { userId: guard.id, locationId: point.id, timestamp: new Date(end.getTime() + 60_000), notes: "tarde" },
+      data: { userId: guard.id, locationId: point.id, timestamp: new Date(end.getTime() + 60_000), notes: "tarde", media: ["foto.jpg"] },
     });
 
     const res = await request(app)

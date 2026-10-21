@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
+import { requireStaff } from "@src/modules/common/middlewares/role-scope.middleware";
 import { requirePermission } from "@src/modules/common/middlewares/require-permission.middleware";
 import { addProperty, getDataTable, getProperties, getProperty, putProperty, removeProperty } from "./properties.controller";
 import { validate } from "@src/core/validation/validate";
@@ -17,7 +18,7 @@ import { getHousehold, postHouseholdResident } from "../residents/household.cont
 
 const router = Router();
 
-router.post("/datatable", getDataTable);
+router.post("/datatable", requireStaff, getDataTable);
 
 router.get("/", requirePermission("properties.view"), getProperties);
 
@@ -53,10 +54,10 @@ router.post("/import", requirePermission("properties.manage"), validate({ body: 
     return next(error);
   }
 });
-router.get("/:id", requirePermission("properties.view"), getProperty);
+router.get("/:id", requirePermission("properties.view"), validate({ params: idParam }), getProperty);
 router.post("/", requirePermission("properties.manage"), validate({ body: createPropertyBody }), addProperty);
 router.put("/:id", requirePermission("properties.manage"), validate({ params: idParam, body: updatePropertyBody }), putProperty);
-router.delete("/:id", requirePermission("properties.manage"), removeProperty);
+router.delete("/:id", requirePermission("properties.manage"), validate({ params: idParam }), removeProperty);
 
 // Ocupación (A1): consulta con historial; cambio transaccional; cambio de propietario.
 router.get("/:id/occupancy", requirePermission("properties.view"), validate({ params: idParam }), getPropertyOccupancy);

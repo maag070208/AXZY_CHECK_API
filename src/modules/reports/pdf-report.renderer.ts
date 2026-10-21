@@ -3,6 +3,7 @@ import path from "path";
 import axios from "axios";
 import PDFDocument from "pdfkit";
 import { getConfig } from "@src/core/utils/config";
+import { branding } from "@src/client/branding";
 
 /* =========================================================================
  *  SISTEMA DE DISEÑO — mismo lenguaje visual del dashboard de CheckApp:
@@ -72,7 +73,7 @@ const PHOTO_GAP = 8;
 const PHOTO_HEIGHT = 116;
 
 /** Zona horaria para fechas/horas (evita depender de la zona del servidor). */
-const REPORT_TIME_ZONE = process.env.REPORT_TIME_ZONE ?? "America/Tijuana";
+const REPORT_TIME_ZONE = process.env.REPORT_TIME_ZONE ?? branding.reportTimeZone;
 
 export interface PdfMediaItem {
     type: "IMAGE" | "VIDEO";
@@ -167,7 +168,7 @@ export const streamModulePdf = async (
         applyChrome(doc, refCode);
         doc.end();
     } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : "Error inesperado";
+        const message = "No se pudo generar el reporte";
         console.error("Error generando PDF:", error);
 
         if (!res.headersSent) {
@@ -1619,7 +1620,32 @@ const buildStaticMapUrl = (lat: number, lng: number, width: number, height: numb
 
 const IMAGE_FETCH_TIMEOUT_MS = 5000;
 
+/**
+ * Las URLs de evidencia las capturan los guardias: el servidor solo las descarga si apuntan a un
+ * host público por http(s). Así el PDF no sirve para que el servidor consulte la red interna
+ * (localhost, redes privadas, metadatos de la nube).
+ */
+export const isSafeRemoteImage = (raw: string): boolean => {
+    let parsed: URL;
+    try {
+        parsed = new URL(raw);
+    } catch {
+        return false;
+    }
+    if (parsed.protocol !== "https:" && parsed.protocol !== "http:") return false;
+    const host = parsed.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".internal") || host.endsWith(".local")) return false;
+    if (host === "::1" || host.startsWith("fc") || host.startsWith("fd") || host.startsWith("fe80")) return false;
+    const octets = host.match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+    if (octets) {
+        const [a, b] = [Number(octets[1]), Number(octets[2])];
+        if (a === 0 || a === 10 || a === 127 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168)) return false;
+    }
+    return true;
+};
+
 const fetchImageBuffer = async (url: string): Promise<Buffer | null> => {
+    if (!isSafeRemoteImage(url)) return null;
     try {
         const response = await axios.get<ArrayBuffer>(url, {
             responseType: "arraybuffer",

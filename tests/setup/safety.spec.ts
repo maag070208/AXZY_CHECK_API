@@ -17,3 +17,12 @@ describe("guardia de base de prueba", () => {
     expect(() => assertSafeTestDatabase("no-es-url")).toThrow(/no es una URL válida/);
   });
 });
+
+describe("servicios externos apagados en las pruebas", () => {
+  it("las claves reales del .env no llegan a las pruebas aunque la app cargue dotenv", async () => {
+    await import("@src/core/config/config");
+    for (const key of ["ABLY_KEY", "RESEND_API_KEY", "AWS_BUCKET_NAME", "AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "GOOGLE_MAPS_API_KEY"]) {
+      expect(process.env[key]).toBe("");
+    }
+  });
+});

@@ -71,7 +71,8 @@ export const getIncidentsPdf = async (req: Request, res: Response): Promise<void
             { includeImages, includeLocation },
         );
     } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : "Error inesperado";
+        const message = "No se pudo generar el reporte";
+        console.error("Error generando PDF:", error);
         if (!res.headersSent) {
             res.status(500).json({
                 data: null,
@@ -119,7 +120,8 @@ export const getClubPdf = async (req: Request, res: Response): Promise<void> => 
             { includeImages, includeLocation },
         );
     } catch (error: unknown) {
-        const message = error instanceof Error ? error.message : "Error inesperado";
+        const message = "No se pudo generar el reporte";
+        console.error("Error generando PDF:", error);
         if (!res.headersSent) {
             res.status(500).json({
                 data: null,

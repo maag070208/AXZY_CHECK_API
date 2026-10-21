@@ -1,6 +1,6 @@
 import { prismaClient } from "@src/core/config/database";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
-import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
+import { clampLimit, getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 import { resolveKindAndOccupancy, todayDateOnly } from "./occupancy.service";
 
 export const getAllProperties = async () => {
@@ -14,8 +14,8 @@ export const getAllProperties = async () => {
 export const getDataTableProperties = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
   try {
     const { page, limit, filters } = params;
-    const take = Number(limit) || 10;
-    const skip = (Math.max(1, Number(page)) - 1) * take;
+    const take = clampLimit(limit);
+    const skip = (Math.max(1, Math.trunc(Number(page)) || 1) - 1) * take;
     const searchTerm = filters?.identifier || filters?.name || "";
     const typeId = filters?.typeId ? Number(filters.typeId) : null;
 
@@ -121,8 +121,8 @@ export const getDataTableProperties = async (params: ITDataTableFetchParams): Pr
 };
 
 export const getPropertyById = async (id: number) => {
-    return prismaClient.property.findUnique({
-        where: { id },
+    return prismaClient.property.findFirst({
+        where: { id, softDelete: false },
         include: {
             users: {
                 where: { softDelete: false },

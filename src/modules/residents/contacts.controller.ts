@@ -1,5 +1,6 @@
 import { Request, Response } from "express";
 import * as contactsService from "./contacts.service";
+import { respondError } from "@src/core/errors/http-error";
 
 export const getResidentContacts = async (req: Request, res: Response) => {
     try {
@@ -10,7 +11,7 @@ export const getResidentContacts = async (req: Request, res: Response) => {
         const contacts = await contactsService.getContactsByUserId(userId);
         res.status(200).json({ success: true, data: contacts });
     } catch (error: any) {
-        res.status(500).json({ success: false, messages: [error.message] });
+        return respondError(res, error);
     }
 };
 
@@ -20,7 +21,7 @@ export const addContact = async (req: Request, res: Response) => {
         const contact = await contactsService.createContact(userId, req.body);
         res.status(201).json({ success: true, data: contact });
     } catch (error: any) {
-        res.status(500).json({ success: false, messages: [error.message] });
+        return respondError(res, error);
     }
 };
 
@@ -30,7 +31,7 @@ export const putContact = async (req: Request, res: Response) => {
         const contact = await contactsService.updateContact(id, req.body);
         res.status(200).json({ success: true, data: contact });
     } catch (error: any) {
-        res.status(500).json({ success: false, messages: [error.message] });
+        return respondError(res, error);
     }
 };
 
@@ -40,6 +41,6 @@ export const removeContact = async (req: Request, res: Response) => {
         await contactsService.deleteContact(id);
         res.status(200).json({ success: true, message: "Contacto eliminado" });
     } catch (error: any) {
-        res.status(500).json({ success: false, messages: [error.message] });
+        return respondError(res, error);
     }
 };

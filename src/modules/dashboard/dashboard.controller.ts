@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import * as dashboardService from "./dashboard.service";
+import { respondError } from "@src/core/errors/http-error";
 
 /** @description GET /dashboard/live — snapshot for the WEB admin dashboard. */
 export const getLive = async (_req: Request, res: Response) => {
@@ -8,6 +9,6 @@ export const getLive = async (_req: Request, res: Response) => {
     const result = await dashboardService.getLiveDashboard();
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };

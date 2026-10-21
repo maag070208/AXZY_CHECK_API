@@ -1,4 +1,5 @@
 import { prismaClient } from "@src/core/config/database";
+import { AppError } from "@src/core/errors/app-error";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 
@@ -55,6 +56,18 @@ export const getRecurringConfigById = async (id: number) => {
     });
 };
 
+/** Una ruta solo se asigna a personal operativo existente y activo (no a residentes ni a ids inventados). */
+const assertOperativeGuards = async (guardIds: number[]) => {
+    const unique = [...new Set(guardIds)];
+    if (unique.length === 0) return;
+    const valid = await prismaClient.user.count({
+        where: { id: { in: unique }, softDelete: false, role: { name: { in: ['GUARD', 'SHIFT', 'MAINT'] } } }
+    });
+    if (valid !== unique.length) {
+        throw new AppError("ROUTE_GUARDS_INVALID", "Algún usuario indicado no existe o no es personal operativo", 400);
+    }
+};
+
 interface ITaskCreate {
     description: string;
     reqPhoto: boolean;
@@ -71,6 +84,7 @@ export const createRecurringConfiguration = async (title: string, locations: ILo
     // If we want to support "select all if empty", we can keep the logic, but better to rely on input.
     
     let guardsToConnect: { id: number }[] = [];
+    await assertOperativeGuards(guardIds ?? []);
 
     if (guardIds && guardIds.length > 0) {
         guardsToConnect = guardIds.map(id => ({ id }));
@@ -125,22 +139,24 @@ export const toggleRecurringConfiguration = async (id: number, active: boolean) 
 };
 
 export const deleteRecurringConfiguration = async (id: number) => {
-    const config = await prismaClient.recurringConfiguration.findUnique({
-        where: { id },
-        include: { recurringLocations: { include: { tasks: true } } }
-    });
+    const config = await prismaClient.recurringConfiguration.findUnique({ where: { id }, select: { id: true } });
+    if (!config) throw new AppError("ROUTE_NOT_FOUND", "Ruta no encontrada", 404);
 
-    if (config) {
-        for (const loc of config.recurringLocations) {
-            await prismaClient.recurringTask.deleteMany({ where: { recurringLocationId: loc.id } });
-            await prismaClient.recurringLocation.delete({ where: { id: loc.id } });
-        }
-        return prismaClient.recurringConfiguration.delete({ where: { id } });
+    // Las rondas guardan a qué ruta pertenecen: borrarla dejaría el historial huérfano.
+    if (await prismaClient.round.count({ where: { recurringConfigurationId: id } }) > 0) {
+        throw new AppError("ROUTE_HAS_ROUNDS", "La ruta tiene rondas registradas y no puede eliminarse; desactívala", 409);
     }
-    return null;
+
+    // Todo o nada: antes un fallo a la mitad dejaba la ruta sin sus puntos.
+    return prismaClient.$transaction(async (tx) => {
+        await tx.recurringTask.deleteMany({ where: { recurringLocation: { configurationId: id } } });
+        await tx.recurringLocation.deleteMany({ where: { configurationId: id } });
+        return tx.recurringConfiguration.delete({ where: { id } });
+    });
 };
 
 export const assignConfigurationToGuards = async (configId: number, guardIds: number[]) => {
+    await assertOperativeGuards(guardIds);
     return prismaClient.recurringConfiguration.update({
         where: { id: configId },
         data: {
@@ -153,6 +169,7 @@ export const assignConfigurationToGuards = async (configId: number, guardIds: nu
 };
 
 export const updateRecurringConfiguration = async (id: number, title: string, locations: ILocationCreate[], guardIds?: number[]) => {
+    await assertOperativeGuards(guardIds ?? []);
     // Transaction to ensure atomicity
     return prismaClient.$transaction(async (prisma) => {
         // 1. Update basic info

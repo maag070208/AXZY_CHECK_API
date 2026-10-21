@@ -1,4 +1,5 @@
 import { prismaClient } from "@src/core/config/database";
+import { AppError } from "@src/core/errors/app-error";
 
 export enum CatalogKey {
     PROPERTY_TYPE = 'property_type',
@@ -79,10 +80,10 @@ export const getCatalog = async (key: string) => {
                 select: { id: true, name: true, lastName: true },
                 orderBy: { name: 'asc' }
             });
-            return guards.map(g => ({ id: g.id, name: g.name, value: `${g.name} ${g.lastName}` }));
+            return guards.map(g => ({ id: g.id, name: g.name, value: [g.name, g.lastName].filter(Boolean).join(" ") }));
         }
         default:
-            throw new Error(`Catalog key "${key}" not found`);
+            throw new AppError("CATALOG_NOT_FOUND", "Catálogo no encontrado", 404);
     }
   } catch (error: any) {
     console.error(`[CatalogService] Error fetching catalog "${key}":`, error);

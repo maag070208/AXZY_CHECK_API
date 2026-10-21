@@ -24,6 +24,8 @@ export const flag = z
 /** Campo opcional que el cliente puede omitir, mandar vacío o null para "sin valor". */
 export const emptyable = <T extends z.ZodType>(schema: T) => z.union([schema, z.literal(""), z.null()]).optional();
 
-/** Latitud y longitud opcionales (número o cadena). */
-export const optionalLatitude = emptyable(numberish.pipe(latitude));
-export const optionalLongitude = emptyable(numberish.pipe(longitude));
+/** Latitud y longitud opcionales (número o cadena). Vacío ("") equivale a "sin valor" (null). */
+const optionalCoordinate = (schema: typeof latitude) =>
+  z.union([numberish.pipe(schema), z.literal("").transform(() => null), z.null()]).optional();
+export const optionalLatitude = optionalCoordinate(latitude);
+export const optionalLongitude = optionalCoordinate(longitude);

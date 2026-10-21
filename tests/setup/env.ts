@@ -12,7 +12,19 @@ process.env.DATABASE_URL = testUrl;
 process.env.APP_SECRET = process.env.APP_SECRET_TEST ?? "test-only-secret-do-not-use-in-production";
 
 // Servicios externos desactivados: las pruebas nunca publican ni envían nada real.
-delete process.env.ABLY_KEY;
-delete process.env.RESEND_API_KEY;
-delete process.env.AWS_BUCKET_NAME;
-delete process.env.GOOGLE_MAPS_API_KEY;
+// Se fijan en cadena VACÍA (no se borran): `src/core/config/config.ts` llama a dotenv, que
+// rellenaría las variables ausentes desde el `.env` local (claves reales de Ably, S3, Maps...).
+// dotenv no pisa las que ya existen, y todo el código las trata como "no configurado".
+for (const key of [
+  "ABLY_KEY",
+  "RESEND_API_KEY",
+  "AWS_BUCKET_NAME",
+  "AWS_ACCESS_KEY_ID",
+  "AWS_SECRET_ACCESS_KEY",
+  "GOOGLE_MAPS_API_KEY",
+  "SMTP_HOST",
+  "SMTP_USER",
+  "SMTP_PASS",
+]) {
+  process.env[key] = "";
+}

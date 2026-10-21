@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { requireAuthUnlessPublic } from "./common/middlewares/require-auth-unless-public.middleware";
+import { requireStaff } from "./common/middlewares/role-scope.middleware";
 
 import indexRoute from "./index.routes";
 import userRoute from "./users/user.routes";
@@ -37,21 +38,23 @@ const apiRouter = Router();
 
 // Guard global: todo exige token salvo la lista blanca (core/routes/public.ts).
 // Debe ir ANTES de montar cualquier módulo.
+// Los módulos operativos (rondas, bitácora, incidencias…) solo los usa el personal: `requireStaff`
+// deja fuera al residente, que con solo sesión podía leerlos.
 apiRouter.use(requireAuthUnlessPublic);
 
 apiRouter.use("/", indexRoute);
 apiRouter.use("/users", userRoute);
-apiRouter.use("/locations", locationsRoute);
+apiRouter.use("/locations", requireStaff, locationsRoute);
 apiRouter.use("/uploads", uploadRoute);
-apiRouter.use("/kardex", kardexRoute);
-apiRouter.use("/assignments", assignmentsRoute);
+apiRouter.use("/kardex", requireStaff, kardexRoute);
+apiRouter.use("/assignments", requireStaff, assignmentsRoute);
 apiRouter.use("/recurring", recurringRoute);
-apiRouter.use("/incidents", incidentRoute);
-apiRouter.use("/club", clubRoute);
-apiRouter.use("/rounds", roundRoute);
-apiRouter.use("/schedules", scheduleRoute);
-apiRouter.use("/maintenance", maintenanceRoute);
-apiRouter.use("/reports", reportRoute);
+apiRouter.use("/incidents", requireStaff, incidentRoute);
+apiRouter.use("/club", requireStaff, clubRoute);
+apiRouter.use("/rounds", requireStaff, roundRoute);
+apiRouter.use("/schedules", requireStaff, scheduleRoute);
+apiRouter.use("/maintenance", requireStaff, maintenanceRoute);
+apiRouter.use("/reports", requireStaff, reportRoute);
 apiRouter.use("/properties", propertiesRoute);
 apiRouter.use("/residents", residentsRoute);
 apiRouter.use("/invitations", invitationsRoute);

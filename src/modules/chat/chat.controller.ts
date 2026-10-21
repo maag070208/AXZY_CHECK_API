@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { publishToChannel, ABLY_CHANNELS } from "@src/core/config/ably";
 import * as chatService from "./chat.service";
+import { respondError } from "@src/core/errors/http-error";
 
 /**
  * @description GET /chat/messages?cursor=&limit= — paginated message history,
@@ -10,13 +11,14 @@ import * as chatService from "./chat.service";
 export const getMessages = async (req: Request, res: Response) => {
   try {
     const { cursor, limit } = req.query;
-    const messages = await chatService.getMessages(
-      cursor ? Number(cursor) : undefined,
-      limit ? Number(limit) : undefined,
-    );
+    const cursorId = cursor ? Number(cursor) : undefined;
+    if (cursorId !== undefined && !Number.isInteger(cursorId)) {
+      return res.status(400).json(createTResult(null, ["El cursor no es válido"]));
+    }
+    const messages = await chatService.getMessages(cursorId, limit ? Number(limit) : undefined);
     return res.status(200).json(createTResult(messages));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };
 
@@ -46,6 +48,6 @@ export const createMessage = async (req: Request, res: Response) => {
 
     return res.status(201).json(createTResult(created));
   } catch (error: any) {
-    return res.status(500).json(createTResult(null, [error.message]));
+    return respondError(res, error);
   }
 };

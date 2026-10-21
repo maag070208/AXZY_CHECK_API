@@ -1,6 +1,16 @@
 import { transporter, resend, mailFrom } from "../config/mail";
 import { getSetting } from "../settings/app-settings.service";
 
+/**
+ * Los textos del correo vienen de lo que capturan los guardias: sin escapar, un título con HTML
+ * se inyectaba en el correo de la administración (enlaces falsos, imágenes de rastreo).
+ */
+export const escapeHtml = (value: unknown): string =>
+  String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] as string);
+
+/** Solo enlaces http(s) a la evidencia; cualquier otro esquema (javascript:, data:) se descarta. */
+const safeUrl = (url: unknown): string => (/^https?:\/\//i.test(String(url ?? "")) ? escapeHtml(url) : "#");
+
 export const sendIncidentEmail = async (incident: any, guard: any) => {
   try {
     // 1. Destinatarios desde AppSetting (separados por "|")
@@ -22,7 +32,7 @@ export const sendIncidentEmail = async (incident: any, guard: any) => {
         incident.media.forEach((m: any) => {
             const url = m.url;
             const type = m.type === 'VIDEO' ? 'Video' : 'Foto';
-            mediaLinks += `<li><a href="${url}" target="_blank">${type} - Ver evidencia</a></li>`;
+            mediaLinks += `<li><a href="${safeUrl(url)}" target="_blank" rel="noopener noreferrer">${type} - Ver evidencia</a></li>`;
         });
         mediaLinks += '</ul>';
     }
@@ -42,7 +52,7 @@ export const sendIncidentEmail = async (incident: any, guard: any) => {
           <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
             <tr>
               <td style="padding: 10px; border-bottom: 1px solid #eee; width: 30%; font-weight: bold; color: #555;">Guardia:</td>
-              <td style="padding: 10px; border-bottom: 1px solid #eee; color: #333;">${guard.name} ${guard.lastName || ''}</td>
+              <td style="padding: 10px; border-bottom: 1px solid #eee; color: #333;">${escapeHtml(`${guard.name} ${guard.lastName || ""}`.trim())}</td>
             </tr>
             <tr>
               <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold; color: #555;">Fecha:</td>
@@ -50,13 +60,13 @@ export const sendIncidentEmail = async (incident: any, guard: any) => {
             </tr>
             <tr>
               <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold; color: #555;">Título:</td>
-              <td style="padding: 10px; border-bottom: 1px solid #eee; color: #333;">${incident.title}</td>
+              <td style="padding: 10px; border-bottom: 1px solid #eee; color: #333;">${escapeHtml(incident.title)}</td>
             </tr>
             <tr>
               <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold; color: #555;">Categoría:</td>
               <td style="padding: 10px; border-bottom: 1px solid #eee; color: #333;">
                 <span style="background-color: #fce4ec; color: #c2185b; padding: 4px 8px; border-radius: 4px; font-size: 12px; font-weight: bold;">
-                  ${incident.category?.value || 'Sin categoría'}
+                  ${escapeHtml(incident.category?.value || 'Sin categoría')}
                 </span>
               </td>
             </tr>
@@ -65,7 +75,7 @@ export const sendIncidentEmail = async (incident: any, guard: any) => {
           <div style="margin-bottom: 25px;">
             <h3 style="color: #d9534f; border-bottom: 2px solid #d9534f; padding-bottom: 5px; margin-bottom: 15px;">Descripción</h3>
             <blockquote style="background: #f9f9f9; padding: 15px; border-left: 5px solid #d9534f; margin: 0; font-style: italic; color: #555;">
-              ${incident.description || 'Sin descripción'}
+              ${escapeHtml(incident.description || 'Sin descripción')}
             </blockquote>
           </div>
 
@@ -132,7 +142,7 @@ export const sendMaintenanceEmail = async (maintenance: any, guard: any) => {
         maintenance.media.forEach((m: any) => {
             const url = m.url;
             const type = m.type === 'VIDEO' ? 'Video' : 'Foto';
-            mediaLinks += `<li><a href="${url}" target="_blank">${type} - Ver evidencia</a></li>`;
+            mediaLinks += `<li><a href="${safeUrl(url)}" target="_blank" rel="noopener noreferrer">${type} - Ver evidencia</a></li>`;
         });
         mediaLinks += '</ul>';
     }
@@ -151,7 +161,7 @@ export const sendMaintenanceEmail = async (maintenance: any, guard: any) => {
           <table style="width: 100%; border-collapse: collapse; margin-bottom: 20px;">
             <tr>
               <td style="padding: 10px; border-bottom: 1px solid #eee; width: 30%; font-weight: bold; color: #555;">Reporta:</td>
-              <td style="padding: 10px; border-bottom: 1px solid #eee; color: #333;">${guard.name} ${guard.lastName || ''}</td>
+              <td style="padding: 10px; border-bottom: 1px solid #eee; color: #333;">${escapeHtml(`${guard.name} ${guard.lastName || ""}`.trim())}</td>
             </tr>
             <tr>
               <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold; color: #555;">Fecha:</td>
@@ -159,18 +169,18 @@ export const sendMaintenanceEmail = async (maintenance: any, guard: any) => {
             </tr>
             <tr>
               <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold; color: #555;">Tipo:</td>
-              <td style="padding: 10px; border-bottom: 1px solid #eee; color: #333;">${maintenance.type?.value || maintenance.title}</td>
+              <td style="padding: 10px; border-bottom: 1px solid #eee; color: #333;">${escapeHtml(maintenance.type?.value || maintenance.title)}</td>
             </tr>
             <tr>
               <td style="padding: 10px; border-bottom: 1px solid #eee; font-weight: bold; color: #555;">Categoría:</td>
-              <td style="padding: 10px; border-bottom: 1px solid #eee; color: #333;">${maintenance.categoryRel?.value || maintenance.category || 'Mantenimiento General'}</td>
+              <td style="padding: 10px; border-bottom: 1px solid #eee; color: #333;">${escapeHtml(maintenance.categoryRel?.value || maintenance.category || 'Mantenimiento General')}</td>
             </tr>
           </table>
 
           <div style="margin-bottom: 25px;">
             <h3 style="color: #f0ad4e; border-bottom: 2px solid #f0ad4e; padding-bottom: 5px; margin-bottom: 15px;">Descripción</h3>
             <blockquote style="background: #f9f9f9; padding: 15px; border-left: 5px solid #f0ad4e; margin: 0; font-style: italic; color: #555;">
-              ${maintenance.description || 'Sin descripción'}
+              ${escapeHtml(maintenance.description || 'Sin descripción')}
             </blockquote>
           </div>
 

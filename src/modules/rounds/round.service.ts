@@ -2,12 +2,16 @@
 import { USER_PUBLIC_SELECT } from "@src/core/constants/user-select";
 import { Prisma } from "@prisma/client";
 import { prismaClient } from "@src/core/config/database";
+import { logger } from "@src/core/logger/logger";
 import { TResult } from '@src/core/dto/TResult';
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 import { ABLY_CHANNELS, publishToChannel } from "@src/core/config/ably";
 
 const prisma = prismaClient;
+
+/** El detalle del fallo va al log del servidor; al cliente solo un mensaje genérico (E-19). */
+const logFailure = (error: any) => logger.error({ err: { name: error?.name, message: error?.message } }, 'error en rondas');
 
 export const getDataTableRounds = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
     // Extract custom frontend-only filters
@@ -270,10 +274,11 @@ export const startRound = async (guardId: number, recurringConfigId?: number): P
       data: newRound,
     };
   } catch (error: any) {
+      logFailure(error);
     return {
       success: false,
       data: null,
-      messages: ['Error al iniciar la ronda: ' + error.message],
+      messages: ['Error al iniciar la ronda'],
     };
   }
 };
@@ -329,10 +334,11 @@ export const endRound = async (
       data: updatedRound,
     };
   } catch (error: any) {
+      logFailure(error);
     return {
       success: false,
       data: null,
-      messages: ['Error al finalizar la ronda: ' + error.message],
+      messages: ['Error al finalizar la ronda'],
     };
   }
 };
@@ -397,7 +403,8 @@ export const getCurrentRound = async (guardId: number): Promise<TResult<any>> =>
 
         return { success: true, data: round, messages: [] };
     } catch (error: any) {
-        return { success: false, data: null, messages: ['Error al obtener la ronda actual: ' + error.message] };
+        logFailure(error);
+        return { success: false, data: null, messages: ['Error al obtener la ronda actual'] };
     }
 };
 
@@ -444,7 +451,9 @@ export const getRounds = async (dateStr?: string, guardId?: number): Promise<TRe
         return { success: true, data: rounds, messages: [] };
 
     } catch (error: any) {
-        return { success: false, data: null, messages: ['Error al obtener Historial de recorridos: ' + error.message] };
+
+        logFailure(error);
+        return { success: false, data: null, messages: ['Error al obtener Historial de recorridos'] };
     }
 };
 
@@ -574,6 +583,8 @@ export const getRoundDetail = async (roundId: number): Promise<TResult<any>> => 
         };
 
     } catch (error: any) {
-        return { success: false, data: null, messages: ['Error al obtener detalle de ronda: ' + error.message] };
+
+        logFailure(error);
+        return { success: false, data: null, messages: ['Error al obtener detalle de ronda'] };
     }
 };

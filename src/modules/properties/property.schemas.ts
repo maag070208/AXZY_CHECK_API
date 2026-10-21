@@ -11,6 +11,12 @@ const createFields = {
   typeId: positiveId,
   statusId: positiveId,
   active: flag.optional(),
+  // Datos de unidad que el servicio ya sabe guardar (A1); sin declararlos aquí Zod los descartaba en silencio.
+  buildingId: emptyable(positiveId),
+  floor: z.number().int().min(0).max(200).nullish(),
+  unitNumber: z.string().trim().max(20).nullish(),
+  maxResidents: z.number().int().min(1).max(100).nullish(),
+  vehicleQuota: z.number().int().min(0).max(50).nullish(),
 };
 
 export const createPropertyBody = z.object(createFields);

@@ -1,4 +1,5 @@
 import { prismaClient } from "@src/core/config/database";
+import { AppError } from "@src/core/errors/app-error";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 
@@ -47,6 +48,12 @@ export const updateSchedule = async (id: number, data: {
 };
 
 export const deleteSchedule = async (id: number) => {
+    // La relación es opcional (SetNull): sin esta revisión el borrado dejaría al personal sin
+    // horario y el login los rechazaría. Así lo que el controlador promete se cumple.
+    const assigned = await prismaClient.user.count({ where: { scheduleId: id, softDelete: false } });
+    if (assigned > 0) {
+        throw new AppError("SCHEDULE_IN_USE", "Este horario está asignado a uno o más guardias y no puede ser eliminado.", 400);
+    }
     return prismaClient.schedule.delete({
         where: { id }
     });
