@@ -27,23 +27,27 @@ export const getUsers = async (search?: string) => {
 };
 
 export const getDataTableUsers = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
-  const prismaParams = getPrismaPaginationParams(params);
+  const { pendingTasks, ...restFilters } = (params.filters ?? {}) as Record<string, unknown>;
+  const prismaParams = getPrismaPaginationParams({ ...params, filters: restFilters as any });
+
+  const where: any = {
+    ...prismaParams.where,
+    softDelete: false,
+  };
+
+  if (pendingTasks === true) {
+    where.assignments = { some: { tasks: { some: { completed: false } } } };
+  } else if (pendingTasks === false) {
+    where.assignments = { none: { tasks: { some: { completed: false } } } };
+  }
 
   const [rows, total] = await Promise.all([
     prismaClient.user.findMany({
       ...prismaParams,
-      where: {
-        ...prismaParams.where,
-        softDelete: false, // Maintain business logic
-      },
+      where,
       include: { schedule: true, role: true, assignments: true }
     }),
-    prismaClient.user.count({ 
-      where: {
-        ...prismaParams.where,
-        softDelete: false,
-      }
-    })
+    prismaClient.user.count({ where })
   ]);
 
   return { rows, total };

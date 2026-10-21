@@ -208,6 +208,10 @@ export const getDataTableKardex = async (params: {
       };
   }
 
+  if (filters.scanType && filters.scanType !== 'ALL') {
+      where.scanType = filters.scanType;
+  }
+
   if (filters.date && Array.isArray(filters.date) && filters.date[0]) {
       const start = new Date(filters.date[0]);
       const end = filters.date[1] ? new Date(filters.date[1]) : new Date(start);

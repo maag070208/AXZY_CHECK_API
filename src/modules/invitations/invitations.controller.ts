@@ -45,8 +45,8 @@ export const getOne = async (req: Request, res: Response) => {
 
 export const updateStatus = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const { status } = req.body;
-        const result = await invitationsService.updateInvitationStatus(Number(req.params.id), status);
+        const { status, reason } = req.body;
+        const result = await invitationsService.updateInvitationStatus(Number(req.params.id), status, reason);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return next(error);

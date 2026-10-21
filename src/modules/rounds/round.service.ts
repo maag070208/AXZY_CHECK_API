@@ -493,7 +493,35 @@ export const getRoundDetail = async (roundId: number): Promise<TResult<any>> => 
             orderBy: { timestamp: 'asc' }
         });
 
-        // 2. Fetch Incidents logic removed: Incidents and Maintenances are separate from Rounds.
+        // 2. Last known GPS coordinate per expected location, so the map can
+        //    still show gray pins for points that were not scanned this round.
+        const expectedLocationIds = round.recurringConfiguration?.recurringLocations.map((rl) => rl.locationId) ?? [];
+        const latestCoordinates = expectedLocationIds.length
+            ? await prisma.kardex.findMany({
+                where: {
+                    locationId: { in: expectedLocationIds },
+                    latitude: { not: null },
+                    longitude: { not: null },
+                },
+                orderBy: { timestamp: "desc" },
+                distinct: ["locationId"],
+                select: { locationId: true, latitude: true, longitude: true },
+            })
+            : [];
+        const coordinateByLocation = new Map(latestCoordinates.map((c) => [c.locationId, c]));
+        const roundWithCoordinates = {
+            ...round,
+            recurringConfiguration: round.recurringConfiguration
+                ? {
+                    ...round.recurringConfiguration,
+                    recurringLocations: round.recurringConfiguration.recurringLocations.map((rl) => ({
+                        ...rl,
+                        lastLatitude: coordinateByLocation.get(rl.locationId)?.latitude ?? null,
+                        lastLongitude: coordinateByLocation.get(rl.locationId)?.longitude ?? null,
+                    })),
+                }
+                : null,
+        };
 
         // 3. Construct Timeline
         const timeline: any[] = [];
@@ -539,7 +567,7 @@ export const getRoundDetail = async (roundId: number): Promise<TResult<any>> => 
         return {
             success: true,
             data: {
-                round,
+                round: roundWithCoordinates,
                 timeline
             },
             messages: []

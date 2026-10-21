@@ -17,4 +17,5 @@ export const createInvitationBody = z
 
 export const updateInvitationStatusBody = z.object({
   status: z.enum(["ENTERED", "EXITED", "CANCELLED"]),
+  reason: z.string().trim().max(500).optional(),
 });

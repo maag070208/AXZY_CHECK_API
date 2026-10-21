@@ -100,14 +100,17 @@ export const getInvitationByIdOrCode = async (identifier: string) => {
     });
 };
 
-export const updateInvitationStatus = async (id: number, status: 'ENTERED' | 'EXITED' | 'CANCELLED') => {
-    const current = await prismaClient.invitation.findUnique({ where: { id }, select: { status: true } });
+export const updateInvitationStatus = async (id: number, status: 'ENTERED' | 'EXITED' | 'CANCELLED', reason?: string) => {
+    const current = await prismaClient.invitation.findUnique({ where: { id }, select: { status: true, notes: true } });
     if (!current) throw new AppError("INVITATION_NOT_FOUND", "Invitación no encontrada", 404);
     assertTransition(INVITATION_TRANSITIONS, current.status, status);
 
     const data: any = { status };
     if (status === 'ENTERED') data.entryTime = new Date();
     if (status === 'EXITED') data.exitTime = new Date();
+    if (status === 'CANCELLED' && reason?.trim()) {
+        data.notes = current.notes ? `${current.notes}\n[Revocación] ${reason.trim()}` : `[Revocación] ${reason.trim()}`;
+    }
 
     const { count } = await prismaClient.invitation.updateMany({ where: { id, status: current.status }, data });
     assertStatusUpdated(count);

@@ -38,7 +38,9 @@ export const decideAccess = (auth: Authorization, scope: AccessScope, at: Moment
 
   const days = auth.days.split(",").map(Number);
   const minutes = at.minutes;
-  const inSchedule =
-    days.includes(at.weekday) && minutes >= toMinutes(auth.startTime) && minutes <= toMinutes(auth.endTime);
+  const start = toMinutes(auth.startTime);
+  const end = toMinutes(auth.endTime);
+  const inWindow = start <= end ? minutes >= start && minutes <= end : minutes >= start || minutes <= end;
+  const inSchedule = days.includes(at.weekday) && inWindow;
   return inSchedule ? { decision: "AUTHORIZED", reason: "IN_SCHEDULE" } : { decision: "NEEDS_APPROVAL", reason: "OUT_OF_SCHEDULE" };
 };

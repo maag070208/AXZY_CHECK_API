@@ -60,7 +60,7 @@ export const createAuthorization = async (
   input: { personId: number; scope: "PEDESTRIAN" | "VEHICLE" | "BOTH"; days: number[]; startTime: string; endTime: string; validFrom: string; validUntil?: string | null },
   actorId: number,
 ) => {
-  if (input.startTime >= input.endTime) throw new AppError("SCHEDULE_INVALID", "La hora de inicio debe ser anterior a la de fin", 400);
+  if (input.startTime === input.endTime) throw new AppError("SCHEDULE_INVALID", "La hora de inicio y la de fin no pueden ser iguales", 400);
   const property = await prismaClient.property.findUnique({ where: { id: propertyId }, select: { softDelete: true } });
   if (!property || property.softDelete) throw new AppError("PROPERTY_NOT_FOUND", "Propiedad no encontrada", 404);
   const person = await prismaClient.person.findUnique({ where: { id: input.personId }, select: { id: true } });
