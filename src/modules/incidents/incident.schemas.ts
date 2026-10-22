@@ -9,4 +9,6 @@ export const createIncidentBody = z.object({
   media: z.array(z.object({ type: z.enum(["IMAGE", "VIDEO"]), url: z.string().url() }).passthrough()).nullish(),
   latitude: optionalLatitude,
   longitude: optionalLongitude,
+  clientRef: z.string().max(100).nullish(),
+  createdAt: z.string().refine((v) => !Number.isNaN(Date.parse(v)), "no es una fecha válida").nullish(),
 });

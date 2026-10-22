@@ -37,7 +37,16 @@ export const createMaintenance = async (data: {
     media?: any;
     latitude?: number;
     longitude?: number;
+    clientRef?: string;
+    createdAt?: Date;
 }) => {
+    if (data.clientRef) {
+        const existing = await prismaClient.maintenance.findUnique({
+            where: { clientRef: data.clientRef },
+        });
+        if (existing) return existing;
+    }
+
     const maintenance = await prismaClient.maintenance.create({
         data: {
             guardId: data.guardId,
@@ -48,7 +57,9 @@ export const createMaintenance = async (data: {
             description: data.description,
             media: data.media,
             latitude: data.latitude,
-            longitude: data.longitude
+            longitude: data.longitude,
+            clientRef: data.clientRef,
+            createdAt: data.createdAt ?? undefined,
         }
     });
 

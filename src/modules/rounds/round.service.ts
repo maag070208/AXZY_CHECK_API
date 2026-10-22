@@ -144,8 +144,25 @@ const attachRoundProgress = async (rows: any[]) => {
     });
 };
 
-export const startRound = async (guardId: number, recurringConfigId?: number): Promise<TResult<any>> => {
+export const startRound = async (
+  guardId: number,
+  recurringConfigId?: number,
+  options?: { clientRef?: string; startedAt?: Date },
+): Promise<TResult<any>> => {
   try {
+    if (options?.clientRef) {
+      const existing = await prisma.round.findUnique({
+        where: { clientRef: options.clientRef },
+        include: { guard: { select: USER_PUBLIC_SELECT }, recurringConfiguration: true },
+      });
+      if (existing) {
+        if (existing.guardId !== guardId) {
+          return { success: false, data: null, messages: ['La clave de sincronización pertenece a otra ronda.'] };
+        }
+        return { success: true, messages: ['Ronda ya sincronizada'], data: existing };
+      }
+    }
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
@@ -258,8 +275,9 @@ export const startRound = async (guardId: number, recurringConfigId?: number): P
       data: {
         guardId,
         status: 'IN_PROGRESS',
-        startTime: new Date(),
-        recurringConfigurationId: recurringConfigId
+        startTime: options?.startedAt ?? new Date(),
+        recurringConfigurationId: recurringConfigId,
+        clientRef: options?.clientRef,
       },
       include: { guard: { select: USER_PUBLIC_SELECT }, recurringConfiguration: true }
     });
@@ -293,6 +311,8 @@ const ROUND_SUPERVISORS = ["ADMIN", "SHIFT"];
 export const endRound = async (
   roundId: number,
   actor?: { id: number; role: string },
+  endedAt?: Date,
+  idempotent = false,
 ): Promise<TResult<any>> => {
   try {
     const round = await prisma.round.findUnique({
@@ -315,6 +335,10 @@ export const endRound = async (
     }
 
     if (round.status === 'COMPLETED') {
+        if (idempotent) {
+            // Reintento offline: la ronda ya está en el estado deseado.
+            return { success: true, messages: ['Ronda ya finalizada'], data: round };
+        }
         return { success: false, data: null, messages: ['Esta ronda ya ha finalizado'] };
     }
 
@@ -322,7 +346,7 @@ export const endRound = async (
       where: { id: roundId },
       data: {
         status: 'COMPLETED',
-        endTime: new Date(),
+        endTime: endedAt ?? new Date(),
       },
     });
 

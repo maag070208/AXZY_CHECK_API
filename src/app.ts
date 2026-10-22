@@ -15,6 +15,7 @@ import { rejectNullBytes } from "@src/core/middlewares/reject-null-bytes.middlew
 
 //router
 import apiRouter from "@src/modules/api.router";
+import { API_META } from "@src/core/constants/api-version";
 
 //server
 export const app = express();
@@ -25,6 +26,12 @@ const allowedOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5002,http:
   .split(",")
   .map((o) => o.trim())
   .filter(Boolean);
+
+app.use((_req, res, next) => {
+  res.setHeader("X-API-Version", API_META.apiVersion);
+  res.setHeader("X-API-Build", API_META.buildVersion);
+  next();
+});
 
 app.use([
   requestContext,

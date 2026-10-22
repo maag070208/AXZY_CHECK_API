@@ -3,6 +3,7 @@ import { AppError } from "@src/core/errors/app-error";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { StorageService } from "../storage/storage.service";
 import { respondError } from "@src/core/errors/http-error";
+import { getClientRef } from "@src/core/utils/idempotency";
 
 const storageService = new StorageService();
 
@@ -30,7 +31,10 @@ export const uploadFile = async (req: Request, res: Response) => {
     const loc = sanitize(locationName);
     const ext = req.file.originalname.split('.').pop();
 
-    const finalName = `${uploader}_${loc}_${dateStr}.${ext}`;
+    const clientRef = getClientRef(req);
+    const finalName = clientRef
+      ? `${uploader}_${loc}_${sanitize(clientRef)}.${ext}`
+      : `${uploader}_${loc}_${dateStr}.${ext}`;
 
     const result = await storageService.uploadFile(req.file, bucketName, finalName);
     

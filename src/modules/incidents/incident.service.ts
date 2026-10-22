@@ -72,7 +72,16 @@ export const createIncident = async (data: {
     media?: any;
     latitude?: number;
     longitude?: number;
+    clientRef?: string;
+    createdAt?: Date;
 }) => {
+    if (data.clientRef) {
+        const existing = await prismaClient.incident.findUnique({
+            where: { clientRef: data.clientRef },
+        });
+        if (existing) return existing;
+    }
+
     const incident = await prismaClient.incident.create({
         data: {
             kind: INCIDENT_KIND,
@@ -83,7 +92,9 @@ export const createIncident = async (data: {
             description: data.description,
             media: data.media,
             latitude: data.latitude,
-            longitude: data.longitude
+            longitude: data.longitude,
+            clientRef: data.clientRef,
+            createdAt: data.createdAt ?? undefined,
         }
     });
 

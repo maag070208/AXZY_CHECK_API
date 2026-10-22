@@ -2,6 +2,7 @@ import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { NextFunction, Request, Response } from "express";
 import * as maintenanceService from "./maintenance.service";
 import { respondError } from "@src/core/errors/http-error";
+import { getClientRef, getOccurredAt } from "@src/core/utils/idempotency";
 
 export const getDataTable = async (req: Request, res: Response) => {
   try {
@@ -15,6 +16,8 @@ export const getDataTable = async (req: Request, res: Response) => {
 export const createMaintenance = async (req: Request, res: Response) => {
   try {
     const { title, category, description, media, latitude, longitude, categoryId, typeId } = req.body;
+    const clientRef = getClientRef(req);
+    const occurredAt = getOccurredAt(req);
     const guardId = req.user?.id;
 
     if (!guardId) {
@@ -34,6 +37,8 @@ export const createMaintenance = async (req: Request, res: Response) => {
       media: mediaFiles.length > 0 ? mediaFiles : undefined,
       latitude: latitude ? Number(latitude) : undefined,
       longitude: longitude ? Number(longitude) : undefined,
+      clientRef,
+      createdAt: occurredAt,
     });
 
     return res.status(201).json(createTResult(result));

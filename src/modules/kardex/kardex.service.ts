@@ -2,6 +2,7 @@ import { prismaClient } from "@src/core/config/database";
 import { LIST_MAX_ROWS } from "@src/core/constants/limits";
 import { AssignmentStatus, ScanType } from "@prisma/client";
 import { ABLY_CHANNELS, publishToChannel } from "@src/core/config/ably";
+import { AppError } from "@src/core/errors/app-error";
 
 // New Core Logic: Register Check with Automatic Classification
 export const registerCheck = async (data: {
@@ -12,7 +13,27 @@ export const registerCheck = async (data: {
   latitude?: number;
   longitude?: number;
   assignmentId?: number; // Optional manual override
+  roundId?: number;
+  clientRef?: string;
+  scannedAt?: Date;
 }) => {
+  if (data.clientRef) {
+    const existing = await prismaClient.kardex.findUnique({
+      where: { clientRef: data.clientRef },
+    });
+    if (existing) return existing;
+  }
+
+  if (data.roundId) {
+    const round = await prismaClient.round.findUnique({
+      where: { id: data.roundId },
+      select: { guardId: true },
+    });
+    if (!round || round.guardId !== data.userId) {
+      throw new AppError("ROUND_NOT_OWNED", "La ronda indicada no pertenece al guardia.", 403);
+    }
+  }
+
   let finalScanType: ScanType = ScanType.FREE;
   let finalAssignmentId = data.assignmentId;
 
@@ -64,6 +85,9 @@ export const registerCheck = async (data: {
         latitude: data.latitude,
         longitude: data.longitude,
         assignmentId: finalAssignmentId,
+        roundId: data.roundId,
+        clientRef: data.clientRef,
+        timestamp: data.scannedAt ?? undefined,
         scanType: finalScanType
     },
   });

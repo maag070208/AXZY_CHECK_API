@@ -58,6 +58,6 @@ describe("guard global de autenticación", () => {
       .filter((r) => isPublicRoute(r.method, relative(r.path)))
       .map((r) => `${r.method.toUpperCase()} ${relative(r.path)}`)
       .sort();
-    expect(publicOnes).toEqual(["GET /", "POST /users/login"]);
+    expect(publicOnes).toEqual(["GET /", "GET /meta", "POST /users/login"]);
   });
 });

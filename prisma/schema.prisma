@@ -385,8 +385,11 @@ model Kardex {
   latitude     Float?
   longitude    Float?
   assignmentId Int?
+  clientRef    String?     @unique
+  roundId      Int?
   scanType     ScanType    @default(FREE)
   assignment   Assignment? @relation(fields: [assignmentId], references: [id])
+  round        Round?      @relation(fields: [roundId], references: [id])
   location     Location    @relation(fields: [locationId], references: [id])
   user         User        @relation(fields: [userId], references: [id])
 
@@ -397,6 +400,7 @@ model Kardex {
   @@index([locationId])
   @@index([timestamp])
   @@index([userId, timestamp(sort: Desc)])
+  @@index([roundId])
 }
 
 model Assignment {
@@ -534,8 +538,10 @@ model Round {
   endTime                  DateTime?
   status                   RoundStatus             @default(IN_PROGRESS)
   recurringConfigurationId Int?
+  clientRef                String?                 @unique
   guard                    User                    @relation("GuardRounds", fields: [guardId], references: [id])
   recurringConfiguration   RecurringConfiguration? @relation(fields: [recurringConfigurationId], references: [id])
+  kardex                   Kardex[]
 
   statusId           Int?
   roundStatusCatalog RoundStatusCatalog? @relation(fields: [statusId], references: [id])
@@ -664,6 +670,7 @@ model Maintenance {
   longitude    Float?
   categoryId   Int?
   typeId       Int?
+  clientRef    String?           @unique
   categoryRel  IncidentCategory? @relation(fields: [categoryId], references: [id])
   guard        User              @relation(fields: [guardId], references: [id])
   resolvedBy   User?             @relation("MaintenanceResolver", fields: [resolvedById], references: [id])

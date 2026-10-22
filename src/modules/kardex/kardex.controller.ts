@@ -4,6 +4,7 @@ import { registerCheck, getKardex, getKardexById, updateKardex, getDataTableKard
 import { StorageService } from "../storage/storage.service";
 import { roleHasPermission } from "@src/core/permissions/permissions.service";
 import { respondError } from "@src/core/errors/http-error";
+import { getClientRef, getOccurredAt } from "@src/core/utils/idempotency";
 
 const storageService = new StorageService();
 
@@ -17,7 +18,9 @@ const canActOnBehalf = async (req: Request, ownerId: number): Promise<boolean> =
 
 export const createKardexEntry = async (req: Request, res: Response) => {
   try {
-    const { userId, locationId, notes, media, latitude, longitude, assignmentId } = req.body;
+    const { userId, locationId, notes, media, latitude, longitude, assignmentId, roundId } = req.body;
+    const clientRef = getClientRef(req);
+    const scannedAt = getOccurredAt(req, "scannedAt");
 
     if (!userId || !locationId) {
       return res.status(400).json(createTResult(null, ["userId and locationId are required"]));
@@ -37,6 +40,9 @@ export const createKardexEntry = async (req: Request, res: Response) => {
       latitude,
       longitude,
       assignmentId: assignmentId ? Number(assignmentId) : undefined,
+      roundId: roundId ? Number(roundId) : undefined,
+      clientRef,
+      scannedAt,
     });
 
     return res.status(201).json(createTResult(entry));
