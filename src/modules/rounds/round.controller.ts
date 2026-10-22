@@ -2,7 +2,7 @@ import { Request, Response } from 'express';
 import * as roundService from './round.service';
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { respondError } from "@src/core/errors/http-error";
-import { getClientRef, getOccurredAt } from "@src/core/utils/idempotency";
+import { getClientRef, getOccurredAt, getOfflineOrigin } from "@src/core/utils/idempotency";
 
 export const getDataTable = async (req: Request, res: Response) => {
   try {
@@ -17,12 +17,13 @@ export const startRound = async (req: Request, res: Response) => {
   const { recurringConfigId } = req.body;
   const clientRef = getClientRef(req);
   const startedAt = getOccurredAt(req, "startedAt");
+  const origin = getOfflineOrigin(req);
   // La identidad viene del token (la ruta exige autenticación): nunca del body.
   const userId = (req as any).user.id;
 
   const configId = recurringConfigId ? Number(recurringConfigId) : undefined;
 
-  const result = await roundService.startRound(Number(userId), configId, { clientRef, startedAt });
+  const result = await roundService.startRound(Number(userId), configId, { clientRef, startedAt, ...origin });
   return res.status(result.success ? 200 : 400).json(result);
 };
 

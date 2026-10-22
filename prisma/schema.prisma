@@ -387,6 +387,8 @@ model Kardex {
   assignmentId Int?
   clientRef    String?     @unique
   roundId      Int?
+  createdOffline Boolean     @default(false)
+  syncedAt      DateTime?
   scanType     ScanType    @default(FREE)
   assignment   Assignment? @relation(fields: [assignmentId], references: [id])
   round        Round?      @relation(fields: [roundId], references: [id])
@@ -510,6 +512,8 @@ model Incident {
   title        String
   description  String?
   media        Json?
+  createdOffline Boolean @default(false)
+  syncedAt      DateTime?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
   resolvedAt   DateTime?
@@ -536,6 +540,8 @@ model Round {
   guardId                  Int
   startTime                DateTime                @default(now())
   endTime                  DateTime?
+  createdOffline Boolean @default(false)
+  syncedAt      DateTime?
   status                   RoundStatus             @default(IN_PROGRESS)
   recurringConfigurationId Int?
   clientRef                String?                 @unique
@@ -664,6 +670,8 @@ model Maintenance {
   status       MaintenanceStatus @default(PENDING)
   resolvedAt   DateTime?
   resolvedById Int?
+  createdOffline Boolean @default(false)
+  syncedAt      DateTime?
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
   latitude     Float?

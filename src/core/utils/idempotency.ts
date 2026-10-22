@@ -26,3 +26,15 @@ export const getOccurredAt = (req: Request, field = "createdAt"): Date | undefin
   const diff = Math.abs(Date.now() - date.getTime());
   return diff <= 24 * 60 * 60 * 1000 ? date : undefined;
 };
+
+
+/** Origen de un registro sincronizado: online o desde la cola offline. */
+export const getOfflineOrigin = (req: Request) => {
+  const offline =
+    req.body?.createdOffline === true ||
+    String(req.header("X-Offline-Sync") ?? "").toLowerCase() === "true";
+  return {
+    createdOffline: offline,
+    syncedAt: offline ? new Date() : undefined,
+  };
+};

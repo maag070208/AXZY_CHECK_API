@@ -3,7 +3,7 @@ import { NextFunction, Request, Response } from "express";
 import { StorageService } from "../storage/storage.service";
 import * as incidentService from "./incident.service";
 import { respondError } from "@src/core/errors/http-error";
-import { getClientRef, getOccurredAt } from "@src/core/utils/idempotency";
+import { getClientRef, getOccurredAt, getOfflineOrigin } from "@src/core/utils/idempotency";
 
 export const getDataTable = async (req: Request, res: Response) => {
   try {
@@ -21,6 +21,7 @@ export const createIncident = async (req: Request, res: Response) => {
     const { title, categoryId, typeId, description, media, latitude, longitude } = req.body;
     const clientRef = getClientRef(req);
     const occurredAt = getOccurredAt(req);
+    const origin = getOfflineOrigin(req);
     const guardId = req.user?.id;
 
     if (!guardId) {
@@ -41,6 +42,7 @@ export const createIncident = async (req: Request, res: Response) => {
       longitude: longitude ? Number(longitude) : undefined,
       clientRef,
       createdAt: occurredAt,
+      ...origin,
     });
 
     return res.status(201).json(createTResult(result));

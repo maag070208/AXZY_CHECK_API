@@ -147,7 +147,7 @@ const attachRoundProgress = async (rows: any[]) => {
 export const startRound = async (
   guardId: number,
   recurringConfigId?: number,
-  options?: { clientRef?: string; startedAt?: Date },
+  options?: { clientRef?: string; startedAt?: Date; createdOffline?: boolean; syncedAt?: Date },
 ): Promise<TResult<any>> => {
   try {
     if (options?.clientRef) {
@@ -278,6 +278,8 @@ export const startRound = async (
         startTime: options?.startedAt ?? new Date(),
         recurringConfigurationId: recurringConfigId,
         clientRef: options?.clientRef,
+        createdOffline: options?.createdOffline ?? false,
+        syncedAt: options?.syncedAt,
       },
       include: { guard: { select: USER_PUBLIC_SELECT }, recurringConfiguration: true }
     });

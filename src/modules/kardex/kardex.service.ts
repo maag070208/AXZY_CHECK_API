@@ -16,6 +16,8 @@ export const registerCheck = async (data: {
   roundId?: number;
   clientRef?: string;
   scannedAt?: Date;
+  createdOffline?: boolean;
+  syncedAt?: Date;
 }) => {
   if (data.clientRef) {
     const existing = await prismaClient.kardex.findUnique({
@@ -88,6 +90,8 @@ export const registerCheck = async (data: {
         roundId: data.roundId,
         clientRef: data.clientRef,
         timestamp: data.scannedAt ?? undefined,
+        createdOffline: data.createdOffline ?? false,
+        syncedAt: data.syncedAt,
         scanType: finalScanType
     },
   });
