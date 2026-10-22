@@ -69,7 +69,7 @@ describe("rutas recurrentes", () => {
     expect(mine[0].recurringLocations.find((l: any) => l.locationId === third).completed).toBe(false);
 
     await prisma.round.deleteMany();
-    const start = expectOk(await api().post(`${V1}/rounds/start`).set("Authorization", s.guard1.auth).send({}));
+    const start = expectOk(await api().post(`${V1}/rounds/start`).set("Authorization", s.guard1.auth).send({ confirmed: true }));
     expect(expectOk(await api().get(`${R}/my-list`).set("Authorization", s.guard1.auth))[0].recurringLocations.some((l: any) => l.completed)).toBe(false);
     expectOk(await api().post(`${V1}/kardex`).set("Authorization", s.guard1.auth).send({ userId: s.guard1.id, locationId: first, notes: "Todo en orden", media: photo() }), 201);
     const after = expectOk(await api().get(`${R}/my-list`).set("Authorization", s.guard1.auth));
@@ -185,7 +185,7 @@ describe("rondas", () => {
   });
 
   it("sin ruta indicada: con una sola ruta asignada se usa esa; con varias hay que elegir; sin rutas es una ronda libre", async () => {
-    const auto = expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({}));
+    const auto = expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ confirmed: true }));
     expect(auto.recurringConfigurationId).toBe(flows.routes.configurationId);
     await prisma.round.updateMany({ data: { status: "COMPLETED" } });
 
@@ -195,7 +195,7 @@ describe("rondas", () => {
     expect(ambiguous.body.messages.join(" ")).toMatch(/qué ruta/);
     expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ recurringConfigId: second.id }));
 
-    const free = expectOk(await api().post(`${RD}/start`).set("Authorization", s.maint.auth).send({}));
+    const free = expectOk(await api().post(`${RD}/start`).set("Authorization", s.maint.auth).send({ confirmed: true }));
     expect(free.recurringConfigurationId).toBeNull();
   });
 
@@ -235,7 +235,7 @@ describe("rondas", () => {
   });
 
   it("terminar: solo el dueño o un supervisor; dos veces → 400; inexistente → 400 sin filtrar", async () => {
-    const started = expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({}));
+    const started = expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ confirmed: true }));
     expectFail(await api().put(`${RD}/${started.id}/end`).set("Authorization", s.guard2.auth), 403);
     expectFail(await api().put(`${RD}/${started.id}/end`).set("Authorization", s.maint.auth), 403);
     expectOk(await api().put(`${RD}/${started.id}/end`).set("Authorization", s.shift.auth));

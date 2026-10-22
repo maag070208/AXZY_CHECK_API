@@ -59,7 +59,7 @@ describe("publicación de eventos", () => {
   it("iniciar y terminar ronda, escanear, reportar y entregar turno refrescan el dashboard", async () => {
     const { prisma } = await import("./support");
     await prisma.round.updateMany({ data: { status: "COMPLETED" } });
-    const round = expectOk(await api().post(`${V1}/rounds/start`).set("Authorization", s.guard1.auth).send({}));
+    const round = expectOk(await api().post(`${V1}/rounds/start`).set("Authorization", s.guard1.auth).send({ confirmed: true }));
     const location = await prisma.location.findFirstOrThrow();
     expectOk(await api().post(`${V1}/kardex`).set("Authorization", s.guard1.auth).send({ userId: s.guard1.id, locationId: location.id }), 201);
     expectOk(await api().post(`${V1}/incidents`).set("Authorization", s.guard1.auth).send({ title: "Aviso en vivo" }), 201);

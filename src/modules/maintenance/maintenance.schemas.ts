@@ -12,4 +12,4 @@ export const createMaintenanceBody = z.object({
   typeId: emptyable(positiveId),
   clientRef: z.string().max(100).nullish(),
   createdAt: z.string().refine((v) => !Number.isNaN(Date.parse(v)), "no es una fecha válida").nullish(),
-});
+}).strict();

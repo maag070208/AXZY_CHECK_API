@@ -295,6 +295,13 @@ export const startRound = async (
     };
   } catch (error: any) {
       logFailure(error);
+    if (error?.code === 'P2002') {
+      return {
+        success: false,
+        data: null,
+        messages: ['Ya tienes una ronda activa. Termínala antes de iniciar otra.'],
+      };
+    }
     return {
       success: false,
       data: null,

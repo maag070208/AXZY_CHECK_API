@@ -122,13 +122,19 @@ describe("invitaciones", () => {
 });
 
 describe("rondas", () => {
-  it("la ronda se inicia a nombre del usuario del token, no del guardId del cuerpo", async () => {
+  it("rechaza guardId en el cuerpo y exige confirmación explícita", async () => {
     const guard = await buildUser("GUARD");
     const otherGuard = await buildUser("GUARD");
+    const rejected = await request(app)
+      .post("/api/v1/rounds/start")
+      .set("Authorization", `Bearer ${tokenFor(guard)}`)
+      .send({ guardId: otherGuard.id, confirmed: true });
+    expect(rejected.status).toBe(400);
+
     const res = await request(app)
       .post("/api/v1/rounds/start")
       .set("Authorization", `Bearer ${tokenFor(guard)}`)
-      .send({ guardId: otherGuard.id });
+      .send({ confirmed: true });
     expect(res.status).toBe(200);
     const round = await prisma.round.findFirstOrThrow({ where: { status: "IN_PROGRESS" } });
     expect(round.guardId).toBe(guard.id);

@@ -14,7 +14,14 @@ export const getDataTable = async (req: Request, res: Response) => {
 };
 
 export const startRound = async (req: Request, res: Response) => {
-  const { recurringConfigId } = req.body;
+  const { recurringConfigId, confirmed } = req.body;
+  if (confirmed !== true) {
+    return res.status(400).json({
+      success: false,
+      data: null,
+      messages: ['Debes confirmar el inicio de la ronda.'],
+    });
+  }
   const clientRef = getClientRef(req);
   const startedAt = getOccurredAt(req, "startedAt");
   const origin = getOfflineOrigin(req);

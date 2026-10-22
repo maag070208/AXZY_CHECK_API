@@ -6,7 +6,7 @@
  * - minor: nueva capacidad compatible
  * - major: cambio incompatible (la APP debe actualizarse)
  */
-export const API_VERSION = "1.3.0";
+export const API_VERSION = "1.4.0";
 export const API_MAJOR = Number(API_VERSION.split(".")[0]);
 export const API_MIN_APP_VERSION = "1.0.23";
 

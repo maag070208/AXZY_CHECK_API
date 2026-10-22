@@ -29,10 +29,13 @@ export const registerCheck = async (data: {
   if (data.roundId) {
     const round = await prismaClient.round.findUnique({
       where: { id: data.roundId },
-      select: { guardId: true },
+      select: { guardId: true, status: true },
     });
     if (!round || round.guardId !== data.userId) {
       throw new AppError("ROUND_NOT_OWNED", "La ronda indicada no pertenece al guardia.", 403);
+    }
+    if (round.status !== 'IN_PROGRESS') {
+      throw new AppError("ROUND_CLOSED", "La ronda indicada ya está cerrada.", 409);
     }
   }
 

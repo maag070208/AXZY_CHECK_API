@@ -14,7 +14,7 @@ export const createKardexBody = z.object({
   roundId: emptyable(positiveId),
   clientRef: z.string().max(100).nullish(),
   scannedAt: z.string().refine((v) => !Number.isNaN(Date.parse(v)), "no es una fecha válida").nullish(),
-});
+}).strict();
 
 export const updateKardexBody = z.object({
   notes: z.string().max(2000).nullish(),

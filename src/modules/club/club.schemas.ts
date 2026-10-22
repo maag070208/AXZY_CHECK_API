@@ -11,4 +11,4 @@ export const createClubBody = z.object({
   longitude: optionalLongitude,
   clientRef: z.string().max(100).nullish(),
   createdAt: z.string().refine((v) => !Number.isNaN(Date.parse(v)), "no es una fecha válida").nullish(),
-});
+}).strict();
