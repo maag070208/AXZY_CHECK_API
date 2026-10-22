@@ -265,26 +265,46 @@ export const getRecurringConfigurationsForUser = async (userId: number) => {
                 userId,
                 locationId: { in: locationIds },
                 timestamp: { gte: filterDate },
-                // Solo escaneos completos (con notas), no borradores vacíos.
-                notes: { not: '' },
             },
-            select: { locationId: true, timestamp: true },
+            select: { locationId: true, timestamp: true, media: true, notes: true },
             orderBy: { timestamp: 'asc' },
         })
         : [];
 
-    const firstScanByLocation = new Map<number, Date>();
+    // COMPLETED requiere reporte guardado (notas) Y al menos una evidencia.
+    // Si se guardó sin fotos/videos, o quedó en borrador, es NOT_COMPLETED.
+    // Si luego se completa con evidencia, gana el escaneo completado más reciente.
+    const scanState = new Map<
+        number,
+        { latest?: (typeof scans)[number]; completed?: (typeof scans)[number] }
+    >();
     for (const scan of scans) {
-        if (!firstScanByLocation.has(scan.locationId)) {
-            firstScanByLocation.set(scan.locationId, scan.timestamp);
+        const entry = scanState.get(scan.locationId) ?? {};
+        if (!entry.latest || scan.timestamp > entry.latest.timestamp) entry.latest = scan;
+        const media = Array.isArray(scan.media) ? scan.media : [];
+        const isCompletedScan = !!scan.notes?.trim() && media.length > 0;
+        if (isCompletedScan && (!entry.completed || scan.timestamp > entry.completed.timestamp)) {
+            entry.completed = scan;
         }
+        scanState.set(scan.locationId, entry);
     }
 
     return configs.map((config) => ({
         ...config,
         recurringLocations: config.recurringLocations.map((loc) => {
-            const completedAt = firstScanByLocation.get(loc.locationId);
-            return { ...loc, completed: !!completedAt, completedAt };
+            const state = scanState.get(loc.locationId);
+            const chosen = state?.completed ?? state?.latest;
+            const isCompleted = !!state?.completed;
+            const media = Array.isArray(chosen?.media) ? chosen.media : [];
+            return {
+                ...loc,
+                completed: isCompleted,
+                status: isCompleted ? 'COMPLETED' : chosen ? 'NOT_COMPLETED' : 'PENDING',
+                completedAt: state?.completed?.timestamp ?? null,
+                startedAt: chosen?.timestamp ?? null,
+                reportSaved: !!chosen?.notes?.trim(),
+                mediaCount: media.length,
+            };
         }),
     }));
 };
