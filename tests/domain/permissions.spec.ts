@@ -5,7 +5,7 @@
 import request from "supertest";
 import { app } from "@src/app";
 import { roleHasPermission } from "@src/core/permissions/permissions.service";
-import { PERMISSIONS } from "@src/core/permissions/permission-matrix";
+import { ROLE_PERMISSIONS } from "@src/core/permissions/permission-matrix";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
 import { buildUser, tokenFor } from "../factories";
 
@@ -18,9 +18,9 @@ afterAll(async () => {
 });
 
 describe("matriz sembrada", () => {
-  it("ADMIN tiene todos los permisos", async () => {
+  it("ADMIN tiene todos los permisos de administración", async () => {
     const count = await prisma.rolePermission.count({ where: { role: { name: "ADMIN" } } });
-    expect(count).toBe(PERMISSIONS.length);
+    expect(count).toBe(ROLE_PERMISSIONS.ADMIN.length);
   });
 
   it("GUARD tiene consulta de caseta, chat y rutas operativas", async () => {

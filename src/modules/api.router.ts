@@ -33,6 +33,7 @@ import buildingsRoute from "./buildings/buildings.routes";
 import personsRoute from "./persons/persons.routes";
 import authorizationsRoute from "./authorizations/authorizations.routes";
 import syncRoute from "./sync/sync.routes";
+import rbacRoute from "./rbac/rbac.routes";
 
 
 const apiRouter = Router();
@@ -72,6 +73,7 @@ apiRouter.use("/buildings", buildingsRoute);
 apiRouter.use("/persons", personsRoute);
 apiRouter.use("/authorizations", authorizationsRoute);
 apiRouter.use("/sync", requireStaff, syncRoute);
+apiRouter.use("/rbac", rbacRoute);
 
 // Catálogos administrables (T-F0-04): un router generado por cada entrada del registro.
 apiRouter.get("/catalogs", (_req, res) =>

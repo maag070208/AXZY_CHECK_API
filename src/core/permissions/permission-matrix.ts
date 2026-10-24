@@ -48,14 +48,27 @@ export const PERMISSIONS = [
   { code: "club.create", description: "Crear reportes de casa club" },
   { code: "club.resolve", description: "Resolver reportes de casa club" },
   { code: "club.delete", description: "Eliminar reportes de casa club" },
+  // Autoservicio del residente (no se asigna a ADMIN: no es una capacidad de administración).
+  { code: "resident.self", description: "Consultar mi perfil y mis contactos" },
+  { code: "invitation.view", description: "Consultar mis invitaciones" },
+  { code: "invitation.create", description: "Generar mis invitaciones" },
+  { code: "invitation.revoke", description: "Revocar mis invitaciones" },
 ] as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[number]["code"];
 
 const ALL = PERMISSIONS.map((p) => p.code) as PermissionCode[];
+const SELF_SERVICE: PermissionCode[] = [
+  "resident.self",
+  "invitation.view",
+  "invitation.create",
+  "invitation.revoke",
+];
+// ADMIN conserva la administración, pero no los permisos de autoservicio del residente.
+const ADMIN_CODES = ALL.filter((code) => !SELF_SERVICE.includes(code));
 
 export const ROLE_PERMISSIONS: Record<string, readonly PermissionCode[]> = {
-  ADMIN: ALL,
+  ADMIN: ADMIN_CODES,
   SHIFT: [
     "access.check",
     "assignments.manage",
@@ -122,5 +135,5 @@ export const ROLE_PERMISSIONS: Record<string, readonly PermissionCode[]> = {
     "club.resolve",
     "club.delete",
   ],
-  RESDN: [],
+  RESDN: ["resident.self", "invitation.view", "invitation.create", "invitation.revoke"],
 };
