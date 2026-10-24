@@ -8,12 +8,12 @@ import { createKardexBody, updateKardexBody } from "./kardex.schemas";
 
 const router = Router();
 
-router.post("/", authenticate, validate({ body: createKardexBody }), createKardexEntry);
-router.get("/", authenticate, getKardexEntries);
-router.get("/:id", authenticate, getKardexDetail);
+router.post("/", authenticate, requirePermission("round.scan"), validate({ body: createKardexBody }), createKardexEntry);
+router.get("/", authenticate, requirePermission("kardex.view"), getKardexEntries);
+router.get("/:id", authenticate, requirePermission("kardex.view"), getKardexDetail);
 router.patch("/:id", authenticate, validate({ params: idParam, body: updateKardexBody }), updateKardexEntry);
-router.delete("/:id", requirePermission("kardex.manage"), authenticate, deleteKardexEntry);
-router.delete("/:id/media", requirePermission("kardex.manage"), authenticate, deleteMedia);
-router.post("/datatable", authenticate, getDataTableKardexEntries);
+router.delete("/:id", authenticate, requirePermission("kardex.delete"), deleteKardexEntry);
+router.delete("/:id/media", authenticate, requirePermission("kardex.delete"), deleteMedia);
+router.post("/datatable", authenticate, requirePermission("kardex.view"), getDataTableKardexEntries);
 
 export default router;

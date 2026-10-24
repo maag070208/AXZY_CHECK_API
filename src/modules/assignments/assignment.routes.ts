@@ -16,7 +16,7 @@ router.get("/all", requirePermission("assignments.manage"), getAllAssignments);
 router.patch("/:id/status", requirePermission("assignments.manage"), validate({ params: idParam, body: updateAssignmentStatusBody }), updateStatus);
 
 // Personal operativo: ver las suyas y completar tareas.
-router.get("/me", getMyAssignments);
-router.patch("/tasks/:taskId/toggle", toggleTask);
+router.get("/me", requirePermission("assignment.view"), getMyAssignments);
+router.patch("/tasks/:taskId/toggle", requirePermission("assignment.view"), toggleTask);
 
 export default router;

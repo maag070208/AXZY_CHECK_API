@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { getSetting } from "@src/core/settings/app-settings.service";
+import { getPermissionsForRole } from "@src/core/permissions/permissions.service";
 import { addUser, deleteUser as deleteUserService, getDataTableUsers, getUserById, getUserByUsername, getUsers, updateUser } from "./user.service";
 
 export const getDataTable = async (req: Request, res: Response) => {
@@ -258,6 +259,23 @@ export const deleteUser = async (req: Request, res: Response) => {
       return res.status(404).json(createTResult(null, ["Usuario no encontrado"]));
     }
     return res.status(200).json(createTResult(true));
+  } catch (error: any) {
+    return respondError(res, error);
+  }
+};
+
+/**
+ * Permisos efectivos del usuario autenticado. La WEB los usa para pintar
+ * rutas/acciones; el API sigue validando cada endpoint con requirePermission.
+ */
+export const getMyPermissions = async (req: Request, res: Response) => {
+  try {
+    const role = req.user?.role;
+    if (!role) {
+      return res.status(401).json(createTResult(null, ["No autenticado"]));
+    }
+    const permissions = await getPermissionsForRole(role);
+    return res.status(200).json(createTResult({ role, permissions }));
   } catch (error: any) {
     return respondError(res, error);
   }

@@ -8,13 +8,13 @@ import { createMaintenanceBody } from "./maintenance.schemas";
 
 const router = Router();
 
-router.post("/", authenticate, validate({ body: createMaintenanceBody }), maintenanceController.createMaintenance);
-router.post("/datatable", maintenanceController.getDataTable);
-router.get("/", authenticate, maintenanceController.getMaintenances);
-router.get("/pending-count", authenticate, maintenanceController.getPendingCount);
-router.put("/:id/resolve", requirePermission("maintenance.manage"), authenticate, maintenanceController.resolveMaintenance);
-router.delete("/:id", requirePermission("maintenance.manage"), authenticate, maintenanceController.deleteMaintenance);
-router.delete("/:id/media", requirePermission("maintenance.manage"), authenticate, maintenanceController.deleteMedia);
+router.post("/", authenticate, requirePermission("maintenance.create"), validate({ body: createMaintenanceBody }), maintenanceController.createMaintenance);
+router.post("/datatable", requirePermission("maintenance.view"), maintenanceController.getDataTable);
+router.get("/", authenticate, requirePermission("maintenance.view"), maintenanceController.getMaintenances);
+router.get("/pending-count", authenticate, requirePermission("maintenance.view"), maintenanceController.getPendingCount);
+router.put("/:id/resolve", authenticate, requirePermission("maintenance.resolve"), maintenanceController.resolveMaintenance);
+router.delete("/:id", authenticate, requirePermission("maintenance.delete"), maintenanceController.deleteMaintenance);
+router.delete("/:id/media", authenticate, requirePermission("maintenance.delete"), maintenanceController.deleteMedia);
 
 router.use(maintenanceReportRouter);
 

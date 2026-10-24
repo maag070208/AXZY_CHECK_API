@@ -7,12 +7,12 @@ import { authenticate } from "../common/middlewares/auth.middleware";
 
 const router = Router();
 
-router.post("/", authenticate, validate({ body: createIncidentBody }), incidentController.createIncident);
-router.post("/datatable", incidentController.getDataTable);
-router.get("/", authenticate, incidentController.getIncidents);
-router.get("/pending-count", authenticate, incidentController.getPendingCount);
-router.put("/:id/resolve", requirePermission("incidents.manage"), authenticate, incidentController.resolveIncident);
-router.delete("/:id", requirePermission("incidents.manage"), authenticate, incidentController.deleteIncident);
-router.delete("/:id/media", requirePermission("incidents.manage"), authenticate, incidentController.deleteMedia);
+router.post("/", authenticate, requirePermission("incident.create"), validate({ body: createIncidentBody }), incidentController.createIncident);
+router.post("/datatable", requirePermission("incident.view"), incidentController.getDataTable);
+router.get("/", authenticate, requirePermission("incident.view"), incidentController.getIncidents);
+router.get("/pending-count", authenticate, requirePermission("incident.view"), incidentController.getPendingCount);
+router.put("/:id/resolve", authenticate, requirePermission("incident.resolve"), incidentController.resolveIncident);
+router.delete("/:id", authenticate, requirePermission("incident.delete"), incidentController.deleteIncident);
+router.delete("/:id/media", authenticate, requirePermission("incident.delete"), incidentController.deleteMedia);
 
 export default router;

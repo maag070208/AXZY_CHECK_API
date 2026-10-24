@@ -28,7 +28,20 @@ describe("matriz sembrada", () => {
       where: { role: { name: "GUARD" } },
       include: { permission: true },
     })).map((rp) => rp.permission.code).sort();
-    expect(codes).toEqual(["access.check", "chat.use", "recurring.operate"]);
+    expect(codes).toEqual([
+      "access.check",
+      "assignment.view",
+      "chat.use",
+      "club.create",
+      "club.view",
+      "incident.create",
+      "maintenance.create",
+      "recurring.operate",
+      "round.end",
+      "round.scan",
+      "round.start",
+      "round.view",
+    ]);
   });
 
   it("RESDN no tiene ningún permiso", async () => {

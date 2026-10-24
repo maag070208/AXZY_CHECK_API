@@ -2,7 +2,7 @@ import Router from "express";
 import { validate } from "@src/core/validation/validate";
 import { idParam } from "@src/core/validation/common";
 import { loginBody, createUserBody, updateUserBody, changePasswordBody, resetPasswordBody } from "./user.schemas";
-import { createUser, getAllUsers, login, updateUserProfile, changePassword, logout, resetPassword, deleteUser, getDataTable } from "./user.controller";
+import { createUser, getAllUsers, login, updateUserProfile, changePassword, logout, resetPassword, deleteUser, getDataTable, getMyPermissions } from "./user.controller";
 import { requirePermission } from "@src/modules/common/middlewares/require-permission.middleware";
 import { loginRateLimiter } from "@src/core/middlewares/rate-limit.middleware";
 import { selfOrPermission } from "@src/modules/common/middlewares/require-permission.middleware";
@@ -12,6 +12,7 @@ const router = Router();
 // Públicas (sin token): solo POST /login, declarada en core/routes/public.ts.
 // Resto: el guard global exige token. Aquí se añade el control de rol.
 
+router.get("/me/permissions", getMyPermissions);
 router.post("/datatable", requirePermission("users.read"), getDataTable);
 router.get("/", requirePermission("users.read"), getAllUsers);
 router.post("/login", loginRateLimiter, validate({ body: loginBody }), login);
