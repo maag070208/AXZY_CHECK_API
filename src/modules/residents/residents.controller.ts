@@ -10,6 +10,7 @@ import {
     getRelationshipsList
 } from "./residents.service";
 import { getUserByUsername } from "../users/user.service";
+import { getResidentFinance as getResidentFinanceByUser } from "../finance/finance.service";
 import { updateOwnResidentProfile } from "./residents.service";
 import { hashPassword } from "@src/core/utils/security";
 import { respondError } from "@src/core/errors/http-error";
@@ -156,4 +157,21 @@ export const getRelationships = async (req: Request, res: Response) => {
     } catch (error: any) {
         return respondError(res, error);
     }
+};
+
+/**
+ * Estado de cuenta de un residente para el expediente (personal).
+ * El endpoint de autoservicio `/residents/me/*` sigue siendo exclusivo del residente.
+ */
+export const getResidentFinanceById = async (req: Request, res: Response) => {
+  try {
+    const resident = await getResidentById(Number(req.params.id));
+    if (!resident) {
+      return res.status(404).json(createTResult(null, ["Residente no encontrado"]));
+    }
+    const result = await getResidentFinanceByUser(resident.id);
+    return res.status(200).json(createTResult(result));
+  } catch (error: any) {
+    return respondError(res, error);
+  }
 };

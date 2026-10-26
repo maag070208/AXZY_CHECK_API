@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { positiveId } from "@src/core/validation/common";
 
-export const CHARGE_CATEGORIES = ["CUOTA", "MANTENIMIENTO", "EXTRA"] as const;
+export const CHARGE_CATEGORIES = ["CUOTA", "MANTENIMIENTO", "EXTRA", "RECARGO"] as const;
 export const CHARGE_STATUSES = ["PENDING", "PARTIAL", "PAID", "CANCELLED"] as const;
 export const PAYMENT_METHODS = ["EFECTIVO", "TRANSFERENCIA", "TARJETA", "AJUSTE"] as const;
 

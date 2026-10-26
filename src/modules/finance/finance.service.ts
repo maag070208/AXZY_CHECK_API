@@ -250,44 +250,70 @@ export const generateMonthlyCharges = async (actor: FinanceActor, input: Monthly
     orderBy: { id: "asc" },
   });
 
-  const results: Array<{ propertyId: number; status: string; chargeId?: number; message?: string }> = [];
+  if (properties.length === 0) return { created: 0, skipped: 0, results: [] };
 
-  for (const property of properties) {
-    try {
-      const residentId = await resolveResidentId(property.id);
-      const existing = await prismaClient.charge.findFirst({
-        where: { propertyId: property.id, period: input.period },
-        select: { id: true },
-      });
-      if (existing) {
-        results.push({ propertyId: property.id, status: "skipped" });
-        continue;
-      }
+  const propertyIds = properties.map((property) => property.id);
 
-      const charge = await prismaClient.charge.create({
-        data: {
-          propertyId: property.id,
-          residentId,
-          concept: input.concept?.trim() || `Cuota mensual ${input.period}`,
-          category: ChargeCategory.CUOTA,
-          amount: toMoney(amount),
-          dueDate: dateOnly(input.dueDate),
-          period: input.period,
-          createdById: actor.id,
-        },
-        select: { id: true },
-      });
-      results.push({ propertyId: property.id, status: "created", chargeId: charge.id });
-    } catch (error: any) {
-      if (error instanceof AppError && error.code === "NO_RESIDENT") {
-        results.push({ propertyId: property.id, status: "skipped_no_resident" });
-      } else if (error?.code === "P2002") {
-        results.push({ propertyId: property.id, status: "skipped" });
-      } else {
-        results.push({ propertyId: property.id, status: "error", message: error?.message ?? "Error" });
-      }
+  // Una sola lectura de titulares y cuotas existentes evita 2-3 consultas por propiedad.
+  const residents = await prismaClient.resident.findMany({
+    where: { propertyId: { in: propertyIds }, status: ResidentStatus.ACTIVE, property: { softDelete: false } },
+    orderBy: [{ isPrimary: "desc" }, { id: "asc" }],
+    select: { propertyId: true, person: { select: { userId: true } } },
+  });
+  const residentByProperty = new Map<number, number>();
+  for (const resident of residents) {
+    if (!residentByProperty.has(resident.propertyId) && resident.person?.userId) {
+      residentByProperty.set(resident.propertyId, resident.person.userId);
     }
   }
+
+  const existing = await prismaClient.charge.findMany({
+    where: { propertyId: { in: propertyIds }, period: input.period },
+    select: { propertyId: true },
+  });
+  const existingSet = new Set(existing.map((charge) => charge.propertyId));
+
+  const concept = input.concept?.trim() || `Cuota mensual ${input.period}`;
+  const candidates = properties.filter(
+    (property) => residentByProperty.has(property.id) && !existingSet.has(property.id),
+  );
+
+  if (candidates.length > 0) {
+    await prismaClient.charge.createMany({
+      data: candidates.map((property) => ({
+        propertyId: property.id,
+        residentId: residentByProperty.get(property.id)!,
+        concept,
+        category: ChargeCategory.CUOTA,
+        amount: toMoney(amount),
+        dueDate: dateOnly(input.dueDate),
+        period: input.period,
+        createdById: actor.id,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  const createdCharges = candidates.length
+    ? await prismaClient.charge.findMany({
+        where: { propertyId: { in: candidates.map((property) => property.id) }, period: input.period },
+        select: { id: true, propertyId: true },
+      })
+    : [];
+  const createdByProperty = new Map(createdCharges.map((charge) => [charge.propertyId, charge.id]));
+
+  const results = properties.map((property) => {
+    if (!residentByProperty.has(property.id)) {
+      return { propertyId: property.id, status: "skipped_no_resident" };
+    }
+    if (existingSet.has(property.id)) {
+      return { propertyId: property.id, status: "skipped" };
+    }
+    const chargeId = createdByProperty.get(property.id);
+    return chargeId
+      ? { propertyId: property.id, status: "created", chargeId }
+      : { propertyId: property.id, status: "skipped" };
+  });
 
   return {
     created: results.filter((row) => row.status === "created").length,

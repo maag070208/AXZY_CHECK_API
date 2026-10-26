@@ -136,6 +136,7 @@ model Property {
   charges        Charge[]
   payments       Payment[]
   incidents      Incident[]
+  collectionConfig CollectionConfig?
   id             Int            @id @default(autoincrement())
   identifier     String         @unique
   name           String
@@ -633,6 +634,23 @@ enum ChargeCategory {
   CUOTA
   MANTENIMIENTO
   EXTRA
+  RECARGO
+}
+
+/// Periodicidad de la cuota de cobranza. Los meses se suman a `nextChargeDate`.
+enum CollectionFrequency {
+  MONTHLY
+  BIMONTHLY
+  QUARTERLY
+  FOUR_MONTHLY
+  SEMIANNUAL
+  ANNUAL
+}
+
+enum LateFeeType {
+  NONE
+  FIXED
+  PERCENT
 }
 
 enum ChargeStatus {
@@ -670,12 +688,36 @@ model Charge {
   resident        User           @relation("ResidentCharges", fields: [residentId], references: [id])
   createdBy       User           @relation("ChargeCreator", fields: [createdById], references: [id])
   allocations     PaymentAllocation[]
+  /// Cargo original que generó este recargo. Evita recargos duplicados.
+  sourceChargeId  Int?           @unique
+  sourceCharge    Charge?        @relation("ChargeRecargo", fields: [sourceChargeId], references: [id], onDelete: SetNull)
+  recargos        Charge[]       @relation("ChargeRecargo")
 
   /// Cuota mensual única por propiedad y periodo (los cargos sin periodo tienen NULL).
   @@unique([propertyId, period])
   @@index([residentId, status, dueDate])
   @@index([propertyId, status])
   @@index([dueDate])
+}
+
+/// Configuración de cobranza por propiedad: periodicidad, vencimiento y recargos.
+model CollectionConfig {
+  id             Int                  @id @default(autoincrement())
+  propertyId     Int                  @unique
+  property       Property             @relation(fields: [propertyId], references: [id])
+  concept        String               @default("Cuota de mantenimiento")
+  amount         Decimal              @db.Decimal(10, 2)
+  frequency      CollectionFrequency  @default(MONTHLY)
+  /// Día del mes en que vence la cuota (1-28).
+  dueDay         Int                  @default(10)
+  /// Fecha del siguiente cargo a generar. Se avanza según `frequency`.
+  nextChargeDate DateTime             @db.Date
+  graceDays      Int                  @default(5)
+  lateFeeType    LateFeeType          @default(NONE)
+  lateFeeValue   Decimal              @default(0) @db.Decimal(10, 2)
+  active         Boolean              @default(true)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
 }
 
 model Payment {

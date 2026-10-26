@@ -231,6 +231,28 @@ describe("pagos y saldo", () => {
     expect(balance.body.data.payments).toBeUndefined();
   });
 
+  it("el personal consulta el estado de cuenta del residente desde su expediente", async () => {
+    const property = await makeProperty("F-EXP");
+    const resident = await makeResident(property.id);
+    const auth = await adminAuth();
+    await createCharge(auth, { propertyId: property.id, residentId: resident.user.id, amount: 1000 });
+    const payment = await pay(auth, { propertyId: property.id, residentId: resident.user.id, amount: 400 });
+    expect(payment.status).toBe(201);
+
+    const res = await request(app)
+      .get(`${api}/residents/${resident.user.id}/finance`)
+      .set("Authorization", auth);
+    expect(res.status).toBe(200);
+    expect(res.body.data.summary).toMatchObject({ totalCharges: 1000, totalPaid: 400, balance: 600 });
+    expect(res.body.data.charges).toHaveLength(1);
+    expect(res.body.data.charges[0]).toMatchObject({ amount: 1000, paidAmount: 400, outstanding: 600 });
+    expect(res.body.data.payments).toHaveLength(1);
+    expect(res.body.data.payments[0]).toMatchObject({ amount: 400, folio: 1, appliedAmount: 400 });
+
+    expect((await request(app).get(`${api}/residents/${resident.user.id}/finance`).set("Authorization", resident.auth)).status).toBe(403);
+    expect((await request(app).get(`${api}/residents/999999/finance`).set("Authorization", auth)).status).toBe(404);
+  });
+
   it("el residente no registra ni reversa pagos", async () => {
     const property = await makeProperty("F-5");
     const resident = await makeResident(property.id);

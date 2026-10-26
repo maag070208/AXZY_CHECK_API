@@ -12,7 +12,8 @@ import {
     putResident, 
     removeResident,
     getRelationships,
-    putOwnProfile
+    putOwnProfile,
+    getResidentFinanceById
 } from "./residents.controller";
 import { 
     getResidentContacts, 
@@ -60,6 +61,15 @@ router.get("/kinds", requirePermission("properties.view"), async (_req, res, nex
     return next(error);
   }
 });
+// Estado de cuenta del expediente (personal con permisos de finanzas).
+router.get(
+  "/:id/finance",
+  requireStaff,
+  requirePermission("charge.view"),
+  requirePermission("payment.view"),
+  validate({ params: idParam }),
+  getResidentFinanceById,
+);
 router.get("/:id", selfOrStaff(), getResident);
 router.post("/", requirePermission("residents.manage"), validate({ body: addResidentBody }), addResident);
 router.put("/:id", requirePermission("residents.manage"), validate({ params: idParam, body: putResidentBody }), putResident);
