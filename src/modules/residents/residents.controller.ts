@@ -10,6 +10,7 @@ import {
     getRelationshipsList
 } from "./residents.service";
 import { getUserByUsername } from "../users/user.service";
+import { updateOwnResidentProfile } from "./residents.service";
 import { hashPassword } from "@src/core/utils/security";
 import { respondError } from "@src/core/errors/http-error";
 
@@ -124,6 +125,15 @@ export const putResident = async (req: Request, res: Response) => {
 
         const result = await updateResidentUser(Number(id), userData, profileData);
         return res.status(200).json(createTResult(result));
+    } catch (error: any) {
+        return respondError(res, error);
+    }
+};
+
+export const putOwnProfile = async (req: Request, res: Response) => {
+    try {
+        const profile = await updateOwnResidentProfile(Number(req.params.id), req.body);
+        return res.status(200).json(createTResult(profile));
     } catch (error: any) {
         return respondError(res, error);
     }

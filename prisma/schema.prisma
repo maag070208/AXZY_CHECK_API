@@ -63,6 +63,10 @@ model InvitationType {
 }
 
 model User {
+  complaintsAuthored    Complaint[]        @relation("ComplaintAuthor")
+  complaintsAssigned    Complaint[]        @relation("ComplaintAssignee")
+  complaintMessages     ComplaintMessage[]
+  complaintEvents       ComplaintEvent[]
   id                       Int                      @id @default(autoincrement())
   name                     String
   lastName                 String?
@@ -121,6 +125,7 @@ model Schedule {
 }
 
 model Property {
+  complaints     Complaint[]
   id             Int            @id @default(autoincrement())
   identifier     String         @unique
   name           String
@@ -325,6 +330,8 @@ model ResidentProfile {
   email            String?
   ineFrontUrl      String?
   ineBackUrl       String?
+  photoUrl         String?
+  photoKey         String?
   emergencyContact String?
   emergencyPhone   String?
   notes            String?
@@ -535,6 +542,75 @@ model Incident {
   @@index([kind, status, createdAt(sort: Desc)])
 }
 
+/// Buzón de quejas del residente (módulo 13). Siempre identificadas: `authorId` obligatorio.
+enum ComplaintCategory {
+  MANTENIMIENTO
+  SEGURIDAD
+  RUIDO
+  LIMPIEZA
+  ADMINISTRACION
+  SUGERENCIA
+  OTRA
+}
+
+enum ComplaintStatus {
+  NEW
+  IN_REVIEW
+  WAITING_RESIDENT
+  RESOLVED
+  CLOSED
+}
+
+model Complaint {
+  id           Int               @id @default(autoincrement())
+  propertyId   Int
+  authorId     Int
+  assignedToId Int?
+  category     ComplaintCategory
+  title        String
+  description  String
+  media        Json?
+  status       ComplaintStatus   @default(NEW)
+  resolvedAt   DateTime?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  property     Property          @relation(fields: [propertyId], references: [id])
+  author       User              @relation("ComplaintAuthor", fields: [authorId], references: [id])
+  assignedTo   User?             @relation("ComplaintAssignee", fields: [assignedToId], references: [id])
+  messages     ComplaintMessage[]
+  events       ComplaintEvent[]
+
+  @@index([propertyId, createdAt(sort: Desc)])
+  @@index([status, createdAt(sort: Desc)])
+}
+
+model ComplaintMessage {
+  id          Int       @id @default(autoincrement())
+  complaintId Int
+  authorId    Int
+  body        String
+  /// Nota interna del personal: nunca se devuelve al residente.
+  internal    Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  complaint   Complaint @relation(fields: [complaintId], references: [id])
+  author      User      @relation(fields: [authorId], references: [id])
+
+  @@index([complaintId, createdAt])
+}
+
+model ComplaintEvent {
+  id          Int             @id @default(autoincrement())
+  complaintId Int
+  fromStatus  ComplaintStatus?
+  toStatus    ComplaintStatus
+  byUserId    Int
+  createdAt   DateTime        @default(now())
+  complaint   Complaint       @relation(fields: [complaintId], references: [id])
+  byUser      User            @relation(fields: [byUserId], references: [id])
+
+  @@index([complaintId, createdAt])
+}
+
 model Round {
   id                       Int                     @id @default(autoincrement())
   guardId                  Int
@@ -697,6 +773,8 @@ model ResidentContact {
   phone        String?
   email        String?
   active       Boolean  @default(true)
+  photoUrl     String?
+  photoKey     String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   relationship String?

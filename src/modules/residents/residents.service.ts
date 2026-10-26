@@ -37,7 +37,7 @@ export const getDataTableResidents = async (params: ITDataTableFetchParams): Pro
               ? await prismaClient.$queryRaw`
                 SELECT u.*, 
                 json_build_object('id', p.id, 'identifier', p.identifier, 'name', p.name) as property,
-                (SELECT json_build_object('id', rp.id, 'phoneNumber', rp."phoneNumber", 'email', rp.email, 'emergencyContact', rp."emergencyContact", 'emergencyPhone', rp."emergencyPhone", 'ineFrontUrl', rp."ineFrontUrl", 'ineBackUrl', rp."ineBackUrl") FROM "ResidentProfile" rp WHERE rp."userId" = u.id LIMIT 1) as "residentProfile"
+                (SELECT json_build_object('id', rp.id, 'phoneNumber', rp."phoneNumber", 'email', rp.email, 'emergencyContact', rp."emergencyContact", 'emergencyPhone', rp."emergencyPhone", 'ineFrontUrl', rp."ineFrontUrl", 'ineBackUrl', rp."ineBackUrl", 'photoUrl', rp."photoUrl") FROM "ResidentProfile" rp WHERE rp."userId" = u.id LIMIT 1) as "residentProfile"
                 FROM "User" u
                 INNER JOIN "Role" r ON u."roleId" = r.id
                 LEFT JOIN "Property" p ON u."propertyId" = p.id
@@ -55,7 +55,7 @@ export const getDataTableResidents = async (params: ITDataTableFetchParams): Pro
               : await prismaClient.$queryRaw`
                 SELECT u.*, 
                 json_build_object('id', p.id, 'identifier', p.identifier, 'name', p.name) as property,
-                (SELECT json_build_object('id', rp.id, 'phoneNumber', rp."phoneNumber", 'email', rp.email, 'emergencyContact', rp."emergencyContact", 'emergencyPhone', rp."emergencyPhone", 'ineFrontUrl', rp."ineFrontUrl", 'ineBackUrl', rp."ineBackUrl") FROM "ResidentProfile" rp WHERE rp."userId" = u.id LIMIT 1) as "residentProfile"
+                (SELECT json_build_object('id', rp.id, 'phoneNumber', rp."phoneNumber", 'email', rp.email, 'emergencyContact', rp."emergencyContact", 'emergencyPhone', rp."emergencyPhone", 'ineFrontUrl', rp."ineFrontUrl", 'ineBackUrl', rp."ineBackUrl", 'photoUrl', rp."photoUrl") FROM "ResidentProfile" rp WHERE rp."userId" = u.id LIMIT 1) as "residentProfile"
                 FROM "User" u
                 INNER JOIN "Role" r ON u."roleId" = r.id
                 LEFT JOIN "Property" p ON u."propertyId" = p.id
@@ -189,6 +189,20 @@ export const updateResidentUser = async (id: number, userData: any, profileData:
     });
 };
 
+export const updateOwnResidentProfile = async (
+    userId: number,
+    data: { phoneNumber?: string | null; email?: string | null; emergencyContact?: string | null; emergencyPhone?: string | null; photoUrl?: string | null; photoKey?: string | null },
+) => {
+    return prismaClient.$transaction(async (tx) => {
+        await assertResidentAccount(tx, userId);
+        return tx.residentProfile.upsert({
+            where: { userId },
+            create: { userId, ...data },
+            update: data,
+        });
+    });
+};
+
 export const deleteResidentUser = async (id: number) => {
     return prismaClient.$transaction(async (tx) => {
         const user = await assertResidentAccount(tx, id);
@@ -204,6 +218,8 @@ export const deleteResidentUser = async (id: number) => {
 
 export const getRelationshipsList = async () => {
     return await prismaClient.residentRelationship.findMany({
-        orderBy: { name: 'asc' }
+        where: { active: true },
+        orderBy: [{ order: 'asc' }, { value: 'asc' }],
+        select: { id: true, name: true, value: true },
     });
 };

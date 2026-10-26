@@ -28,4 +28,29 @@ export const emptyable = <T extends z.ZodType>(schema: T) => z.union([schema, z.
 const optionalCoordinate = (schema: typeof latitude) =>
   z.union([numberish.pipe(schema), z.literal("").transform(() => null), z.null()]).optional();
 export const optionalLatitude = optionalCoordinate(latitude);
+
+/** Teléfono de 10 dígitos exactos (MX). Sin espacios ni guiones: la APP limpia el campo. */
+export const phone10 = z.string().trim().regex(/^\d{10}$/, "debe tener exactamente 10 dígitos");
+/** Teléfono opcional: vacío o null significa "sin teléfono"; si viene, debe ser de 10 dígitos. */
+export const optionalPhone10 = z.union([phone10, z.literal("").transform(() => null), z.null()]).optional();
+
+/** Nombre de persona: 2 a 120 caracteres, solo letras, espacios, apóstrofes, guiones y puntos. */
+export const personName = z
+  .string()
+  .trim()
+  .min(2, "debe tener al menos 2 caracteres")
+  .max(120, "no puede pasar de 120 caracteres")
+  .regex(/^[\p{L}][\p{L}\s.'-]*$/u, "solo puede tener letras, espacios, apóstrofes, guiones y puntos");
+
+/** Correo: 6 a 120 caracteres con formato de correo. */
+export const emailAddress = z
+  .string()
+  .trim()
+  .min(6, "debe tener al menos 6 caracteres")
+  .max(120, "no puede pasar de 120 caracteres")
+  .email("no es un correo válido");
+
+/** Texto libre opcional con mínimo y máximo. Vacío o null significa "sin valor". */
+export const optionalText = (min: number, max: number) =>
+  z.union([z.string().trim().min(min, `debe tener al menos ${min} caracteres`).max(max, `no puede pasar de ${max} caracteres`), z.literal("").transform(() => null), z.null()]).optional();
 export const optionalLongitude = optionalCoordinate(longitude);

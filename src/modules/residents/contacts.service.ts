@@ -23,6 +23,10 @@ export const updateContact = async (id: number, data: any) => {
     });
 };
 
+export const findContactOwner = async (id: number) => {
+    return prismaClient.residentContact.findUnique({ where: { id }, select: { userId: true } });
+};
+
 export const deleteContact = async (id: number) => {
     return prismaClient.residentContact.update({
         where: { id },

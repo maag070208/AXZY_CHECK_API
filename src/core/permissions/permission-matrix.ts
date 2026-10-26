@@ -53,6 +53,10 @@ export const PERMISSIONS = [
   { code: "invitation.view", description: "Consultar mis invitaciones" },
   { code: "invitation.create", description: "Generar mis invitaciones" },
   { code: "invitation.revoke", description: "Revocar mis invitaciones" },
+  // Buzón de quejas (módulo 13). El residente solo ve las suyas; el personal las gestiona.
+  { code: "complaint.create", description: "Levantar quejas o sugerencias" },
+  { code: "complaint.view", description: "Consultar quejas (el residente, solo las propias)" },
+  { code: "complaint.manage", description: "Responder, cambiar estado y ver notas internas de quejas" },
 ] as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[number]["code"];
@@ -63,6 +67,7 @@ const SELF_SERVICE: PermissionCode[] = [
   "invitation.view",
   "invitation.create",
   "invitation.revoke",
+  "complaint.create",
 ];
 // ADMIN conserva la administración, pero no los permisos de autoservicio del residente.
 const ADMIN_CODES = ALL.filter((code) => !SELF_SERVICE.includes(code));
@@ -101,6 +106,8 @@ export const ROLE_PERMISSIONS: Record<string, readonly PermissionCode[]> = {
     "club.create",
     "club.resolve",
     "club.delete",
+    "complaint.view",
+    "complaint.manage",
   ],
   GUARD: [
     "access.check",
@@ -135,5 +142,5 @@ export const ROLE_PERMISSIONS: Record<string, readonly PermissionCode[]> = {
     "club.resolve",
     "club.delete",
   ],
-  RESDN: ["resident.self", "invitation.view", "invitation.create", "invitation.revoke"],
+  RESDN: ["resident.self", "invitation.view", "invitation.create", "invitation.revoke", "complaint.create", "complaint.view"],
 };

@@ -11,7 +11,8 @@ import {
     getResidents, 
     putResident, 
     removeResident,
-    getRelationships
+    getRelationships,
+    putOwnProfile
 } from "./residents.controller";
 import { 
     getResidentContacts, 
@@ -20,10 +21,12 @@ import {
     removeContact 
 } from "./contacts.controller";
 import { requireStaff, selfOrStaff } from "@src/modules/common/middlewares/role-scope.middleware";
+import { selfOrPermission } from "@src/modules/common/middlewares/require-permission.middleware";
 import { validate } from "@src/core/validation/validate";
 import { idParam, positiveId } from "@src/core/validation/common";
 import { z } from "zod";
-import { addResidentBody, putResidentBody, contactBody, putContactBody } from "./residents.schemas";
+import { addResidentBody, putResidentBody, contactBody, putContactBody, selfProfileBody } from "./residents.schemas";
+import { authenticate } from "@src/modules/common/middlewares/auth.middleware";
 
 const contactIdParam = z.object({ contactId: positiveId });
 
@@ -50,13 +53,16 @@ router.get("/kinds", requirePermission("properties.view"), async (_req, res, nex
 router.get("/:id", selfOrStaff(), getResident);
 router.post("/", requirePermission("residents.manage"), validate({ body: addResidentBody }), addResident);
 router.put("/:id", requirePermission("residents.manage"), validate({ params: idParam, body: putResidentBody }), putResident);
+// Autoservicio: el residente edita su propio contacto (teléfono, correo, emergencia). Ver también la sección de contactos.
+router.put("/:id/profile", selfOrPermission("residents.manage"), validate({ params: idParam, body: selfProfileBody }), putOwnProfile);
 router.delete("/:id", requirePermission("residents.manage"), removeResident);
 
 // Resident Contacts Routes
 router.get("/:id/contacts", selfOrStaff(), getResidentContacts);
-router.post("/:id/contacts", requirePermission("residents.manage"), validate({ params: idParam, body: contactBody }), addContact);
-router.put("/contacts/:contactId", requirePermission("residents.manage"), validate({ params: contactIdParam, body: putContactBody }), putContact);
-router.delete("/contacts/:contactId", requirePermission("residents.manage"), removeContact);
+router.post("/:id/contacts", selfOrPermission("residents.manage"), validate({ params: idParam, body: contactBody }), addContact);
+// Dueño o personal: la comprobación de dueño está en el controlador (contacts.controller.ts).
+router.put("/contacts/:contactId", authenticate, validate({ params: contactIdParam, body: putContactBody }), putContact);
+router.delete("/contacts/:contactId", authenticate, removeContact);
 
 // Titular y mudanza (A2).
 router.post("/:id/primary", requirePermission("residents.manage"), validate({ params: idParam }), postSetPrimary);

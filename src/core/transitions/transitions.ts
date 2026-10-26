@@ -1,4 +1,4 @@
-import { AssignmentStatus, IncidentStatus, InvitationStatus, MaintenanceStatus } from "@prisma/client";
+import { AssignmentStatus, ComplaintStatus, IncidentStatus, InvitationStatus, MaintenanceStatus } from "@prisma/client";
 import { AppError } from "@src/core/errors/app-error";
 
 /** Estados alcanzables desde cada estado. Un estado ausente de la tabla no tiene salidas. */
@@ -45,4 +45,13 @@ export const INVITATION_TRANSITIONS: TransitionTable<InvitationStatus> = {
   EXITED: [],
   EXPIRED: [],
   CANCELLED: [],
+};
+
+/** Buzón de quejas (módulo 13). La reapertura tras RESOLVED llega en la fase 2. */
+export const COMPLAINT_TRANSITIONS: TransitionTable<ComplaintStatus> = {
+  NEW: ["IN_REVIEW"],
+  IN_REVIEW: ["WAITING_RESIDENT", "RESOLVED"],
+  WAITING_RESIDENT: ["IN_REVIEW", "RESOLVED"],
+  RESOLVED: ["CLOSED"],
+  CLOSED: [],
 };
