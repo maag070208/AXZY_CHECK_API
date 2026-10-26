@@ -81,6 +81,24 @@ describe("alta de queja", () => {
     expect(res.body.code).toBe("VALIDATION_ERROR");
   });
 
+  it("acepta un video de evidencia (hasta 30 MB) y rechaza un segundo video", async () => {
+    const property = await makeProperty("Q-V");
+    const { auth } = await makeResident(property.id);
+    const video = { type: "VIDEO", url: "https://files.example.test/v.mp4", key: "complaints/v.mp4", size: 20 * MB };
+    const ok = await createAs(auth, { ...validBody, media: [video] });
+    expect(ok.status).toBe(201);
+    expect(ok.body.data).toBeTruthy();
+    const two = await createAs(auth, { ...validBody, media: [video, { ...video, key: "complaints/v2.mp4" }] });
+    expect(two.status).toBe(400);
+  });
+
+  it("rechaza un video de más de 30 MB", async () => {
+    const property = await makeProperty("Q-V2");
+    const { auth } = await makeResident(property.id);
+    const res = await createAs(auth, { ...validBody, media: [{ type: "VIDEO", url: "https://files.example.test/v.mp4", key: "complaints/v.mp4", size: 31 * MB }] });
+    expect(res.status).toBe(400);
+  });
+
   it("una foto mayor a 5 MB se rechaza con 400", async () => {
     const property = await makeProperty("Q-3");
     const { auth } = await makeResident(property.id);
