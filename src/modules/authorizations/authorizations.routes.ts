@@ -26,7 +26,7 @@ const checkQuery = z.object({
 router.get("/check", requirePermission("access.check"), validate({ query: checkQuery }), async (req: Request, res: Response, next: NextFunction) => {
   try {
     const q = req.query as unknown as z.infer<typeof checkQuery>;
-    return res.status(200).json(createTResult(await checkAccess(q.propertyId, q.personId, q.scope)));
+    return res.status(200).json(createTResult(await checkAccess(q.propertyId, q.personId, q.scope, new Date(), req.user?.id)));
   } catch (error) {
     return next(error);
   }
@@ -47,7 +47,7 @@ const verifyBody = z.object({
 });
 router.post("/pass/verify", requirePermission("access.check"), validate({ body: verifyBody }), async (req: Request, res: Response, next: NextFunction) => {
   try {
-    return res.status(200).json(createTResult(await verifyPass(req.body.token, req.body.scope)));
+    return res.status(200).json(createTResult(await verifyPass(req.body.token, req.body.scope, new Date(), req.user?.id)));
   } catch (error) {
     return next(error);
   }

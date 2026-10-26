@@ -7,6 +7,8 @@ import { AppError } from "@src/core/errors/app-error";
 import { getSetting } from "@src/core/settings/app-settings.service";
 import { enqueueOutbox } from "@src/core/outbox/outbox";
 import { AccessScope, AccessDecision, decideAccess, Moment } from "./access-decision";
+import { AccessDecision as PrismaAccessDecision, AccessDirection, AccessMethod } from "@prisma/client";
+import { getPropertyAccessStatus, recordAccessEvent } from "../access-control/access-control.service";
 
 /**
  * Pide aprobación al titular: notificación en la app a los residentes titulares con cuenta.
@@ -107,15 +109,59 @@ const momentAt = async (now: Date): Promise<Moment> => {
 };
 
 /** Consulta de caseta: ¿puede entrar esta persona ahora? Usa la hora en la zona del cliente. */
-export const checkAccess = async (propertyId: number, personId: number, scope: AccessScope, now = new Date()) => {
+export const checkAccess = async (
+  propertyId: number,
+  personId: number,
+  scope: AccessScope,
+  now = new Date(),
+  actorId?: number,
+) => {
+  const access = await getPropertyAccessStatus(propertyId);
+  if (access.blocked) {
+    await recordAccessEvent({
+      propertyId,
+      personId,
+      method: AccessMethod.QR,
+      direction: AccessDirection.ENTRY,
+      decision: PrismaAccessDecision.DENIED,
+      reason: access.reason,
+      guardId: actorId ?? null,
+      metadata: { scope, overdueDays: access.overdueDays },
+    });
+    return { decision: "DENIED" as const, reason: "PROPERTY_DEBT" };
+  }
+
   const auth = await prismaClient.propertyAuthorization.findFirst({
     where: { propertyId, personId },
     orderBy: { id: "desc" },
   });
-  if (!auth) return { decision: "DENIED" as const, reason: "NO_AUTHORIZATION" };
+  if (!auth) {
+    await recordAccessEvent({
+      propertyId,
+      personId,
+      method: AccessMethod.QR,
+      direction: AccessDirection.ENTRY,
+      decision: PrismaAccessDecision.DENIED,
+      reason: "NO_AUTHORIZATION",
+      guardId: actorId ?? null,
+      metadata: { scope },
+    });
+    return { decision: "DENIED" as const, reason: "NO_AUTHORIZATION" };
+  }
+
   const result = decideAccess(auth, scope, await momentAt(now));
   const person = await prismaClient.person.findUnique({ where: { id: personId }, select: { firstName: true } });
   await notifyIfNeeded(result.decision, propertyId, personId, person?.firstName ?? "Una persona");
+  await recordAccessEvent({
+    propertyId,
+    personId,
+    method: AccessMethod.QR,
+    direction: AccessDirection.ENTRY,
+    decision: result.decision === "AUTHORIZED" ? PrismaAccessDecision.ALLOWED : PrismaAccessDecision.DENIED,
+    reason: result.reason,
+    guardId: actorId ?? null,
+    metadata: { scope },
+  });
   return result;
 };
 
@@ -135,13 +181,43 @@ export const issuePass = async (authorizationId: number) => {
 };
 
 /** Valida un pase escaneado en caseta. Misma decisión que la consulta por persona. */
-export const verifyPass = async (token: string, scope: AccessScope, now = new Date()) => {
+export const verifyPass = async (token: string, scope: AccessScope, now = new Date(), actorId?: number) => {
   const auth = await prismaClient.propertyAuthorization.findUnique({
     where: { passHash: hashPass(token) },
-    include: { person: { select: { firstName: true, lastName: true } } },
+    include: { person: { select: { id: true, firstName: true, lastName: true } } },
   });
   if (!auth) return { decision: "DENIED" as const, reason: "UNKNOWN_PASS", person: null };
+
+  const access = await getPropertyAccessStatus(auth.propertyId);
+  if (access.blocked) {
+    await recordAccessEvent({
+      propertyId: auth.propertyId,
+      personId: auth.personId,
+      method: AccessMethod.QR,
+      direction: AccessDirection.ENTRY,
+      decision: PrismaAccessDecision.DENIED,
+      reason: access.reason,
+      guardId: actorId ?? null,
+      metadata: { scope, overdueDays: access.overdueDays },
+    });
+    return {
+      decision: "DENIED" as const,
+      reason: "PROPERTY_DEBT",
+      person: { firstName: auth.person.firstName, lastName: auth.person.lastName },
+    };
+  }
+
   const result = decideAccess(auth, scope, await momentAt(now));
   await notifyIfNeeded(result.decision, auth.propertyId, auth.personId, auth.person.firstName);
+  await recordAccessEvent({
+    propertyId: auth.propertyId,
+    personId: auth.personId,
+    method: AccessMethod.QR,
+    direction: AccessDirection.ENTRY,
+    decision: result.decision === "AUTHORIZED" ? PrismaAccessDecision.ALLOWED : PrismaAccessDecision.DENIED,
+    reason: result.reason,
+    guardId: actorId ?? null,
+    metadata: { scope },
+  });
   return { ...result, person: { firstName: auth.person.firstName, lastName: auth.person.lastName } };
 };

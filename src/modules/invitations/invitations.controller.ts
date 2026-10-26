@@ -64,7 +64,7 @@ export const updateStatus = async (req: Request, res: Response, next: NextFuncti
             const own = await invitationsService.getInvitationOwner(Number(req.params.id));
             if (own !== null && (own !== req.user!.id || status !== "CANCELLED")) return forbidden(res);
         }
-        const result = await invitationsService.updateInvitationStatus(Number(req.params.id), status, reason);
+        const result = await invitationsService.updateInvitationStatus(Number(req.params.id), status, reason, req.user?.id);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return next(error);

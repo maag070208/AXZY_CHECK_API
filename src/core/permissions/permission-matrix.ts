@@ -62,6 +62,15 @@ export const PERMISSIONS = [
   { code: "charge.manage", description: "Registrar, generar y cancelar cargos" },
   { code: "payment.view", description: "Consultar pagos (el residente, solo los aplicados a sus cargos)" },
   { code: "payment.manage", description: "Registrar y reversar pagos" },
+  // Control de acceso Fase 2A: morosos, excepciones y bitácora.
+  { code: "delinquency.view", description: "Consultar la regla de morosos y sus excepciones" },
+  { code: "delinquency.manage", description: "Configurar la regla de morosos y autorizar excepciones" },
+  { code: "access.event.view", description: "Consultar la bitácora de accesos" },
+  { code: "announcement.view", description: "Consultar avisos y comunicados" },
+  { code: "announcement.manage", description: "Crear y enviar avisos a residentes" },
+  { code: "vehicle.view", description: "Consultar el padrón de vehículos" },
+  { code: "vehicle.manage", description: "Registrar, aprobar, editar y desactivar vehículos" },
+  { code: "vehicle.self", description: "Registrar y consultar mis propios vehículos" },
 ] as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[number]["code"];
@@ -113,6 +122,10 @@ export const ROLE_PERMISSIONS: Record<string, readonly PermissionCode[]> = {
     "club.delete",
     "complaint.view",
     "complaint.manage",
+    "delinquency.view",
+    "access.event.view",
+    "announcement.view",
+    "vehicle.view",
   ],
   GUARD: [
     "access.check",
@@ -153,6 +166,7 @@ export const ROLE_PERMISSIONS: Record<string, readonly PermissionCode[]> = {
     "invitation.create",
     "invitation.revoke",
     "complaint.create",
+    "vehicle.self",
     "complaint.view",
     "charge.view",
     "payment.view",

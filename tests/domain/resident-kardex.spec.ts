@@ -118,7 +118,10 @@ describe("kardex del residente", () => {
     expect(incident).not.toHaveProperty("description");
 
     const charge = res.body.data.items.find((item: { type: string }) => item.type === "CHARGE");
-    expect(charge).toMatchObject({ amount: 100, status: "PAID" });
+    expect(charge).toMatchObject({ amount: 100, status: "PAID", subtitle: "Cargo · Extra" });
+
+    const paymentItem = res.body.data.items.find((item: { type: string }) => item.type === "PAYMENT");
+    expect(paymentItem).toMatchObject({ subtitle: "Efectivo · REC-100" });
   });
 
   it("no mezcla movimientos de otra propiedad ni de otro residente", async () => {

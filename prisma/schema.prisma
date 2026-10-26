@@ -63,15 +63,18 @@ model InvitationType {
 }
 
 model User {
-  complaintsAuthored    Complaint[]        @relation("ComplaintAuthor")
-  complaintsAssigned    Complaint[]        @relation("ComplaintAssignee")
-  complaintMessages     ComplaintMessage[]
-  complaintEvents       ComplaintEvent[]
-  chargesAsResident     Charge[]                 @relation("ResidentCharges")
-  chargesCreated        Charge[]                 @relation("ChargeCreator")
-  paymentsAsResident    Payment[]                @relation("PaymentResident")
-  paymentsRegistered    Payment[]                @relation("PaymentRegistrar")
-  paymentsVoided        Payment[]                @relation("PaymentVoider")
+  complaintsAuthored       Complaint[]              @relation("ComplaintAuthor")
+  complaintsAssigned       Complaint[]              @relation("ComplaintAssignee")
+  accessEventsAsGuard      AccessEvent[]            @relation("AccessEventGuard")
+  accessExceptionsCreated  AccessException[]        @relation("AccessExceptionCreator")
+  delinquencyRulesUpdated  DelinquencyRule[]        @relation("DelinquencyRuleUpdater")
+  complaintMessages        ComplaintMessage[]
+  complaintEvents          ComplaintEvent[]
+  chargesAsResident        Charge[]                 @relation("ResidentCharges")
+  chargesCreated           Charge[]                 @relation("ChargeCreator")
+  paymentsAsResident       Payment[]                @relation("PaymentResident")
+  paymentsRegistered       Payment[]                @relation("PaymentRegistrar")
+  paymentsVoided           Payment[]                @relation("PaymentVoider")
   id                       Int                      @id @default(autoincrement())
   name                     String
   lastName                 String?
@@ -113,6 +116,9 @@ model User {
   mediaFiles               MediaFile[]
   person                   Person?
   notifications            Notification[]
+  announcementsCreated     Announcement[]           @relation("AnnouncementCreator")
+  vehiclesOwned            Vehicle[]                @relation("VehicleOwner")
+  vehiclesApproved         Vehicle[]                @relation("VehicleApprover")
   auditLogs                AuditLog[]
   pushDevices              PushDevice[]
 
@@ -132,28 +138,32 @@ model Schedule {
 }
 
 model Property {
-  complaints     Complaint[]
-  charges        Charge[]
-  payments       Payment[]
-  incidents      Incident[]
+  complaints       Complaint[]
+  charges          Charge[]
+  payments         Payment[]
+  incidents        Incident[]
   collectionConfig CollectionConfig?
-  id             Int            @id @default(autoincrement())
-  identifier     String         @unique
-  name           String
-  mainStreet     String
-  betweenStreets String?
-  latitude       Float?
-  longitude      Float?
-  active         Boolean        @default(true)
-  softDelete     Boolean        @default(false)
-  createdAt      DateTime       @default(now())
-  updatedAt      DateTime       @updatedAt
-  statusId       Int
-  typeId         Int
-  invitations    Invitation[]
-  status         PropertyStatus @relation(fields: [statusId], references: [id])
-  type           PropertyType   @relation(fields: [typeId], references: [id])
-  users          User[]
+  accessEvents     AccessEvent[]
+  accessExceptions AccessException[]
+  announcements    Announcement[]    @relation("AnnouncementProperty")
+  vehicles         Vehicle[]
+  id               Int               @id @default(autoincrement())
+  identifier       String            @unique
+  name             String
+  mainStreet       String
+  betweenStreets   String?
+  latitude         Float?
+  longitude        Float?
+  active           Boolean           @default(true)
+  softDelete       Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+  statusId         Int
+  typeId           Int
+  invitations      Invitation[]
+  status           PropertyStatus    @relation(fields: [statusId], references: [id])
+  type             PropertyType      @relation(fields: [typeId], references: [id])
+  users            User[]
 
   // A1: tipo, ocupación y residentes (T-A1-02). `statusId`/`typeId` quedan por compatibilidad.
   kindId            Int
@@ -249,6 +259,7 @@ model Person {
   contacts        PersonContact[]
   documents       PersonDocument[]
   authorizations  PropertyAuthorization[]
+  accessEvents    AccessEvent[]           @relation("AccessEventPerson")
 }
 
 /// Tipo de residente (T-A2-01). `isHouseholdMember` decide si suma al conteo del hogar.
@@ -352,23 +363,24 @@ model ResidentProfile {
 }
 
 model Invitation {
-  id          Int              @id @default(autoincrement())
-  code        String           @unique
-  guestName   String
-  createdById Int
-  propertyId  Int
-  validFrom   DateTime
-  validUntil  DateTime
-  status      InvitationStatus @default(PENDING)
-  entryTime   DateTime?
-  exitTime    DateTime?
-  notes       String?
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  typeId      Int
-  createdBy   User             @relation("UserInvitations", fields: [createdById], references: [id])
-  property    Property         @relation(fields: [propertyId], references: [id])
-  type        InvitationType   @relation(fields: [typeId], references: [id])
+  id           Int              @id @default(autoincrement())
+  code         String           @unique
+  guestName    String
+  createdById  Int
+  propertyId   Int
+  validFrom    DateTime
+  validUntil   DateTime
+  status       InvitationStatus @default(PENDING)
+  entryTime    DateTime?
+  exitTime     DateTime?
+  notes        String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+  typeId       Int
+  createdBy    User             @relation("UserInvitations", fields: [createdById], references: [id])
+  property     Property         @relation(fields: [propertyId], references: [id])
+  type         InvitationType   @relation(fields: [typeId], references: [id])
+  accessEvents AccessEvent[]
 
   statusId                Int?
   invitationStatusCatalog InvitationStatusCatalog? @relation(fields: [statusId], references: [id])
@@ -394,24 +406,24 @@ model Location {
 }
 
 model Kardex {
-  id           Int         @id @default(autoincrement())
-  userId       Int
-  locationId   Int
-  timestamp    DateTime    @default(now())
-  notes        String?
-  media        Json?
-  latitude     Float?
-  longitude    Float?
-  assignmentId Int?
-  clientRef    String?     @unique
-  roundId      Int?
+  id             Int         @id @default(autoincrement())
+  userId         Int
+  locationId     Int
+  timestamp      DateTime    @default(now())
+  notes          String?
+  media          Json?
+  latitude       Float?
+  longitude      Float?
+  assignmentId   Int?
+  clientRef      String?     @unique
+  roundId        Int?
   createdOffline Boolean     @default(false)
-  syncedAt      DateTime?
-  scanType     ScanType    @default(FREE)
-  assignment   Assignment? @relation(fields: [assignmentId], references: [id])
-  round        Round?      @relation(fields: [roundId], references: [id])
-  location     Location    @relation(fields: [locationId], references: [id])
-  user         User        @relation(fields: [userId], references: [id])
+  syncedAt       DateTime?
+  scanType       ScanType    @default(FREE)
+  assignment     Assignment? @relation(fields: [assignmentId], references: [id])
+  round          Round?      @relation(fields: [roundId], references: [id])
+  location       Location    @relation(fields: [locationId], references: [id])
+  user           User        @relation(fields: [userId], references: [id])
 
   scanTypeId      Int?
   scanTypeCatalog ScanTypeCatalog? @relation(fields: [scanTypeId], references: [id])
@@ -524,30 +536,30 @@ model IncidentType {
 }
 
 model Incident {
-  id           Int               @id @default(autoincrement())
-  guardId      Int
-  propertyId   Int?
-  kind         String            @default("INCIDENT")
-  title        String
-  description  String?
-  media        Json?
-  createdOffline Boolean @default(false)
-  syncedAt      DateTime?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  resolvedAt   DateTime?
-  resolvedById Int?
-  status       IncidentStatus    @default(PENDING)
-  categoryId   Int?
-  typeId       Int?
-  latitude     Float?
-  longitude    Float?
-  clientRef    String?           @unique
-  category     IncidentCategory? @relation(fields: [categoryId], references: [id])
-  property     Property?         @relation(fields: [propertyId], references: [id])
-  guard        User              @relation(fields: [guardId], references: [id])
-  resolvedBy   User?             @relation("IncidentResolver", fields: [resolvedById], references: [id])
-  type         IncidentType?     @relation(fields: [typeId], references: [id])
+  id             Int               @id @default(autoincrement())
+  guardId        Int
+  propertyId     Int?
+  kind           String            @default("INCIDENT")
+  title          String
+  description    String?
+  media          Json?
+  createdOffline Boolean           @default(false)
+  syncedAt       DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  resolvedAt     DateTime?
+  resolvedById   Int?
+  status         IncidentStatus    @default(PENDING)
+  categoryId     Int?
+  typeId         Int?
+  latitude       Float?
+  longitude      Float?
+  clientRef      String?           @unique
+  category       IncidentCategory? @relation(fields: [categoryId], references: [id])
+  property       Property?         @relation(fields: [propertyId], references: [id])
+  guard          User              @relation(fields: [guardId], references: [id])
+  resolvedBy     User?             @relation("IncidentResolver", fields: [resolvedById], references: [id])
+  type           IncidentType?     @relation(fields: [typeId], references: [id])
 
   statusId              Int?
   incidentStatusCatalog IncidentStatusCatalog? @relation(fields: [statusId], references: [id])
@@ -577,7 +589,7 @@ enum ComplaintStatus {
 }
 
 model Complaint {
-  id           Int               @id @default(autoincrement())
+  id           Int                @id @default(autoincrement())
   propertyId   Int
   authorId     Int
   assignedToId Int?
@@ -585,13 +597,13 @@ model Complaint {
   title        String
   description  String
   media        Json?
-  status       ComplaintStatus   @default(NEW)
+  status       ComplaintStatus    @default(NEW)
   resolvedAt   DateTime?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  property     Property          @relation(fields: [propertyId], references: [id])
-  author       User              @relation("ComplaintAuthor", fields: [authorId], references: [id])
-  assignedTo   User?             @relation("ComplaintAssignee", fields: [assignedToId], references: [id])
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+  property     Property           @relation(fields: [propertyId], references: [id])
+  author       User               @relation("ComplaintAuthor", fields: [authorId], references: [id])
+  assignedTo   User?              @relation("ComplaintAssignee", fields: [assignedToId], references: [id])
   messages     ComplaintMessage[]
   events       ComplaintEvent[]
 
@@ -615,15 +627,15 @@ model ComplaintMessage {
 }
 
 model ComplaintEvent {
-  id          Int             @id @default(autoincrement())
+  id          Int              @id @default(autoincrement())
   complaintId Int
   fromStatus  ComplaintStatus?
   toStatus    ComplaintStatus
   /// null = transición automática del sistema (p. ej. cierre a los 7 días).
   byUserId    Int?
-  createdAt   DateTime        @default(now())
-  complaint   Complaint       @relation(fields: [complaintId], references: [id])
-  byUser      User?           @relation(fields: [byUserId], references: [id])
+  createdAt   DateTime         @default(now())
+  complaint   Complaint        @relation(fields: [complaintId], references: [id])
+  byUser      User?            @relation(fields: [byUserId], references: [id])
 
   @@index([complaintId, createdAt])
 }
@@ -669,30 +681,30 @@ enum PaymentMethod {
 }
 
 model Charge {
-  id              Int            @id @default(autoincrement())
+  id              Int                 @id @default(autoincrement())
   propertyId      Int
   residentId      Int
   concept         String
-  category        ChargeCategory @default(EXTRA)
-  amount          Decimal        @db.Decimal(10, 2)
-  dueDate         DateTime       @db.Date
-  status          ChargeStatus   @default(PENDING)
+  category        ChargeCategory      @default(EXTRA)
+  amount          Decimal             @db.Decimal(10, 2)
+  dueDate         DateTime            @db.Date
+  status          ChargeStatus        @default(PENDING)
   /// Periodo YYYY-MM. Solo para CUOTA; la combinación propertyId+period es única.
   period          String?
   notes           String?
   createdById     Int
   cancelledAt     DateTime?
   cancelledReason String?
-  createdAt       DateTime       @default(now())
-  updatedAt       DateTime       @updatedAt
-  property        Property       @relation(fields: [propertyId], references: [id])
-  resident        User           @relation("ResidentCharges", fields: [residentId], references: [id])
-  createdBy       User           @relation("ChargeCreator", fields: [createdById], references: [id])
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  property        Property            @relation(fields: [propertyId], references: [id])
+  resident        User                @relation("ResidentCharges", fields: [residentId], references: [id])
+  createdBy       User                @relation("ChargeCreator", fields: [createdById], references: [id])
   allocations     PaymentAllocation[]
   /// Cargo original que generó este recargo. Evita recargos duplicados.
-  sourceChargeId  Int?           @unique
-  sourceCharge    Charge?        @relation("ChargeRecargo", fields: [sourceChargeId], references: [id], onDelete: SetNull)
-  recargos        Charge[]       @relation("ChargeRecargo")
+  sourceChargeId  Int?                @unique
+  sourceCharge    Charge?             @relation("ChargeRecargo", fields: [sourceChargeId], references: [id], onDelete: SetNull)
+  recargos        Charge[]            @relation("ChargeRecargo")
 
   /// Cuota mensual única por propiedad y periodo (los cargos sin periodo tienen NULL).
   @@unique([propertyId, period])
@@ -703,50 +715,50 @@ model Charge {
 
 /// Configuración de cobranza por propiedad: periodicidad, vencimiento y recargos.
 model CollectionConfig {
-  id             Int                  @id @default(autoincrement())
-  propertyId     Int                  @unique
-  property       Property             @relation(fields: [propertyId], references: [id])
-  concept        String               @default("Cuota de mantenimiento")
-  amount         Decimal              @db.Decimal(10, 2)
-  frequency      CollectionFrequency  @default(MONTHLY)
+  id             Int                 @id @default(autoincrement())
+  propertyId     Int                 @unique
+  property       Property            @relation(fields: [propertyId], references: [id])
+  concept        String              @default("Cuota de mantenimiento")
+  amount         Decimal             @db.Decimal(10, 2)
+  frequency      CollectionFrequency @default(MONTHLY)
   /// Día del mes en que vence la cuota (1-28).
-  dueDay         Int                  @default(10)
+  dueDay         Int                 @default(10)
   /// Fecha del siguiente cargo a generar. Se avanza según `frequency`.
-  nextChargeDate DateTime             @db.Date
-  graceDays      Int                  @default(5)
-  lateFeeType    LateFeeType          @default(NONE)
-  lateFeeValue   Decimal              @default(0) @db.Decimal(10, 2)
-  active         Boolean              @default(true)
-  createdAt      DateTime             @default(now())
-  updatedAt      DateTime             @updatedAt
+  nextChargeDate DateTime            @db.Date
+  graceDays      Int                 @default(5)
+  lateFeeType    LateFeeType         @default(NONE)
+  lateFeeValue   Decimal             @default(0) @db.Decimal(10, 2)
+  active         Boolean             @default(true)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
 }
 
 model Payment {
-  id                 Int                 @id @default(autoincrement())
-  propertyId         Int
+  id                Int                 @id @default(autoincrement())
+  propertyId        Int
   /// Residente al que se atribuye el pago cuando se registra en ventanilla.
-  residentId         Int?
-  amount             Decimal             @db.Decimal(10, 2)
+  residentId        Int?
+  amount            Decimal             @db.Decimal(10, 2)
   /// Folio consecutivo por residencial; se asigna al registrar el pago.
-  folio              Int?                @unique
-  method             PaymentMethod
-  reference          String?
-  notes              String?
-  paidAt             DateTime            @default(now())
-  registeredById     Int
-  receiptKey         String?
+  folio             Int?                @unique
+  method            PaymentMethod
+  reference         String?
+  notes             String?
+  paidAt            DateTime            @default(now())
+  registeredById    Int
+  receiptKey        String?
   /// Diferencia no aplicada a cargos (saldo a favor del residente).
-  unallocatedAmount  Decimal             @default(0) @db.Decimal(10, 2)
-  voidedAt           DateTime?
-  voidedById         Int?
-  voidReason         String?
-  createdAt          DateTime            @default(now())
-  updatedAt          DateTime            @updatedAt
-  property           Property            @relation(fields: [propertyId], references: [id])
-  resident           User?               @relation("PaymentResident", fields: [residentId], references: [id])
-  registeredBy       User                @relation("PaymentRegistrar", fields: [registeredById], references: [id])
-  voidedBy           User?               @relation("PaymentVoider", fields: [voidedById], references: [id])
-  allocations        PaymentAllocation[]
+  unallocatedAmount Decimal             @default(0) @db.Decimal(10, 2)
+  voidedAt          DateTime?
+  voidedById        Int?
+  voidReason        String?
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
+  property          Property            @relation(fields: [propertyId], references: [id])
+  resident          User?               @relation("PaymentResident", fields: [residentId], references: [id])
+  registeredBy      User                @relation("PaymentRegistrar", fields: [registeredById], references: [id])
+  voidedBy          User?               @relation("PaymentVoider", fields: [voidedById], references: [id])
+  allocations       PaymentAllocation[]
 
   @@index([propertyId, paidAt])
   @@index([residentId, paidAt])
@@ -778,8 +790,8 @@ model Round {
   guardId                  Int
   startTime                DateTime                @default(now())
   endTime                  DateTime?
-  createdOffline Boolean @default(false)
-  syncedAt      DateTime?
+  createdOffline           Boolean                 @default(false)
+  syncedAt                 DateTime?
   status                   RoundStatus             @default(IN_PROGRESS)
   recurringConfigurationId Int?
   clientRef                String?                 @unique
@@ -844,19 +856,22 @@ model OutboxEvent {
 }
 
 model Notification {
-  id            Int          @id @default(autoincrement())
-  userId        Int
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  outboxEventId Int?
-  outboxEvent   OutboxEvent? @relation(fields: [outboxEventId], references: [id], onDelete: SetNull)
-  title         String
-  body          String
-  data          Json?
-  createdAt     DateTime     @default(now())
-  readAt        DateTime?
+  id             Int           @id @default(autoincrement())
+  userId         Int
+  user           User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  outboxEventId  Int?
+  outboxEvent    OutboxEvent?  @relation(fields: [outboxEventId], references: [id], onDelete: SetNull)
+  title          String
+  body           String
+  data           Json?
+  createdAt      DateTime      @default(now())
+  readAt         DateTime?
+  announcementId Int?
+  announcement   Announcement? @relation(fields: [announcementId], references: [id], onDelete: SetNull)
 
   @@unique([outboxEventId, userId])
   @@index([userId, readAt])
+  @@index([announcementId])
 }
 
 model PushDevice {
@@ -899,28 +914,28 @@ model SysConfig {
 }
 
 model Maintenance {
-  id           Int               @id @default(autoincrement())
-  guardId      Int
-  title        String
-  category     String?
-  description  String?
-  media        Json?
-  status       MaintenanceStatus @default(PENDING)
-  resolvedAt   DateTime?
-  resolvedById Int?
-  createdOffline Boolean @default(false)
-  syncedAt      DateTime?
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  latitude     Float?
-  longitude    Float?
-  categoryId   Int?
-  typeId       Int?
-  clientRef    String?           @unique
-  categoryRel  IncidentCategory? @relation(fields: [categoryId], references: [id])
-  guard        User              @relation(fields: [guardId], references: [id])
-  resolvedBy   User?             @relation("MaintenanceResolver", fields: [resolvedById], references: [id])
-  type         IncidentType?     @relation(fields: [typeId], references: [id])
+  id             Int               @id @default(autoincrement())
+  guardId        Int
+  title          String
+  category       String?
+  description    String?
+  media          Json?
+  status         MaintenanceStatus @default(PENDING)
+  resolvedAt     DateTime?
+  resolvedById   Int?
+  createdOffline Boolean           @default(false)
+  syncedAt       DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  latitude       Float?
+  longitude      Float?
+  categoryId     Int?
+  typeId         Int?
+  clientRef      String?           @unique
+  categoryRel    IncidentCategory? @relation(fields: [categoryId], references: [id])
+  guard          User              @relation(fields: [guardId], references: [id])
+  resolvedBy     User?             @relation("MaintenanceResolver", fields: [resolvedById], references: [id])
+  type           IncidentType?     @relation(fields: [typeId], references: [id])
 
   statusId                 Int?
   maintenanceStatusCatalog MaintenanceStatusCatalog? @relation(fields: [statusId], references: [id])
@@ -1250,4 +1265,141 @@ model PropertyAuthorization {
   person      Person             @relation(fields: [personId], references: [id])
 
   @@index([propertyId, personId])
+}
+
+/// Regla global de bloqueo por adeudo. La fila id=1 es la configuración vigente.
+model DelinquencyRule {
+  id             Int      @id @default(autoincrement())
+  enabled        Boolean  @default(true)
+  minOverdueDays Int      @default(30)
+  blockVisitors  Boolean  @default(true)
+  active         Boolean  @default(true)
+  updatedById    Int?
+  updatedBy      User?    @relation("DelinquencyRuleUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
+/// Excepción temporal de acceso para una propiedad morosa. Solo la crea ADMIN.
+model AccessException {
+  id          Int       @id @default(autoincrement())
+  propertyId  Int
+  property    Property  @relation(fields: [propertyId], references: [id])
+  reason      String
+  validUntil  DateTime
+  revokedAt   DateTime?
+  createdById Int
+  createdBy   User      @relation("AccessExceptionCreator", fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+
+  @@index([propertyId, validUntil])
+}
+
+enum AccessMethod {
+  QR
+  TAG
+  PIN
+  MANUAL
+}
+
+enum AccessDirection {
+  ENTRY
+  EXIT
+}
+
+enum AccessSource {
+  GUARD
+  DEVICE
+}
+
+enum AccessDecision {
+  ALLOWED
+  DENIED
+}
+
+/// Bitácora única de intentos de acceso.
+model AccessEvent {
+  id           Int             @id @default(autoincrement())
+  propertyId   Int
+  property     Property        @relation(fields: [propertyId], references: [id])
+  personId     Int?
+  person       Person?         @relation("AccessEventPerson", fields: [personId], references: [id], onDelete: SetNull)
+  vehicleId    Int?
+  vehicle      Vehicle?        @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+  invitationId Int?
+  invitation   Invitation?     @relation(fields: [invitationId], references: [id], onDelete: SetNull)
+  method       AccessMethod
+  direction    AccessDirection
+  source       AccessSource    @default(GUARD)
+  decision     AccessDecision
+  reason       String?
+  guardId      Int?
+  guard        User?           @relation("AccessEventGuard", fields: [guardId], references: [id], onDelete: SetNull)
+  occurredAt   DateTime        @default(now())
+  metadata     Json?
+
+  @@index([propertyId, occurredAt])
+  @@index([personId, occurredAt])
+  @@index([invitationId])
+  @@index([vehicleId])
+}
+
+enum AnnouncementAudience {
+  ALL
+  PROPERTY
+  ROLE
+}
+
+/// Comunicado de administración. Al enviarse crea un Notification por destinatario.
+model Announcement {
+  id            Int                  @id @default(autoincrement())
+  title         String
+  body          String
+  audience      AnnouncementAudience
+  propertyId    Int?
+  property      Property?            @relation("AnnouncementProperty", fields: [propertyId], references: [id], onDelete: SetNull)
+  roleName      String?
+  sentAt        DateTime             @default(now())
+  createdById   Int
+  createdBy     User                 @relation("AnnouncementCreator", fields: [createdById], references: [id])
+  createdAt     DateTime             @default(now())
+  notifications Notification[]
+
+  @@index([sentAt])
+}
+
+enum VehicleStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  INACTIVE
+}
+
+/// Vehículo registrado por un residente; administración lo aprueba y asigna tag.
+model Vehicle {
+  id              Int           @id @default(autoincrement())
+  propertyId      Int
+  property        Property      @relation(fields: [propertyId], references: [id])
+  ownerId         Int
+  owner           User          @relation("VehicleOwner", fields: [ownerId], references: [id])
+  plate           String
+  plateNormalized String
+  tagCode         String?       @unique
+  kind            String?
+  brand           String?
+  model           String?
+  color           String?
+  status          VehicleStatus @default(PENDING)
+  approvedById    Int?
+  approvedBy      User?         @relation("VehicleApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  approvedAt      DateTime?
+  notes           String?
+  active          Boolean       @default(true)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+  accessEvents    AccessEvent[]
+
+  @@unique([propertyId, plateNormalized])
+  @@index([plateNormalized])
+  @@index([propertyId, status])
 }

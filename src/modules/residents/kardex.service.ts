@@ -22,6 +22,21 @@ const startOfDay = (value: string) => new Date(`${value}T00:00:00.000Z`);
 const endOfDay = (value: string) => new Date(`${value}T23:59:59.999Z`);
 const defaultFrom = () => new Date(Date.now() - 90 * 24 * 60 * 60 * 1000);
 
+const CHARGE_CATEGORY_LABELS: Record<string, string> = {
+  CUOTA: "Cuota",
+  MANTENIMIENTO: "Mantenimiento",
+  EXTRA: "Extra",
+  RECARGO: "Recargo",
+  MULTA: "Multa / Infracción",
+};
+
+const PAYMENT_METHOD_LABELS: Record<string, string> = {
+  EFECTIVO: "Efectivo",
+  TRANSFERENCIA: "Transferencia",
+  TARJETA: "Tarjeta",
+  AJUSTE: "Ajuste",
+};
+
 const residentPropertyId = async (userId: number): Promise<number | null> => {
   const resident = await prismaClient.resident.findFirst({
     where: { status: ResidentStatus.ACTIVE, person: { userId }, property: { softDelete: false } },
@@ -142,7 +157,7 @@ export const getResidentKardex = async (userId: number, query: ResidentKardexQue
       id: `charge-${charge.id}`,
       type: "CHARGE",
       title: charge.concept,
-      subtitle: `Cargo · ${charge.category}`,
+      subtitle: `Cargo · ${CHARGE_CATEGORY_LABELS[charge.category] ?? charge.category}`,
       occurredAt: charge.createdAt.toISOString(),
       amount: round2(asNumber(charge.amount)),
       status: charge.status,
@@ -164,7 +179,7 @@ export const getResidentKardex = async (userId: number, query: ResidentKardexQue
       id: `payment-${payment.id}`,
       type: "PAYMENT",
       title: payment.voidedAt ? "Pago reversado" : "Pago recibido",
-      subtitle: [payment.method, payment.reference].filter(Boolean).join(" · "),
+      subtitle: [PAYMENT_METHOD_LABELS[payment.method] ?? payment.method, payment.reference].filter(Boolean).join(" · "),
       occurredAt: payment.paidAt.toISOString(),
       amount,
       status: payment.voidedAt ? "VOIDED" : "REGISTERED",
