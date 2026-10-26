@@ -226,5 +226,35 @@ describe("bloqueo de visitas por adeudo", () => {
     const mine = await request(app).get(`${api}/my-access/events`).set("Authorization", resident.auth);
     expect(mine.status).toBe(200);
     expect(mine.body.data.total).toBeGreaterThan(0);
+
+    const filtered = await request(app)
+      .get(`${api}/access/events?propertyId=${property.id}&direction=ENTRY&q=AC-5`)
+      .set("Authorization", admin);
+    expect(filtered.status).toBe(200);
+    expect(filtered.body.data.items.every((item: any) => item.direction === "ENTRY")).toBe(true);
+  });
+
+  it("revocar la excepción vuelve a bloquear la propiedad", async () => {
+    const property = await makeProperty("AC-7");
+    const resident = await makeResident(property.id);
+    const admin = await adminAuth();
+    const { auth: guardToken } = await guardAuth();
+    await createCharge(admin, property.id, resident.user.id, daysAgo(40));
+
+    const exception = await request(app)
+      .post(`${api}/access/exceptions`)
+      .set("Authorization", admin)
+      .send({ propertyId: property.id, reason: "Convenio temporal", validUntil: tomorrow() });
+    expect(exception.status).toBe(201);
+
+    const listed = await request(app).get(`${api}/access/exceptions?propertyId=${property.id}`).set("Authorization", admin);
+    expect(listed.status).toBe(200);
+    expect(listed.body.data).toHaveLength(1);
+
+    const revoked = await request(app).delete(`${api}/access/exceptions/${exception.body.data.id}`).set("Authorization", admin);
+    expect(revoked.status).toBe(200);
+
+    const status = await request(app).get(`${api}/access/status?propertyId=${property.id}`).set("Authorization", guardToken);
+    expect(status.body.data).toMatchObject({ blocked: true, reason: "PROPERTY_DEBT" });
   });
 });

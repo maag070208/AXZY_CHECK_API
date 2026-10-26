@@ -85,6 +85,25 @@ describe("avisos y comunicados", () => {
     expect(inboxTwo.body.data.total).toBe(0);
   });
 
+  it("envía a un rol específico sin tocar a los residentes", async () => {
+    const admin = await adminAuth();
+    const guard = await buildUser("GUARD");
+    const property = await makeProperty("AV-6");
+    const resident = await makeResident(property.id);
+
+    const created = await request(app)
+      .post(`${api}/announcements`)
+      .set("Authorization", admin)
+      .send({ title: "Solo guardias", body: "Revisión de equipo.", audience: "ROLE", roleName: "GUARD" });
+    expect(created.status).toBe(201);
+    expect(created.body.data.recipients).toBe(1);
+
+    const guardInbox = await request(app).get(`${api}/notifications/me`).set("Authorization", `Bearer ${tokenFor(guard)}`);
+    expect(guardInbox.body.data.total).toBe(1);
+    const residentInbox = await request(app).get(`${api}/notifications/me`).set("Authorization", resident.auth);
+    expect(residentInbox.body.data.total).toBe(0);
+  });
+
   it("SHIFT consulta pero no envía; el residente no consulta la lista administrativa", async () => {
     const shift = `Bearer ${tokenFor(await buildUser("SHIFT"))}`;
     const property = await makeProperty("AV-4");

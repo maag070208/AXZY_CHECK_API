@@ -124,6 +124,33 @@ describe("vehículos y tags", () => {
     expect(event).toMatchObject({ decision: "DENIED", reason: "PROPERTY_DEBT" });
   });
 
+  it("respeta el cupo de vehículos de la propiedad", async () => {
+    const property = await makeProperty("VH-5");
+    await prisma.property.update({ where: { id: property.id }, data: { vehicleQuota: 1 } });
+    const resident = await makeResident(property.id);
+
+    expect((await makeVehicle(resident.auth, "ABC-001")).status).toBe(201);
+    const second = await makeVehicle(resident.auth, "ABC-002");
+    expect(second.status).toBe(409);
+    expect(second.body.code).toBe("VEHICLE_QUOTA_REACHED");
+  });
+
+  it("editar un vehículo aprobado lo regresa a revisión y retira el tag", async () => {
+    const property = await makeProperty("VH-6");
+    const resident = await makeResident(property.id);
+    const admin = await adminAuth();
+    const created = await makeVehicle(resident.auth, "ABC-100");
+    const approved = await request(app).patch(`${api}/vehicles/${created.body.data.id}/approve`).set("Authorization", admin).send({ tagCode: "TAG-EDIT" });
+    expect(approved.body.data.tagCode).toBe("TAG-EDIT");
+
+    const edited = await request(app)
+      .put(`${api}/vehicles/me/${created.body.data.id}`)
+      .set("Authorization", resident.auth)
+      .send({ plate: "ABC-101", brand: "Honda" });
+    expect(edited.status).toBe(200);
+    expect(edited.body.data).toMatchObject({ plate: "ABC-101", status: "PENDING", tagCode: null });
+  });
+
   it("un residente no puede ver ni aprobar vehículos ajenos", async () => {
     const property = await makeProperty("VH-4");
     const resident = await makeResident(property.id);

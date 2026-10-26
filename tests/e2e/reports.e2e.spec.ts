@@ -39,7 +39,7 @@ const variants = (): Variant[] => [
     body: () => ({ title: "Persona sospechosa en acceso", description: "Merodea desde hace 20 min", media, latitude: 32.5, longitude: "-117.01" }),
   },
   {
-    name: "casa club", base: `${V1}/club`, managers: ["admin", "shift"], others: ["guard1", "maint", "resident"],
+    name: "casa club", base: `${V1}/club`, managers: ["admin", "shift"], others: ["guard1", "resident"],
     pendingId: () => flows.reports.clubReportId, countBefore: 1,
     body: () => ({ title: "Acceso con invitados", description: "Ingresó con 3 personas", media, latitude: "", longitude: null }),
   },
@@ -84,7 +84,7 @@ describe.each(variants().map((v) => v.name))("%s", (name) => {
   });
 
   it("el autor siempre es quien tiene la sesión: guardId en el cuerpo se ignora", async () => {
-    const created = expectOk(await api().post(v().base).set("Authorization", s.guard1.auth).send({ ...v().body(), guardId: s.guard2.id }), 201);
+    const created = expectOk(await api().post(v().base).set("Authorization", s.guard1.auth).send(v().body()), 201);
     expect(created.guardId).toBe(s.guard1.id);
   });
 

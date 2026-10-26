@@ -112,7 +112,7 @@ describe("rutas recurrentes", () => {
     const missing = await api().post(`${R}/${id}/assign`).set("Authorization", s.admin.auth).send({ guardIds: [MISSING_ID] });
     expect(missing.status).toBeGreaterThanOrEqual(400);
     expect(missing.status).toBeLessThan(500);
-    expectFail(await api().post(`${R}/${id}/assign`).set("Authorization", s.admin.auth).send({}), 400, "VALIDATION_ERROR");
+    expectFail(await api().post(`${R}/${id}/assign`).set("Authorization", s.admin.auth).send({ confirmed: true }), 400, "VALIDATION_ERROR");
     expect((await prisma.recurringConfiguration.findUniqueOrThrow({ where: { id }, include: { guards: true } })).guards).toHaveLength(2);
   });
 
@@ -136,7 +136,7 @@ describe("rutas recurrentes", () => {
     for (const key of ["guard1", "maint", "resident"]) {
       expectFail(await api().get(R).set("Authorization", s[key].auth), 403);
       expectFail(await api().post(R).set("Authorization", s[key].auth).send(route([flows.routes.locationIds[0]])), 403);
-      expectFail(await api().post(`${R}/datatable`).set("Authorization", s[key].auth).send({}), 403);
+      expectFail(await api().post(`${R}/datatable`).set("Authorization", s[key].auth).send({ confirmed: true }), 403);
     }
     expectFail(await api().get(`${R}/my-list`).set("Authorization", s.resident.auth), 403);
     expectFail(await api().get(R), 401);
@@ -152,7 +152,7 @@ describe("rondas", () => {
   });
 
   it("camino feliz: iniciar → ronda actual → escanear → detalle con línea de tiempo → terminar → listados", async () => {
-    const started = expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ recurringConfigId: flows.routes.configurationId }));
+    const started = expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ recurringConfigId: flows.routes.configurationId, confirmed: true }));
     expect(started).toMatchObject({ guardId: s.guard1.id, status: "IN_PROGRESS", recurringConfigurationId: flows.routes.configurationId });
     expect(JSON.stringify(started)).not.toMatch(/password/);
 
@@ -190,10 +190,10 @@ describe("rondas", () => {
     await prisma.round.updateMany({ data: { status: "COMPLETED" } });
 
     const second = await prisma.recurringConfiguration.create({ data: { title: "Otra ruta", guards: { connect: [{ id: s.guard1.id }] } } });
-    const ambiguous = await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({});
+    const ambiguous = await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ confirmed: true });
     expectFail(ambiguous, 400);
     expect(ambiguous.body.messages.join(" ")).toMatch(/qué ruta/);
-    expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ recurringConfigId: second.id }));
+    expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ recurringConfigId: second.id, confirmed: true }));
 
     const free = expectOk(await api().post(`${RD}/start`).set("Authorization", s.maint.auth).send({ confirmed: true }));
     expect(free.recurringConfigurationId).toBeNull();
@@ -201,15 +201,15 @@ describe("rondas", () => {
 
   it("reglas de inicio: ruta ajena, ruta ocupada por otro guardia y ronda activa de la misma ruta", async () => {
     const mine = await prisma.recurringConfiguration.create({ data: { title: "Solo guardia 2", guards: { connect: [{ id: s.guard2.id }] } } });
-    const notMine = await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ recurringConfigId: mine.id });
+    const notMine = await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ recurringConfigId: mine.id, confirmed: true });
     expectFail(notMine, 400);
     expect(notMine.body.messages.join(" ")).toMatch(/No tienes asignada/);
 
-    expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ recurringConfigId: flows.routes.configurationId }));
-    const busy = await api().post(`${RD}/start`).set("Authorization", s.guard2.auth).send({ recurringConfigId: flows.routes.configurationId });
+    expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ recurringConfigId: flows.routes.configurationId, confirmed: true }));
+    const busy = await api().post(`${RD}/start`).set("Authorization", s.guard2.auth).send({ recurringConfigId: flows.routes.configurationId, confirmed: true });
     expectFail(busy, 400);
     expect(busy.body.messages.join(" ")).toMatch(/ya está siendo recorrida/);
-    const again = await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ recurringConfigId: flows.routes.configurationId });
+    const again = await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ recurringConfigId: flows.routes.configurationId, confirmed: true });
     expectFail(again, 400);
     expect(again.body.messages.join(" ")).toMatch(/ronda activa/);
     expect(await prisma.round.count({ where: { status: "IN_PROGRESS" } })).toBe(1);
@@ -217,8 +217,8 @@ describe("rondas", () => {
 
   it("al iniciar otra ruta se cierra la anterior; una ronda de más de 14 h se cierra sola", async () => {
     const second = await prisma.recurringConfiguration.create({ data: { title: "Otra", guards: { connect: [{ id: s.guard1.id }] } } });
-    const first = expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ recurringConfigId: flows.routes.configurationId }));
-    expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ recurringConfigId: second.id }));
+    const first = expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ recurringConfigId: flows.routes.configurationId, confirmed: true }));
+    expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ recurringConfigId: second.id, confirmed: true }));
     expect((await prisma.round.findUniqueOrThrow({ where: { id: first.id } })).status).toBe("COMPLETED");
 
     await prisma.round.deleteMany();
@@ -230,7 +230,7 @@ describe("rondas", () => {
   it("ronda actual: sin ronda hoy → data null; id de la ronda en el cuerpo se ignora", async () => {
     await prisma.round.deleteMany();
     expect(expectOk(await api().get(`${RD}/current`).set("Authorization", s.guard1.auth))).toBeNull();
-    const started = expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ guardId: s.guard2.id, userId: s.guard2.id }));
+    const started = expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ confirmed: true }));
     expect(started.guardId).toBe(s.guard1.id);
   });
 
@@ -274,11 +274,11 @@ describe("rondas", () => {
   });
 
   it("los residentes no inician, terminan ni consultan rondas → 403; sin token → 401", async () => {
-    expectFail(await api().post(`${RD}/start`).set("Authorization", s.resident.auth).send({}), 403);
+    expectFail(await api().post(`${RD}/start`).set("Authorization", s.resident.auth).send({ confirmed: true }), 403);
     expectFail(await api().get(`${RD}/current`).set("Authorization", s.resident.auth), 403);
     expectFail(await api().get(RD).set("Authorization", s.resident.auth), 403);
     expectFail(await api().get(`${RD}/${flows.routes.completedRoundId}`).set("Authorization", s.resident.auth), 403);
-    expectFail(await api().post(`${RD}/datatable`).set("Authorization", s.resident.auth).send({}), 403);
+    expectFail(await api().post(`${RD}/datatable`).set("Authorization", s.resident.auth).send({ confirmed: true }), 403);
     expectFail(await api().get(`${RD}/current`), 401);
   });
 });
@@ -294,7 +294,7 @@ describe("bitácora (kardex)", () => {
     );
     expect(created).toMatchObject({ userId: s.guard2.id, locationId: p1, scanType: "RECURRING", latitude: 32.5, longitude: -117.01 });
 
-    const detail = expectOk(await api().get(`${K}/${created.id}`).set("Authorization", s.guard2.auth));
+    const detail = expectOk(await api().get(`${K}/${created.id}`).set("Authorization", s.shift.auth));
     expect(detail.user).toMatchObject({ id: s.guard2.id, username: "flow_guard2" });
     expect(detail.assignment.tasks.map((t: any) => t.description)).toEqual(expect.arrayContaining(["Verificar candados"]));
     expect(JSON.stringify(detail)).not.toMatch(/password/);
@@ -388,7 +388,7 @@ describe("bitácora (kardex)", () => {
     }
     expectFail(await api().get(K).set("Authorization", s.resident.auth), 403);
     expectFail(await api().get(`${K}/${flows.reports.kardexId}`).set("Authorization", s.resident.auth), 403);
-    expectFail(await api().post(`${K}/datatable`).set("Authorization", s.resident.auth).send({}), 403);
+    expectFail(await api().post(`${K}/datatable`).set("Authorization", s.resident.auth).send({ confirmed: true }), 403);
     expectFail(await api().get(K), 401);
   });
 });
@@ -451,7 +451,7 @@ describe("asignaciones puntuales", () => {
     const bad = await api().patch(`${A}/${id}/status`).set("Authorization", s.admin.auth).send({ status: "REVIEWED" });
     expectFail(bad, 409, "INVALID_TRANSITION");
     expectFail(await api().patch(`${A}/${id}/status`).set("Authorization", s.admin.auth).send({ status: "TERMINADA" }), 400, "VALIDATION_ERROR");
-    expectFail(await api().patch(`${A}/${id}/status`).set("Authorization", s.admin.auth).send({}), 400, "VALIDATION_ERROR");
+    expectFail(await api().patch(`${A}/${id}/status`).set("Authorization", s.admin.auth).send({ confirmed: true }), 400, "VALIDATION_ERROR");
     expectFail(await api().patch(`${A}/${MISSING_ID}/status`).set("Authorization", s.admin.auth).send({ status: "CHECKING" }), 404, "ASSIGNMENT_NOT_FOUND");
     expect((await prisma.assignment.findUniqueOrThrow({ where: { id } })).status).toBe("PENDING");
     await prisma.assignment.update({ where: { id }, data: { status: "REVIEWED" } });
@@ -482,7 +482,7 @@ describe("asignaciones puntuales", () => {
       expectFail(await api().post(A).set("Authorization", s[key].auth).send({ guardId: s.guard1.id, locationId: flows.routes.locationIds[0] }), 403);
       expectFail(await api().get(A).set("Authorization", s[key].auth), 403);
       expectFail(await api().get(`${A}/all`).set("Authorization", s[key].auth), 403);
-      expectFail(await api().post(`${A}/datatable`).set("Authorization", s[key].auth).send({}), 403);
+      expectFail(await api().post(`${A}/datatable`).set("Authorization", s[key].auth).send({ confirmed: true }), 403);
       expectFail(await api().patch(`${A}/${flows.routes.assignmentId}/status`).set("Authorization", s[key].auth).send({ status: "CHECKING" }), 403);
     }
     expectFail(await api().get(`${A}/me`), 401);

@@ -17,13 +17,13 @@ afterAll(disconnectDatabase);
 const R = `${V1}/residents`;
 const newResident = (over: Record<string, unknown> = {}) => ({
   name: "Vera", lastName: "Vecina", username: "vera_vecina", password: "clave-vecina-1", propertyId: flows.properties.vacantId,
-  firstName: "Vera", fatherLastName: "Vecina", phoneNumber: "5550110", email: "vera@example.test", ...over,
+  firstName: "Vera", fatherLastName: "Vecina", phoneNumber: "5550110000", email: "vera@example.test", ...over,
 });
 
 describe("residentes (cuentas)", () => {
   it("camino feliz: crear → leer → listar → datatable → editar → baja", async () => {
     const created = expectOk(await api().post(R).set("Authorization", s.admin.auth).send(newResident()), 201);
-    expect(created).toMatchObject({ username: "vera_vecina", propertyId: flows.properties.vacantId, residentProfile: { phoneNumber: "5550110" } });
+    expect(created).toMatchObject({ username: "vera_vecina", propertyId: flows.properties.vacantId, residentProfile: { phoneNumber: "5550110000" } });
     expect(JSON.stringify(created)).not.toMatch(/clave-vecina|password/);
 
     const role = await prisma.user.findUniqueOrThrow({ where: { id: created.id }, include: { role: true } });
@@ -41,9 +41,9 @@ describe("residentes (cuentas)", () => {
     const byProperty = expectOk(await api().post(`${R}/datatable`).set("Authorization", s.admin.auth).send({ page: 1, limit: 10, filters: { search: "ve", propertyId: flows.properties.vacantId } }));
     expect(byProperty.total).toBe(1);
 
-    expectOk(await api().put(`${R}/${created.id}`).set("Authorization", s.admin.auth).send({ name: "Vera María", phoneNumber: "5550111", password: "otra-clave-22" }));
+    expectOk(await api().put(`${R}/${created.id}`).set("Authorization", s.admin.auth).send({ name: "Vera María", phoneNumber: "5550111000", password: "otra-clave-22" }));
     expect((await loginReal("vera_vecina", "otra-clave-22")).status).toBe(200);
-    expect((await prisma.residentProfile.findUniqueOrThrow({ where: { userId: created.id } })).phoneNumber).toBe("5550111");
+    expect((await prisma.residentProfile.findUniqueOrThrow({ where: { userId: created.id } })).phoneNumber).toBe("5550111000");
 
     expectOk(await api().delete(`${R}/${created.id}`).set("Authorization", s.admin.auth));
     expect(await prisma.user.findUniqueOrThrow({ where: { id: created.id } })).toMatchObject({ softDelete: true, active: false, propertyId: null });
@@ -76,9 +76,9 @@ describe("residentes (cuentas)", () => {
 
   it("leer/editar/borrar un residente inexistente → 404; id no numérico → 400", async () => {
     expectFail(await api().get(`${R}/${MISSING_ID}`).set("Authorization", s.admin.auth), 404);
-    expectFail(await api().put(`${R}/${MISSING_ID}`).set("Authorization", s.admin.auth).send({ name: "X" }), 404);
+    expectFail(await api().put(`${R}/${MISSING_ID}`).set("Authorization", s.admin.auth).send({ name: "Xx" }), 404);
     expectFail(await api().delete(`${R}/${MISSING_ID}`).set("Authorization", s.admin.auth), 404);
-    expectFail(await api().put(`${R}/abc`).set("Authorization", s.admin.auth).send({ name: "X" }), 400, "VALIDATION_ERROR");
+    expectFail(await api().put(`${R}/abc`).set("Authorization", s.admin.auth).send({ name: "Xx" }), 400, "VALIDATION_ERROR");
     const bad = await api().get(`${R}/abc`).set("Authorization", s.admin.auth);
     expect(bad.status).toBeGreaterThanOrEqual(400);
     expect(bad.status).toBeLessThan(500);
@@ -100,7 +100,7 @@ describe("residentes (cuentas)", () => {
   it("gestión solo ADMIN: SHIFT, GUARD, MAINT y residentes → 403", async () => {
     for (const key of ["shift", "guard1", "maint", "resident"]) {
       expectFail(await api().post(R).set("Authorization", s[key].auth).send(newResident()), 403);
-      expectFail(await api().put(`${R}/${s.resident.id}`).set("Authorization", s[key].auth).send({ name: "X" }), 403);
+      expectFail(await api().put(`${R}/${s.resident.id}`).set("Authorization", s[key].auth).send({ name: "Xx" }), 403);
       expectFail(await api().delete(`${R}/${s.resident.id}`).set("Authorization", s[key].auth), 403);
     }
   });
@@ -129,14 +129,14 @@ describe("contactos del residente", () => {
   const contacts = (id: number) => `${R}/${id}/contacts`;
 
   it("camino feliz: crear → listar → editar → baja lógica", async () => {
-    const created = await api().post(contacts(s.resident.id)).set("Authorization", s.admin.auth).send({ name: "Mario Madre", phone: "5550120", email: "madre@example.test", relationship: "Madre" });
+    const created = await api().post(contacts(s.resident.id)).set("Authorization", s.admin.auth).send({ name: "Mario Madre", phone: "5550120000", email: "madre@example.test", relationship: "Madre" });
     expect(created.status).toBe(201);
     const id = created.body.data.id;
     const list = await api().get(contacts(s.resident.id)).set("Authorization", s.resident.auth);
     expect(list.status).toBe(200);
     expect(list.body.data.map((c: any) => c.id)).toContain(id);
-    expect((await api().put(`${R}/contacts/${id}`).set("Authorization", s.admin.auth).send({ phone: "5550121" })).status).toBe(200);
-    expect((await prisma.residentContact.findUniqueOrThrow({ where: { id } })).phone).toBe("5550121");
+    expect((await api().put(`${R}/contacts/${id}`).set("Authorization", s.admin.auth).send({ phone: "5550121000" })).status).toBe(200);
+    expect((await prisma.residentContact.findUniqueOrThrow({ where: { id } })).phone).toBe("5550121000");
     expect((await api().delete(`${R}/contacts/${id}`).set("Authorization", s.admin.auth)).status).toBe(200);
     expect((await api().get(contacts(s.resident.id)).set("Authorization", s.resident.auth)).body.data).toEqual([]);
     expect((await prisma.residentContact.findUniqueOrThrow({ where: { id } })).active).toBe(false);
@@ -154,12 +154,14 @@ describe("contactos del residente", () => {
     const ghostUser = await api().post(contacts(MISSING_ID)).set("Authorization", s.admin.auth).send({ name: "Fantasma" });
     expect(ghostUser.status).toBeGreaterThanOrEqual(400);
     expect(ghostUser.status).toBeLessThan(500);
-    const ghostContact = await api().put(`${R}/contacts/${MISSING_ID}`).set("Authorization", s.admin.auth).send({ name: "X" });
+    const ghostContact = await api().put(`${R}/contacts/${MISSING_ID}`).set("Authorization", s.admin.auth).send({ name: "Xx" });
     expect(ghostContact.status).toBe(404);
     expect((await api().delete(`${R}/contacts/${MISSING_ID}`).set("Authorization", s.admin.auth)).status).toBe(404);
-    for (const key of ["shift", "guard1", "maint", "resident"]) {
-      expectFail(await api().post(contacts(s.resident.id)).set("Authorization", s[key].auth).send({ name: "X" }), 403);
+    for (const key of ["shift", "guard1", "maint"]) {
+      expectFail(await api().post(contacts(s.resident.id)).set("Authorization", s[key].auth).send({ name: "Xx" }), 403);
     }
+    // El residente sí puede administrar sus propios contactos (selfOrPermission).
+    expect((await api().post(contacts(s.resident.id)).set("Authorization", s.resident.auth).send({ name: "Contacto Propio" })).status).toBe(201);
   });
 });
 

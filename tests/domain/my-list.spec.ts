@@ -41,10 +41,10 @@ describe("getRecurringConfigurationsForUser · sin N+1", () => {
       },
     });
 
-    await prisma.kardex.create({ data: { userId: guard.id, locationId: scanned.id, notes: "Sin novedad" } });
+    await prisma.kardex.create({ data: { userId: guard.id, locationId: scanned.id, notes: "Sin novedad", media: [{ type: "IMAGE", url: "https://example.test/a.jpg", key: "a.jpg" }] } });
     // Un borrador sin notas no cuenta como completado.
     await prisma.kardex.create({ data: { userId: guard.id, locationId: emptyNotes.id, notes: "" } });
-    await prisma.kardex.create({ data: { userId: guard.id, locationId: other.id, notes: "OK" } });
+    await prisma.kardex.create({ data: { userId: guard.id, locationId: other.id, notes: "OK", media: [{ type: "IMAGE", url: "https://example.test/b.jpg", key: "b.jpg" }] } });
 
     const findFirst = jest.spyOn(prisma.kardex, "findFirst");
     const findMany = jest.spyOn(prisma.kardex, "findMany");
