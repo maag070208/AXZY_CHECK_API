@@ -635,6 +635,7 @@ enum ChargeCategory {
   MANTENIMIENTO
   EXTRA
   RECARGO
+  MULTA
 }
 
 /// Periodicidad de la cuota de cobranza. Los meses se suman a `nextChargeDate`.

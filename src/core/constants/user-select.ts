@@ -8,6 +8,7 @@ export const USER_PUBLIC_SELECT = {
   name: true,
   lastName: true,
   username: true,
+  photoUrl: true,
   active: true,
   roleId: true,
 } as const;

@@ -35,7 +35,7 @@ export interface CreateShiftHandoverInput {
 }
 
 const detailInclude = {
-  createdBy: { select: { id: true, name: true, lastName: true } },
+  createdBy: { select: { id: true, name: true, lastName: true, photoUrl: true } },
   elements: {
     include: { guard: { select: { id: true, name: true, lastName: true } } },
   },
@@ -96,7 +96,7 @@ export const getDataTableShiftHandovers = async (
     prismaClient.shiftHandover.findMany({
       ...prismaParams,
       include: {
-        createdBy: { select: { id: true, name: true, lastName: true } },
+        createdBy: { select: { id: true, name: true, lastName: true, photoUrl: true } },
         _count: { select: { elements: true } },
       },
       orderBy: prismaParams.orderBy || { handoverDate: "desc" },

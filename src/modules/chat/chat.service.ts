@@ -16,6 +16,7 @@ const messageSelect = {
       id: true,
       name: true,
       lastName: true,
+      photoUrl: true,
       role: { select: { name: true, value: true } },
     },
   },

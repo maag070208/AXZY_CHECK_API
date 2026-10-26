@@ -126,6 +126,22 @@ describe("cargos", () => {
     expect(duplicate.body.code).toBe("PERIOD_ALREADY_CHARGED");
   });
 
+  it("acepta una multa o infracción como cargo manual", async () => {
+    const property = await makeProperty("F-MULTA");
+    const resident = await makeResident(property.id);
+    const auth = await adminAuth();
+
+    const created = await createCharge(auth, {
+      propertyId: property.id,
+      residentId: resident.user.id,
+      category: "MULTA",
+      concept: "Multa por ruido",
+      amount: 750,
+    });
+    expect(created.status).toBe(201);
+    expect(created.body.data).toMatchObject({ category: "MULTA", amount: 750, period: null });
+  });
+
   it("genera la cuota mensual en todas las propiedades una sola vez", async () => {
     const propertyA = await makeProperty("F-MA");
     const propertyB = await makeProperty("F-MB");

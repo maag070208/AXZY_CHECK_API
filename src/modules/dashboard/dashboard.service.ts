@@ -194,7 +194,7 @@ export const getLiveDashboard = async () => {
       prismaClient.round.findMany({
         where: { status: "IN_PROGRESS" },
         include: {
-          guard: { select: { id: true, name: true, lastName: true, role: { select: { name: true } } } },
+          guard: { select: { id: true, name: true, lastName: true, photoUrl: true, role: { select: { name: true } } } },
           recurringConfiguration: {
             include: { recurringLocations: { where: { active: true } } },
           },
@@ -306,7 +306,7 @@ export const getLiveDashboard = async () => {
 
     return {
       roundId: round.id,
-      guard: { id: round.guard.id, name: round.guard.name, lastName: round.guard.lastName },
+      guard: { id: round.guard.id, name: round.guard.name, lastName: round.guard.lastName, photoUrl: round.guard.photoUrl },
       routeId: round.recurringConfigurationId,
       routeTitle: round.recurringConfiguration?.title ?? null,
       startTime: round.startTime,
