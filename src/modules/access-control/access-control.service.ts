@@ -187,15 +187,35 @@ export const listAccessEvents = async (query: {
   page: number;
   pageSize: number;
   propertyId?: number;
+  personId?: number;
   method?: AccessMethod;
+  direction?: AccessDirection;
   decision?: AccessDecision;
+  q?: string;
   from?: string;
   to?: string;
 }) => {
+  const q = query.q?.trim();
   const where: Prisma.AccessEventWhereInput = {
     ...(query.propertyId ? { propertyId: query.propertyId } : {}),
+    ...(query.personId ? { personId: query.personId } : {}),
     ...(query.method ? { method: query.method } : {}),
+    ...(query.direction ? { direction: query.direction } : {}),
     ...(query.decision ? { decision: query.decision } : {}),
+    ...(q
+      ? {
+          OR: [
+            { property: { identifier: { contains: q, mode: "insensitive" } } },
+            { property: { name: { contains: q, mode: "insensitive" } } },
+            { person: { firstName: { contains: q, mode: "insensitive" } } },
+            { person: { lastName: { contains: q, mode: "insensitive" } } },
+            { vehicle: { plate: { contains: q, mode: "insensitive" } } },
+            { vehicle: { tagCode: { contains: q, mode: "insensitive" } } },
+            { invitation: { guestName: { contains: q, mode: "insensitive" } } },
+            { guard: { name: { contains: q, mode: "insensitive" } } },
+          ],
+        }
+      : {}),
     ...((query.from || query.to) && {
       occurredAt: {
         ...(query.from ? { gte: dateOnly(query.from) } : {}),
@@ -214,6 +234,7 @@ export const listAccessEvents = async (query: {
         property: { select: { id: true, identifier: true, name: true } },
         person: { select: { id: true, firstName: true, lastName: true } },
         vehicle: { select: { id: true, plate: true, tagCode: true } },
+        invitation: { select: { id: true, code: true, guestName: true } },
         guard: { select: { id: true, name: true, lastName: true } },
       },
     }),
@@ -251,4 +272,28 @@ export const revokeAccessException = async (id: number) => {
   const exception = await prismaClient.accessException.findUnique({ where: { id } });
   if (!exception) throw new AppError("ACCESS_EXCEPTION_NOT_FOUND", "Excepción no encontrada", 404);
   return prismaClient.accessException.update({ where: { id }, data: { revokedAt: new Date() } });
+};
+
+
+const csvCell = (value: unknown) => {
+  const text = value == null ? "" : String(value);
+  return `"${text.replace(/"/g, '""')}"`;
+};
+
+export const exportAccessEventsCsv = async (query: Omit<Parameters<typeof listAccessEvents>[0], "page" | "pageSize">) => {
+  const result = await listAccessEvents({ ...query, page: 1, pageSize: 5000 });
+  const header = ["Fecha", "Propiedad", "Persona", "Vehículo", "Invitado", "Método", "Sentido", "Decisión", "Guardia", "Motivo"];
+  const rows = result.items.map((event: any) => [
+    event.occurredAt.toISOString(),
+    event.property ? `${event.property.identifier} · ${event.property.name}` : "",
+    event.person ? `${event.person.firstName} ${event.person.lastName ?? ""}`.trim() : "",
+    event.vehicle ? `${event.vehicle.plate}${event.vehicle.tagCode ? ` / ${event.vehicle.tagCode}` : ""}` : "",
+    event.invitation ? `${event.invitation.guestName} (${event.invitation.code})` : "",
+    event.method,
+    event.direction === "ENTRY" ? "Entrada" : "Salida",
+    event.decision === "ALLOWED" ? "Permitido" : "Denegado",
+    event.guard ? `${event.guard.name} ${event.guard.lastName ?? ""}`.trim() : "",
+    event.reason ?? "",
+  ]);
+  return `\uFEFF${[header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
 };

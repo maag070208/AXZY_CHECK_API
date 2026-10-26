@@ -32,8 +32,22 @@ export const accessEventsQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
   propertyId: positiveId.optional(),
+  personId: positiveId.optional(),
   method: z.enum(["QR", "TAG", "PIN", "MANUAL"]).optional(),
+  direction: z.enum(["ENTRY", "EXIT"]).optional(),
   decision: z.enum(["ALLOWED", "DENIED"]).optional(),
+  q: z.string().trim().max(80).optional(),
+  from: dateOnly.optional(),
+  to: dateOnly.optional(),
+});
+
+export const accessEventsExportQuery = z.object({
+  propertyId: positiveId.optional(),
+  personId: positiveId.optional(),
+  method: z.enum(["QR", "TAG", "PIN", "MANUAL"]).optional(),
+  direction: z.enum(["ENTRY", "EXIT"]).optional(),
+  decision: z.enum(["ALLOWED", "DENIED"]).optional(),
+  q: z.string().trim().max(80).optional(),
   from: dateOnly.optional(),
   to: dateOnly.optional(),
 });

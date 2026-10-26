@@ -30,6 +30,7 @@ describe("matriz sembrada", () => {
     })).map((rp) => rp.permission.code).sort();
     expect(codes).toEqual([
       "access.check",
+      "accesspin.validate",
       "assignment.view",
       "chat.use",
       "club.create",

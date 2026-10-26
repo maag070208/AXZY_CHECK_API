@@ -119,6 +119,8 @@ model User {
   announcementsCreated     Announcement[]           @relation("AnnouncementCreator")
   vehiclesOwned            Vehicle[]                @relation("VehicleOwner")
   vehiclesApproved         Vehicle[]                @relation("VehicleApprover")
+  accessPins               AccessPin[]              @relation("AccessPinOwner")
+  accessPinsCreated        AccessPin[]              @relation("AccessPinCreator")
   auditLogs                AuditLog[]
   pushDevices              PushDevice[]
 
@@ -147,6 +149,7 @@ model Property {
   accessExceptions AccessException[]
   announcements    Announcement[]    @relation("AnnouncementProperty")
   vehicles         Vehicle[]
+  accessPins       AccessPin[]
   id               Int               @id @default(autoincrement())
   identifier       String            @unique
   name             String
@@ -1402,4 +1405,24 @@ model Vehicle {
   @@unique([propertyId, plateNormalized])
   @@index([plateNormalized])
   @@index([propertyId, status])
+}
+
+/// Clave peatonal del residente. Solo se guarda el HMAC del PIN; el PIN se muestra una vez.
+model AccessPin {
+  id          Int       @id @default(autoincrement())
+  propertyId  Int
+  property    Property  @relation(fields: [propertyId], references: [id])
+  userId      Int
+  user        User      @relation("AccessPinOwner", fields: [userId], references: [id])
+  pinHash     String    @unique
+  active      Boolean   @default(true)
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdById Int
+  createdBy   User      @relation("AccessPinCreator", fields: [createdById], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([propertyId, active])
+  @@index([userId, active])
 }

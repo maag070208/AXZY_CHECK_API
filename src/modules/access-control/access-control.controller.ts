@@ -5,6 +5,7 @@ import {
   createAccessException,
   getDelinquencyRule,
   getGuardAccessStatus,
+  exportAccessEventsCsv,
   listAccessEvents,
   listAccessExceptions,
   revokeAccessException,
@@ -40,6 +41,17 @@ export const putRule = async (req: Request, res: Response) => {
 export const getEvents = async (req: Request, res: Response) => {
   try {
     return res.status(200).json(createTResult(await listAccessEvents(req.query as any)));
+  } catch (error: unknown) {
+    return respondError(res, error);
+  }
+};
+
+export const exportEvents = async (req: Request, res: Response) => {
+  try {
+    const csv = await exportAccessEventsCsv(req.query as any);
+    res.setHeader("Content-Type", "text/csv; charset=utf-8");
+    res.setHeader("Content-Disposition", `attachment; filename="bitacora-accesos-${new Date().toISOString().slice(0, 10)}.csv"`);
+    return res.status(200).send(csv);
   } catch (error: unknown) {
     return respondError(res, error);
   }

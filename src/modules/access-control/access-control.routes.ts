@@ -4,6 +4,7 @@ import { idParam } from "@src/core/validation/common";
 import { requirePermission } from "@src/modules/common/middlewares/require-permission.middleware";
 import {
   deleteException,
+  exportEvents,
   getEvents,
   getExceptions,
   getRule,
@@ -13,6 +14,7 @@ import {
 } from "./access-control.controller";
 import {
   accessEventsQuery,
+  accessEventsExportQuery,
   accessExceptionBody,
   accessExceptionQuery,
   accessStatusQuery,
@@ -25,6 +27,7 @@ router.get("/status", requirePermission("access.check"), validate({ query: acces
 router.get("/delinquency-rule", requirePermission("delinquency.view"), getRule);
 router.put("/delinquency-rule", requirePermission("delinquency.manage"), validate({ body: delinquencyRuleBody }), putRule);
 router.get("/events", requirePermission("access.event.view"), validate({ query: accessEventsQuery }), getEvents);
+router.get("/events/export.csv", requirePermission("access.event.view"), validate({ query: accessEventsExportQuery }), exportEvents);
 router.get("/exceptions", requirePermission("delinquency.view"), validate({ query: accessExceptionQuery }), getExceptions);
 router.post("/exceptions", requirePermission("delinquency.manage"), validate({ body: accessExceptionBody }), postException);
 router.delete("/exceptions/:id", requirePermission("delinquency.manage"), validate({ params: idParam }), deleteException);

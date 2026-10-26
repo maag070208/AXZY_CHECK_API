@@ -214,5 +214,17 @@ describe("bloqueo de visitas por adeudo", () => {
     expect(events.status).toBe(200);
     expect(events.body.data.total).toBeGreaterThan(0);
     expect(events.body.data.items.every((item: any) => item.decision === "DENIED")).toBe(true);
+
+    const exported = await request(app)
+      .get(`${api}/access/events/export.csv?propertyId=${property.id}&decision=DENIED`)
+      .set("Authorization", admin);
+    expect(exported.status).toBe(200);
+    expect(exported.headers["content-type"]).toContain("text/csv");
+    expect(exported.text).toContain("Fecha");
+    expect(exported.text).toContain("Denegado");
+
+    const mine = await request(app).get(`${api}/my-access/events`).set("Authorization", resident.auth);
+    expect(mine.status).toBe(200);
+    expect(mine.body.data.total).toBeGreaterThan(0);
   });
 });

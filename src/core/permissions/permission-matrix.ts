@@ -71,6 +71,8 @@ export const PERMISSIONS = [
   { code: "vehicle.view", description: "Consultar el padrón de vehículos" },
   { code: "vehicle.manage", description: "Registrar, aprobar, editar y desactivar vehículos" },
   { code: "vehicle.self", description: "Registrar y consultar mis propios vehículos" },
+  { code: "accesspin.manage", description: "Generar, consultar y revocar mi clave peatonal" },
+  { code: "accesspin.validate", description: "Validar claves peatonales en caseta" },
 ] as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[number]["code"];
@@ -126,9 +128,11 @@ export const ROLE_PERMISSIONS: Record<string, readonly PermissionCode[]> = {
     "access.event.view",
     "announcement.view",
     "vehicle.view",
+    "accesspin.validate",
   ],
   GUARD: [
     "access.check",
+    "accesspin.validate",
     "chat.use",
     "recurring.operate",
     "round.view",
@@ -167,6 +171,7 @@ export const ROLE_PERMISSIONS: Record<string, readonly PermissionCode[]> = {
     "invitation.revoke",
     "complaint.create",
     "vehicle.self",
+    "accesspin.manage",
     "complaint.view",
     "charge.view",
     "payment.view",
