@@ -6,6 +6,7 @@ import {
   listAnnouncements,
   listMyNotifications,
   markNotificationRead,
+  registerPushDevice,
   unreadNotificationCount,
 } from "./announcements.service";
 
@@ -38,6 +39,14 @@ export const myNotifications = async (req: Request, res: Response) => {
 export const myUnreadCount = async (req: Request, res: Response) => {
   try {
     return res.status(200).json(createTResult({ count: await unreadNotificationCount(userId(req)) }));
+  } catch (error: unknown) {
+    return respondError(res, error);
+  }
+};
+
+export const registerDevice = async (req: Request, res: Response) => {
+  try {
+    return res.status(200).json(createTResult(await registerPushDevice(userId(req), req.body.token, req.body.platform)));
   } catch (error: unknown) {
     return respondError(res, error);
   }

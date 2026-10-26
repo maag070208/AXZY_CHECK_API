@@ -15,13 +15,7 @@ const notificationPayload = z.object({
  * filas) y envía push a los dispositivos registrados, si hay remitente.
  * Un token inválido se elimina; otros errores fallan el evento para reintentarlo.
  */
-export const notifyUsersHandler = async (event: OutboxEvent, payload: unknown): Promise<void> => {
-  const { userIds, title, body, data } = notificationPayload.parse(payload);
-  await prismaClient.notification.createMany({
-    data: userIds.map((userId) => ({ userId, outboxEventId: event.id, title, body, data })),
-    skipDuplicates: true,
-  });
-
+const sendPushToUsers = async (userIds: number[], title: string, body: string, data?: Record<string, string>) => {
   const sender = getPushSender();
   if (!sender) return;
 
@@ -40,4 +34,22 @@ export const notifyUsersHandler = async (event: OutboxEvent, payload: unknown): 
       }
     }
   }
+};
+
+export const notifyUsersHandler = async (event: OutboxEvent, payload: unknown): Promise<void> => {
+  const { userIds, title, body, data } = notificationPayload.parse(payload);
+  await prismaClient.notification.createMany({
+    data: userIds.map((userId) => ({ userId, outboxEventId: event.id, title, body, data })),
+    skipDuplicates: true,
+  });
+  await sendPushToUsers(userIds, title, body, data);
+};
+
+/**
+ * Solo push: el aviso ya creó sus notificaciones in-app en la misma transacción.
+ * Evita duplicar la bandeja al usar `notification.send`.
+ */
+export const pushOnlyHandler = async (_event: OutboxEvent, payload: unknown): Promise<void> => {
+  const { userIds, title, body, data } = notificationPayload.parse(payload);
+  await sendPushToUsers(userIds, title, body, data);
 };

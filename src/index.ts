@@ -3,10 +3,12 @@ import { registerShiftAlertCron } from "@src/core/jobs/shift-alert.cron";
 import { registerOutboxWorker } from "@src/core/jobs/outbox.cron";
 import { registerCollectionsCron } from "@src/core/jobs/collections.cron";
 import { prismaClient } from "@src/core/config/database";
+import { registerFirebasePush } from "@src/core/push/firebase-sender";
 
 const PORT = Number(process.env.PORT ?? 4444);
 
 // Entrega de turno: alertas automáticas 7:00 AM / 7:00 PM (ajustes/bonaterra_ajuste_2.md, 4.2)
+registerFirebasePush();
 registerShiftAlertCron();
 registerCollectionsCron();
 registerOutboxWorker();

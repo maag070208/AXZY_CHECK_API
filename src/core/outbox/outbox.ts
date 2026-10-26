@@ -1,6 +1,6 @@
 import { OutboxEvent, Prisma } from "@prisma/client";
 import { prismaClient } from "@src/core/config/database";
-import { notifyUsersHandler } from "./handlers";
+import { notifyUsersHandler, pushOnlyHandler } from "./handlers";
 
 /**
  * [T-F0-10] Outbox: los efectos secundarios (notificaciones, push) se registran en
@@ -11,6 +11,7 @@ export type OutboxHandler = (event: OutboxEvent, payload: unknown) => Promise<vo
 
 export const OUTBOX_HANDLERS: Record<string, OutboxHandler> = {
   "notification.send": notifyUsersHandler,
+  "push.send": pushOnlyHandler,
 };
 
 export const MAX_ATTEMPTS = 3;

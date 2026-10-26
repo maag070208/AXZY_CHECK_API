@@ -24,6 +24,11 @@ export const announcementsQuery = z.object({
   pageSize: z.coerce.number().int().min(1).max(50).default(20),
 });
 
+export const pushDeviceBody = z.object({
+  token: z.string().trim().min(20, "token inválido").max(500),
+  platform: z.enum(["android", "ios"]).default("android"),
+});
+
 export const notificationListQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(30),

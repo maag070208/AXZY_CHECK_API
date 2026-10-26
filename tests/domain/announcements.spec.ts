@@ -95,6 +95,20 @@ describe("avisos y comunicados", () => {
     expect((await request(app).get(`${api}/announcements`).set("Authorization", resident.auth)).status).toBe(403);
   });
 
+  it("registra y renueva el token push del dispositivo", async () => {
+    const property = await makeProperty("AV-5");
+    const resident = await makeResident(property.id);
+    const token = "fcm-token-android-1234567890";
+
+    const first = await request(app).post(`${api}/notifications/devices`).set("Authorization", resident.auth).send({ token, platform: "android" });
+    expect(first.status).toBe(200);
+    expect(first.body.data).toMatchObject({ token, platform: "android" });
+
+    const second = await request(app).post(`${api}/notifications/devices`).set("Authorization", resident.auth).send({ token, platform: "android" });
+    expect(second.status).toBe(200);
+    expect(await prisma.pushDevice.count({ where: { token } })).toBe(1);
+  });
+
   it("no envía si no hay destinatarios", async () => {
     const admin = await adminAuth();
     const response = await request(app)

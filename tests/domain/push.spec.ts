@@ -69,6 +69,18 @@ describe("envío", () => {
     expect(await prisma.notification.count({ where: { userId: a.id } })).toBe(1);
   });
 
+  it("push.send solo envía push y no duplica la notificación in-app", async () => {
+    const a = await buildUser("GUARD");
+    await prisma.pushDevice.create({ data: { userId: a.id, token: "tok-a", platform: "android" } });
+
+    await enqueueOutbox("push.send", { userIds: [a.id], title: "Aviso", body: "Hola", data: { announcementId: "1" } });
+    await processOutbox(base());
+
+    expect(fake.sent).toHaveLength(1);
+    expect(fake.sent[0].message).toMatchObject({ title: "Aviso", body: "Hola", data: { announcementId: "1" } });
+    expect(await prisma.notification.count({ where: { userId: a.id } })).toBe(0);
+  });
+
   it("sin remitente configurado el evento se entrega solo en la app", async () => {
     setPushSender(null);
     const a = await buildUser("GUARD");

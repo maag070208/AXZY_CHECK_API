@@ -1,6 +1,7 @@
 import { AnnouncementAudience, Prisma } from "@prisma/client";
 import { prismaClient } from "@src/core/config/database";
 import { AppError } from "@src/core/errors/app-error";
+import { enqueueOutbox } from "@src/core/outbox/outbox";
 
 type CreateInput = {
   title: string;
@@ -86,6 +87,13 @@ export const createAnnouncement = async (input: CreateInput, actorId: number) =>
     });
   });
 
+  await enqueueOutbox("push.send", {
+    userIds: recipients.map((recipient) => recipient.id),
+    title: announcement.title,
+    body: announcement.body,
+    data: { announcementId: String(announcement.id) },
+  });
+
   return serializeAnnouncement(announcement);
 };
 
@@ -123,6 +131,15 @@ export const listMyNotifications = async (userId: number, query: { page: number;
 
 export const unreadNotificationCount = async (userId: number) => {
   return prismaClient.notification.count({ where: { userId, readAt: null } });
+};
+
+export const registerPushDevice = async (userId: number, token: string, platform: "android" | "ios") => {
+  return prismaClient.pushDevice.upsert({
+    where: { token },
+    update: { userId, platform, lastSeenAt: new Date() },
+    create: { userId, token, platform },
+    select: { id: true, token: true, platform: true, lastSeenAt: true },
+  });
 };
 
 export const markNotificationRead = async (userId: number, id: number) => {
