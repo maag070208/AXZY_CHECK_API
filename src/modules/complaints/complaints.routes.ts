@@ -14,5 +14,7 @@ router.post("/", authenticate, requirePermission("complaint.create"), validate({
 router.get("/:id", authenticate, requirePermission("complaint.view"), validate({ params: idParam }), complaintController.getComplaint);
 router.post("/:id/messages", authenticate, requirePermission("complaint.view"), validate({ params: idParam, body: addComplaintMessageBody }), complaintController.addComplaintMessage);
 router.patch("/:id/status", authenticate, requirePermission("complaint.view"), validate({ params: idParam, body: changeComplaintStatusBody }), complaintController.changeComplaintStatus);
+// Reapertura del residente (solo su propia queja RESOLVED, dentro de 7 días).
+router.post("/:id/reopen", authenticate, requirePermission("complaint.view"), validate({ params: idParam }), complaintController.reopenComplaint);
 
 export default router;

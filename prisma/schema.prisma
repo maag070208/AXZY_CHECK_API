@@ -67,6 +67,11 @@ model User {
   complaintsAssigned    Complaint[]        @relation("ComplaintAssignee")
   complaintMessages     ComplaintMessage[]
   complaintEvents       ComplaintEvent[]
+  chargesAsResident     Charge[]                 @relation("ResidentCharges")
+  chargesCreated        Charge[]                 @relation("ChargeCreator")
+  paymentsAsResident    Payment[]                @relation("PaymentResident")
+  paymentsRegistered    Payment[]                @relation("PaymentRegistrar")
+  paymentsVoided        Payment[]                @relation("PaymentVoider")
   id                       Int                      @id @default(autoincrement())
   name                     String
   lastName                 String?
@@ -128,6 +133,9 @@ model Schedule {
 
 model Property {
   complaints     Complaint[]
+  charges        Charge[]
+  payments       Payment[]
+  incidents      Incident[]
   id             Int            @id @default(autoincrement())
   identifier     String         @unique
   name           String
@@ -517,6 +525,7 @@ model IncidentType {
 model Incident {
   id           Int               @id @default(autoincrement())
   guardId      Int
+  propertyId   Int?
   kind         String            @default("INCIDENT")
   title        String
   description  String?
@@ -534,6 +543,7 @@ model Incident {
   longitude    Float?
   clientRef    String?           @unique
   category     IncidentCategory? @relation(fields: [categoryId], references: [id])
+  property     Property?         @relation(fields: [propertyId], references: [id])
   guard        User              @relation(fields: [guardId], references: [id])
   resolvedBy   User?             @relation("IncidentResolver", fields: [resolvedById], references: [id])
   type         IncidentType?     @relation(fields: [typeId], references: [id])
@@ -542,6 +552,7 @@ model Incident {
   incidentStatusCatalog IncidentStatusCatalog? @relation(fields: [statusId], references: [id])
 
   @@index([kind, status, createdAt(sort: Desc)])
+  @@index([propertyId, createdAt(sort: Desc)])
 }
 
 /// Buzón de quejas del residente (módulo 13). Siempre identificadas: `authorId` obligatorio.
@@ -561,6 +572,7 @@ enum ComplaintStatus {
   WAITING_RESIDENT
   RESOLVED
   CLOSED
+  REOPENED
 }
 
 model Complaint {
@@ -584,6 +596,7 @@ model Complaint {
 
   @@index([propertyId, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
+  @@index([status, resolvedAt])
 }
 
 model ComplaintMessage {
@@ -605,12 +618,116 @@ model ComplaintEvent {
   complaintId Int
   fromStatus  ComplaintStatus?
   toStatus    ComplaintStatus
-  byUserId    Int
+  /// null = transición automática del sistema (p. ej. cierre a los 7 días).
+  byUserId    Int?
   createdAt   DateTime        @default(now())
   complaint   Complaint       @relation(fields: [complaintId], references: [id])
-  byUser      User            @relation(fields: [byUserId], references: [id])
+  byUser      User?           @relation(fields: [byUserId], references: [id])
 
   @@index([complaintId, createdAt])
+}
+
+/// Cargos del residente (módulo 13, pagos). Un cargo pertenece a una propiedad
+/// y se asigna al residente titular (`User` con rol RESDN) que debe pagarlo.
+enum ChargeCategory {
+  CUOTA
+  MANTENIMIENTO
+  EXTRA
+}
+
+enum ChargeStatus {
+  PENDING
+  PARTIAL
+  PAID
+  CANCELLED
+}
+
+enum PaymentMethod {
+  EFECTIVO
+  TRANSFERENCIA
+  TARJETA
+  AJUSTE
+}
+
+model Charge {
+  id              Int            @id @default(autoincrement())
+  propertyId      Int
+  residentId      Int
+  concept         String
+  category        ChargeCategory @default(EXTRA)
+  amount          Decimal        @db.Decimal(10, 2)
+  dueDate         DateTime       @db.Date
+  status          ChargeStatus   @default(PENDING)
+  /// Periodo YYYY-MM. Solo para CUOTA; la combinación propertyId+period es única.
+  period          String?
+  notes           String?
+  createdById     Int
+  cancelledAt     DateTime?
+  cancelledReason String?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  property        Property       @relation(fields: [propertyId], references: [id])
+  resident        User           @relation("ResidentCharges", fields: [residentId], references: [id])
+  createdBy       User           @relation("ChargeCreator", fields: [createdById], references: [id])
+  allocations     PaymentAllocation[]
+
+  /// Cuota mensual única por propiedad y periodo (los cargos sin periodo tienen NULL).
+  @@unique([propertyId, period])
+  @@index([residentId, status, dueDate])
+  @@index([propertyId, status])
+  @@index([dueDate])
+}
+
+model Payment {
+  id                 Int                 @id @default(autoincrement())
+  propertyId         Int
+  /// Residente al que se atribuye el pago cuando se registra en ventanilla.
+  residentId         Int?
+  amount             Decimal             @db.Decimal(10, 2)
+  /// Folio consecutivo por residencial; se asigna al registrar el pago.
+  folio              Int?                @unique
+  method             PaymentMethod
+  reference          String?
+  notes              String?
+  paidAt             DateTime            @default(now())
+  registeredById     Int
+  receiptKey         String?
+  /// Diferencia no aplicada a cargos (saldo a favor del residente).
+  unallocatedAmount  Decimal             @default(0) @db.Decimal(10, 2)
+  voidedAt           DateTime?
+  voidedById         Int?
+  voidReason         String?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  property           Property            @relation(fields: [propertyId], references: [id])
+  resident           User?               @relation("PaymentResident", fields: [residentId], references: [id])
+  registeredBy       User                @relation("PaymentRegistrar", fields: [registeredById], references: [id])
+  voidedBy           User?               @relation("PaymentVoider", fields: [voidedById], references: [id])
+  allocations        PaymentAllocation[]
+
+  @@index([propertyId, paidAt])
+  @@index([residentId, paidAt])
+  @@index([paidAt])
+}
+
+/// Secuencias de documentos (folios). Se bloquea la fila al asignar para evitar huecos/duplicados.
+model DocumentSequence {
+  key       String   @id
+  lastValue Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+model PaymentAllocation {
+  id        Int      @id @default(autoincrement())
+  paymentId Int
+  chargeId  Int
+  amount    Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+  payment   Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  charge    Charge   @relation(fields: [chargeId], references: [id])
+
+  @@index([paymentId])
+  @@index([chargeId])
 }
 
 model Round {

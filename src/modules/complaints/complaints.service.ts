@@ -28,6 +28,40 @@ const canSee = (actor: ComplaintActor, complaint: { authorId: number }) => actor
 
 const notFound = () => new AppError("COMPLAINT_NOT_FOUND", "Queja no encontrada", 404);
 
+/** Días que el residente tiene para reabrir una queja RESOLVED. */
+export const REOPEN_WINDOW_DAYS = 7;
+const REOPEN_WINDOW_MS = REOPEN_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+
+/**
+ * Cierre automático: una queja RESOLVED que pasó la ventana de reapertura se
+ * cierra sola. Se ejecuta de forma perezosa al leer/listar. El evento queda con
+ * `byUserId = null` porque lo hizo el sistema.
+ */
+export const closeExpiredResolvedComplaints = async (): Promise<number> => {
+  const cutoff = new Date(Date.now() - REOPEN_WINDOW_MS);
+  const expired = await prismaClient.complaint.findMany({
+    where: { status: ComplaintStatus.RESOLVED, resolvedAt: { lt: cutoff } },
+    select: { id: true },
+  });
+
+  let closed = 0;
+  for (const row of expired) {
+    await prismaClient.$transaction(async (tx) => {
+      const updated = await tx.complaint.updateMany({
+        where: { id: row.id, status: ComplaintStatus.RESOLVED },
+        data: { status: ComplaintStatus.CLOSED },
+      });
+      if (updated.count > 0) {
+        await tx.complaintEvent.create({
+          data: { complaintId: row.id, fromStatus: ComplaintStatus.RESOLVED, toStatus: ComplaintStatus.CLOSED, byUserId: null },
+        });
+        closed += 1;
+      }
+    });
+  }
+  return closed;
+};
+
 export const createComplaint = async (actor: ComplaintActor, data: CreateComplaintInput) => {
   const propertyId = await residentPropertyId(actor.id);
   if (!propertyId) throw new AppError("NO_ACTIVE_RESIDENCE", "Tu cuenta no está ligada a una propiedad activa", 403);
@@ -54,6 +88,7 @@ export const createComplaint = async (actor: ComplaintActor, data: CreateComplai
 };
 
 export const listComplaints = async (actor: ComplaintActor, query: ListComplaintsInput) => {
+  await closeExpiredResolvedComplaints();
   const where: Prisma.ComplaintWhereInput = {
     ...(actor.canManage ? {} : { authorId: actor.id }),
     ...(query.status && { status: query.status }),
@@ -73,6 +108,7 @@ export const listComplaints = async (actor: ComplaintActor, query: ListComplaint
 };
 
 export const getComplaint = async (actor: ComplaintActor, id: number) => {
+  await closeExpiredResolvedComplaints();
   const complaint = await prismaClient.complaint.findUnique({
     where: { id },
     include: {
@@ -134,7 +170,11 @@ export const changeComplaintStatus = async (actor: ComplaintActor, id: number, t
   await prismaClient.$transaction(async (tx) => {
     const updated = await tx.complaint.updateMany({
       where: { id, status: complaint.status },
-      data: { status: to, ...(to === ComplaintStatus.RESOLVED && { resolvedAt: new Date() }) },
+      data: {
+        status: to,
+        ...(to === ComplaintStatus.RESOLVED && { resolvedAt: new Date() }),
+        ...(to === ComplaintStatus.REOPENED && { resolvedAt: null }),
+      },
     });
     assertStatusUpdated(updated.count);
     await tx.complaintEvent.create({
@@ -143,5 +183,47 @@ export const changeComplaintStatus = async (actor: ComplaintActor, id: number, t
   });
 
   void publishToChannel(ABLY_CHANNELS.DASHBOARD_LIVE, "refresh", { reason: "complaint-updated", complaintId: id });
+  return prismaClient.complaint.findUnique({ where: { id }, select: { id: true, status: true, resolvedAt: true, updatedAt: true } });
+};
+
+/**
+ * Reapertura del residente: solo su propia queja, solo RESOLVED, solo dentro de
+ * los 7 días. Deja el evento RESOLVED → REOPENED y devuelve la queja a revisión
+ * (la administración la mueve a IN_REVIEW desde su bandeja).
+ */
+export const reopenComplaint = async (actor: ComplaintActor, id: number) => {
+  await closeExpiredResolvedComplaints();
+
+  const complaint = await prismaClient.complaint.findUnique({
+    where: { id },
+    select: { id: true, authorId: true, status: true, resolvedAt: true },
+  });
+  if (!complaint || !canSee(actor, complaint)) throw notFound();
+  if (actor.canManage) {
+    throw new AppError("FORBIDDEN", "Solo el residente puede reabrir su queja", 403);
+  }
+  if (complaint.status !== ComplaintStatus.RESOLVED || !complaint.resolvedAt) {
+    throw new AppError("INVALID_TRANSITION", "Solo se puede reabrir una queja resuelta", 409);
+  }
+  if (Date.now() > complaint.resolvedAt.getTime() + REOPEN_WINDOW_MS) {
+    throw new AppError(
+      "REOPEN_WINDOW_EXPIRED",
+      `El plazo de ${REOPEN_WINDOW_DAYS} días para reabrir la queja venció`,
+      409,
+    );
+  }
+
+  await prismaClient.$transaction(async (tx) => {
+    const updated = await tx.complaint.updateMany({
+      where: { id, status: ComplaintStatus.RESOLVED },
+      data: { status: ComplaintStatus.REOPENED, resolvedAt: null },
+    });
+    assertStatusUpdated(updated.count);
+    await tx.complaintEvent.create({
+      data: { complaintId: id, fromStatus: ComplaintStatus.RESOLVED, toStatus: ComplaintStatus.REOPENED, byUserId: actor.id },
+    });
+  });
+
+  void publishToChannel(ABLY_CHANNELS.DASHBOARD_LIVE, "refresh", { reason: "complaint-reopened", complaintId: id });
   return prismaClient.complaint.findUnique({ where: { id }, select: { id: true, status: true, resolvedAt: true, updatedAt: true } });
 };

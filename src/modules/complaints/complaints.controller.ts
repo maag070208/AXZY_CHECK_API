@@ -54,3 +54,12 @@ export const changeComplaintStatus = async (req: Request, res: Response) => {
     return respondError(res, error);
   }
 };
+
+export const reopenComplaint = async (req: Request, res: Response) => {
+  try {
+    const result = await complaintService.reopenComplaint(await actorOf(req), Number(req.params.id));
+    return res.status(200).json(createTResult(result));
+  } catch (error: unknown) {
+    return respondError(res, error);
+  }
+};

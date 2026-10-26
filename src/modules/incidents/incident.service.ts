@@ -65,6 +65,7 @@ import { sendIncidentEmail } from "@src/core/utils/emailSender";
 
 export const createIncident = async (data: {
     guardId: number;
+    propertyId?: number;
     title: string;
     categoryId?: number;
     typeId?: number;
@@ -88,6 +89,7 @@ export const createIncident = async (data: {
         data: {
             kind: INCIDENT_KIND,
             guardId: data.guardId,
+            propertyId: data.propertyId,
             title: data.title,
             categoryId: data.categoryId,
             typeId: data.typeId,

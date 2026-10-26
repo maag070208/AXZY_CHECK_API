@@ -27,6 +27,9 @@ import { idParam, positiveId } from "@src/core/validation/common";
 import { z } from "zod";
 import { addResidentBody, putResidentBody, contactBody, putContactBody, selfProfileBody } from "./residents.schemas";
 import { authenticate } from "@src/modules/common/middlewares/auth.middleware";
+import { getMyBalance, getMyFinance, getMyReceipt } from "../finance/finance.controller";
+import { getMyKardex } from "./kardex.controller";
+import { residentKardexQuery } from "./kardex.schemas";
 
 const contactIdParam = z.object({ contactId: positiveId });
 
@@ -36,6 +39,13 @@ router.post("/datatable", requireStaff, getDataTable);
 
 router.get("/", requireStaff, getResidents);
 router.get("/catalog/relationships", getRelationships);
+
+// Autoservicio financiero del residente (módulo 13, fase 3). Va antes de /:id.
+router.get("/me/balance", requirePermission("charge.view"), getMyBalance);
+router.get("/me/payments", requirePermission("payment.view"), getMyFinance);
+router.get("/me/payments/:id/receipt", requirePermission("payment.view"), validate({ params: idParam }), getMyReceipt);
+// Kardex del residente (módulo 13, fase 5): accesos, incidencias, cargos y pagos.
+router.get("/me/kardex", requirePermission("resident.self"), validate({ query: residentKardexQuery }), getMyKardex);
 
 // Tipos de residente (A2) para el formulario de alta desde la propiedad.
 router.get("/kinds", requirePermission("properties.view"), async (_req, res, next) => {

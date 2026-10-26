@@ -18,6 +18,9 @@ import reportRoute from "./reports/report.routes";
 import propertiesRoute from "./properties/properties.routes";
 import complaintsRoute from "./complaints/complaints.routes";
 import residentsRoute from "./residents/residents.routes";
+import chargesRoute from "./finance/charges.routes";
+import paymentsRoute from "./finance/payments.routes";
+import financeRoute from "./finance/finance.routes";
 import invitationsRoute from "./invitations/invitations.routes";
 import catalogRoute from "./catalog/catalog.routes";
 import catalogAdminRoute from "./catalog-admin/catalog-admin.routes";
@@ -62,6 +65,11 @@ apiRouter.use("/properties", propertiesRoute);
 apiRouter.use("/residents", residentsRoute);
 apiRouter.use("/invitations", invitationsRoute);
 apiRouter.use("/complaints", complaintsRoute);
+// Finanzas del residente (módulo 13): ADMIN registra cargos/pagos; el residente
+// consulta lo suyo desde /residents/me/*.
+apiRouter.use("/charges", requireStaff, chargesRoute);
+apiRouter.use("/payments", requireStaff, paymentsRoute);
+apiRouter.use("/finance", requireStaff, financeRoute);
 apiRouter.use("/catalog", catalogRoute);
 apiRouter.use("/catalog-admin", catalogAdminRoute);
 apiRouter.use("/chat", chatRoute);

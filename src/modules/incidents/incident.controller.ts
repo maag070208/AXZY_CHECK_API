@@ -18,7 +18,7 @@ const storageService = new StorageService();
 
 export const createIncident = async (req: Request, res: Response) => {
   try {
-    const { title, categoryId, typeId, description, media, latitude, longitude } = req.body;
+    const { title, categoryId, typeId, description, media, latitude, longitude, propertyId } = req.body;
     const clientRef = getClientRef(req);
     const occurredAt = getOccurredAt(req);
     const origin = getOfflineOrigin(req);
@@ -35,6 +35,7 @@ export const createIncident = async (req: Request, res: Response) => {
       guardId: Number(guardId),
       title,
       categoryId: categoryId ? Number(categoryId) : undefined,
+      propertyId: propertyId ? Number(propertyId) : undefined,
       typeId: typeId ? Number(typeId) : undefined,
       description,
       media: mediaFiles.length > 0 ? mediaFiles : undefined,

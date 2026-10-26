@@ -57,6 +57,11 @@ export const PERMISSIONS = [
   { code: "complaint.create", description: "Levantar quejas o sugerencias" },
   { code: "complaint.view", description: "Consultar quejas (el residente, solo las propias)" },
   { code: "complaint.manage", description: "Responder, cambiar estado y ver notas internas de quejas" },
+  // Finanzas del residente (módulo 13): cargos y pagos. El residente solo consulta lo suyo.
+  { code: "charge.view", description: "Consultar cargos (el residente, solo los propios)" },
+  { code: "charge.manage", description: "Registrar, generar y cancelar cargos" },
+  { code: "payment.view", description: "Consultar pagos (el residente, solo los aplicados a sus cargos)" },
+  { code: "payment.manage", description: "Registrar y reversar pagos" },
 ] as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[number]["code"];
@@ -142,5 +147,14 @@ export const ROLE_PERMISSIONS: Record<string, readonly PermissionCode[]> = {
     "club.resolve",
     "club.delete",
   ],
-  RESDN: ["resident.self", "invitation.view", "invitation.create", "invitation.revoke", "complaint.create", "complaint.view"],
+  RESDN: [
+    "resident.self",
+    "invitation.view",
+    "invitation.create",
+    "invitation.revoke",
+    "complaint.create",
+    "complaint.view",
+    "charge.view",
+    "payment.view",
+  ],
 };

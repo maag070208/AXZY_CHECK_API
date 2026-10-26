@@ -47,11 +47,12 @@ export const INVITATION_TRANSITIONS: TransitionTable<InvitationStatus> = {
   CANCELLED: [],
 };
 
-/** Buzón de quejas (módulo 13). La reapertura tras RESOLVED llega en la fase 2. */
+/** Buzón de quejas (módulo 13). La reapertura la hace el residente dentro de 7 días. */
 export const COMPLAINT_TRANSITIONS: TransitionTable<ComplaintStatus> = {
   NEW: ["IN_REVIEW"],
   IN_REVIEW: ["WAITING_RESIDENT", "RESOLVED"],
   WAITING_RESIDENT: ["IN_REVIEW", "RESOLVED"],
-  RESOLVED: ["CLOSED"],
+  RESOLVED: ["CLOSED", "REOPENED"],
   CLOSED: [],
+  REOPENED: ["IN_REVIEW", "RESOLVED"],
 };
