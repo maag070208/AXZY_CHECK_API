@@ -33,6 +33,8 @@ export const updateUserBody = z
     scheduleId: positiveId.nullish(),
     shiftStart: z.string().regex(/^\d{2}:\d{2}$/).nullish(),
     shiftEnd: z.string().regex(/^\d{2}:\d{2}$/).nullish(),
+    photoUrl: z.string().url().max(500).nullish(),
+    photoKey: z.string().trim().min(1).max(300).nullish(),
     password: z.string().optional(),
   })
   .passthrough();

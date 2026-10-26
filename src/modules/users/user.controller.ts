@@ -2,7 +2,7 @@ import { Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { getSetting } from "@src/core/settings/app-settings.service";
 import { getPermissionsForRole } from "@src/core/permissions/permissions.service";
-import { addUser, deleteUser as deleteUserService, getDataTableUsers, getUserById, getUserByUsername, getUsers, updateUser } from "./user.service";
+import { addUser, deleteUser as deleteUserService, getDataTableUsers, getUserById, getUserProfile, getUserByUsername, getUsers, updateUser } from "./user.service";
 
 export const getDataTable = async (req: Request, res: Response) => {
   try {
@@ -103,7 +103,9 @@ export const login = async (req: Request, res: Response) => {
       name: user.name,
       lastName: user.lastName,
       username: user.username,
-      role: user.role?.name
+      role: user.role?.name,
+      // Se guarda en la sesión para pintar la foto en header/drawer sin otra llamada.
+      photoUrl: user.photoUrl ?? user.residentProfile?.photoUrl ?? null,
     };
 
     return res.status(200).json(createTResult(await generateJWT(tokenPayload)));
@@ -171,10 +173,22 @@ export const createUser = async (req: Request, res: Response) => {
   }
 };
 
+export const getUser = async (req: Request, res: Response) => {
+  try {
+    const user = await getUserProfile(Number(req.params.id));
+    if (!user) {
+      return res.status(404).json(createTResult(null, ["Usuario no encontrado"]));
+    }
+    return res.status(200).json(createTResult(user));
+  } catch (error: any) {
+    return respondError(res, error);
+  }
+};
+
 export const updateUserProfile = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { name, lastName, username, shiftStart, shiftEnd, scheduleId, roleId, role } = req.body;
+    const { name, lastName, username, shiftStart, shiftEnd, scheduleId, roleId, role, photoUrl, photoKey } = req.body;
 
     // Solo ADMIN puede cambiar rol y horario. Sin esto, un guardia podría
     // cambiarse su propio rol a ADMIN usando PUT /users/:id sobre sí mismo.
@@ -196,10 +210,15 @@ export const updateUserProfile = async (req: Request, res: Response) => {
       name,
       lastName,
       username,
+      // El propio usuario puede cambiar su foto; el resto de datos personales
+      // lo administra la administración.
+      photoUrl,
+      photoKey,
       ...adminOnly,
     });
 
-    return res.status(200).json(createTResult(updated));
+    const { password: _omit, ...safeUser } = updated as typeof updated & { password?: string };
+    return res.status(200).json(createTResult(safeUser));
   } catch (error: any) {
     if (error.code === 'P2002') {
       return res.status(400).json(createTResult(null, ["El nombre de usuario ya está registrado"]));

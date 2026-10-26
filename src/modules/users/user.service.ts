@@ -64,7 +64,8 @@ export const getUserByUsername = async (username: string) => {
     },
     include: {
       schedule: true,
-      role: true
+      role: true,
+      residentProfile: { select: { photoUrl: true } },
     }
   });
 };
@@ -136,6 +137,22 @@ export const getUserById = async (id: number) => {
       softDelete: false,
     },
   });
+};
+
+/**
+ * Perfil propio (o de cualquier usuario para ADMIN). Incluye rol y horario para
+ * que la APP pueda mostrar el perfil de solo lectura del guardia, y nunca
+ * devuelve el hash de la contraseña.
+ */
+export const getUserProfile = async (id: number) => {
+  const user = await prismaClient.user.findFirst({
+    where: { id, softDelete: false },
+    include: { role: true, schedule: true },
+  });
+  if (!user) return null;
+
+  const { password: _password, photoKey: _photoKey, ...safeUser } = user;
+  return safeUser;
 };
 
 
