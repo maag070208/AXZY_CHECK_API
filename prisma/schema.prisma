@@ -125,6 +125,7 @@ model User {
   pushDevices              PushDevice[]
 
   @@index([roleId])
+  @@index([propertyId])
   @@index([isLoggedIn])
 }
 
@@ -189,6 +190,7 @@ model Property {
 
   @@index([identifier])
   @@index([statusId, typeId])
+  @@index([softDelete, active])
   @@index([occupancyStatusId])
 }
 
