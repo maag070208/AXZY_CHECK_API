@@ -1,5 +1,4 @@
-import { createHmac, randomInt } from "crypto";
-import jwt from "jsonwebtoken";
+import { createHmac, randomBytes, randomInt } from "crypto";
 import { AccessDecision, AccessDirection, AccessMethod } from "@prisma/client";
 import { prismaClient } from "@src/core/config/database";
 import { secretKey } from "@src/core/config/config";
@@ -198,42 +197,44 @@ const activeQrPass = async (userId: number) => {
 
 export const issueMyQrPass = async (userId: number) => {
   const pass = await activeQrPass(userId);
-  const token = jwt.sign(
-    { kind: "PERSONAL_QR", passId: pass.id, userId, propertyId: pass.propertyId },
-    secretKey,
-    { expiresIn: "60s" },
-  );
-  return { token, expiresIn: 60, expiresAt: new Date(Date.now() + 60_000).toISOString() };
+  let code = "";
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    code = `AXZ-P-${randomBytes(3).toString("hex").toUpperCase()}`;
+    const codeHash = hashPin(code);
+    const exists = await prismaClient.personalQrPass.findUnique({ where: { codeHash }, select: { id: true } });
+    if (!exists) {
+      await prismaClient.personalQrPass.update({
+        where: { id: pass.id },
+        data: { codeHash, codeExpiresAt: new Date(Date.now() + 60_000) },
+      });
+      return { token: code, expiresIn: 60, expiresAt: new Date(Date.now() + 60_000).toISOString() };
+    }
+  }
+  throw new AppError("QR_GENERATION_FAILED", "No se pudo generar el pase QR; intenta de nuevo", 500);
 };
 
 export const revokeMyQrPass = async (userId: number) => {
   await prismaClient.personalQrPass.updateMany({
     where: { userId, active: true },
-    data: { active: false, revokedAt: new Date() },
+    data: { active: false, revokedAt: new Date(), codeHash: null, codeExpiresAt: null },
   });
   return { active: false };
 };
 
 export const validatePersonalQrPass = async (token: string, guardId: number) => {
-  let payload: { kind?: string; passId?: number; userId?: number; propertyId?: number };
-  try {
-    payload = jwt.verify(token, secretKey) as typeof payload;
-  } catch (error) {
-    const expired = (error as { name?: string }).name === "TokenExpiredError";
-    return { valid: false, reason: expired ? "EXPIRED_QR" : "INVALID_QR" };
-  }
-  if (payload.kind !== "PERSONAL_QR" || !payload.passId) {
-    return { valid: false, reason: "INVALID_QR" };
-  }
-
+  const codeHash = hashPin(token);
   const pass = await prismaClient.personalQrPass.findFirst({
-    where: { id: payload.passId, active: true, revokedAt: null },
+    where: { codeHash, active: true, revokedAt: null, codeExpiresAt: { gt: new Date() } },
     include: {
       property: { select: { id: true, identifier: true, name: true } },
       user: { select: { id: true, name: true, lastName: true, photoUrl: true, active: true, softDelete: true, propertyId: true } },
     },
   });
-  if (!pass || !pass.user.active || pass.user.softDelete || pass.user.propertyId !== pass.propertyId) {
+  if (!pass) {
+    const stale = await prismaClient.personalQrPass.findFirst({ where: { codeHash }, select: { id: true } });
+    return { valid: false, reason: stale ? "EXPIRED_QR" : "INVALID_QR" };
+  }
+  if (!pass.user.active || pass.user.softDelete || pass.user.propertyId !== pass.propertyId) {
     return { valid: false, reason: "INVALID_QR" };
   }
 

@@ -12,5 +12,5 @@ export const createPinBody = z
   .default({});
 
 export const qrTokenBody = z.object({
-  token: z.string().trim().min(20).max(2000),
+  token: z.string().trim().min(8).max(2000),
 }).strict();

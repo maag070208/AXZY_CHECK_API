@@ -1434,16 +1434,18 @@ model AccessPin {
 /// Pase QR personal del residente. El token es de corta duración (60 s) y
 /// se firma; esta fila es la que permite revocarlo.
 model PersonalQrPass {
-  id         Int       @id @default(autoincrement())
-  propertyId Int
-  property   Property  @relation(fields: [propertyId], references: [id])
-  userId     Int
-  user       User      @relation(fields: [userId], references: [id])
-  active     Boolean   @default(true)
-  lastUsedAt DateTime?
-  revokedAt  DateTime?
-  createdAt  DateTime  @default(now())
-  updatedAt  DateTime  @updatedAt
+  id            Int       @id @default(autoincrement())
+  propertyId    Int
+  property      Property  @relation(fields: [propertyId], references: [id])
+  userId        Int
+  user          User      @relation(fields: [userId], references: [id])
+  active        Boolean   @default(true)
+  codeHash      String?   @unique
+  codeExpiresAt DateTime?
+  lastUsedAt    DateTime?
+  revokedAt     DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 
   @@index([userId, active])
   @@index([propertyId, active])

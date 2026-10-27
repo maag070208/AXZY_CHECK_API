@@ -6,7 +6,6 @@ import request from "supertest";
 import { app } from "@src/app";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
 import { buildUser, tokenFor } from "../factories";
-import jwt from "jsonwebtoken";
 import { resetPinAttempts } from "@src/modules/access-pins/access-pins.service";
 
 beforeEach(async () => {
@@ -115,7 +114,7 @@ describe("clave peatonal", () => {
 
     const issued = await request(app).post(`${api}/access-pins/me/qr/token`).set("Authorization", resident.auth);
     expect(issued.status).toBe(200);
-    expect(issued.body.data.token).toBeTruthy();
+    expect(issued.body.data.token).toMatch(/^AXZ-P-[A-F0-9]{6}$/);
     expect(issued.body.data.expiresIn).toBe(60);
 
     const status = await request(app).get(`${api}/access-pins/me/qr`).set("Authorization", resident.auth);
@@ -139,16 +138,18 @@ describe("clave peatonal", () => {
     const issued = await request(app).post(`${api}/access-pins/me/qr/token`).set("Authorization", resident.auth);
     const pass = await prisma.personalQrPass.findFirstOrThrow({ where: { userId: resident.user.id, active: true } });
 
-    const expired = jwt.sign(
-      { kind: "PERSONAL_QR", passId: pass.id, userId: resident.user.id, propertyId: property.id },
-      process.env.APP_SECRET as string,
-      { expiresIn: -1 },
-    );
-    const expiredResponse = await request(app).post(`${api}/access-pins/pass/validate`).set("Authorization", guardToken).send({ token: expired });
+    await prisma.personalQrPass.update({ where: { id: pass.id }, data: { codeExpiresAt: new Date(Date.now() - 1000) } });
+    const expiredResponse = await request(app)
+      .post(`${api}/access-pins/pass/validate`)
+      .set("Authorization", guardToken)
+      .send({ token: issued.body.data.token });
     expect(expiredResponse.body.data).toMatchObject({ valid: false, reason: "EXPIRED_QR" });
 
     expect((await request(app).delete(`${api}/access-pins/me/qr`).set("Authorization", resident.auth)).status).toBe(200);
-    const revoked = await request(app).post(`${api}/access-pins/pass/validate`).set("Authorization", guardToken).send({ token: issued.body.data.token });
+    const revoked = await request(app)
+      .post(`${api}/access-pins/pass/validate`)
+      .set("Authorization", guardToken)
+      .send({ token: issued.body.data.token });
     expect(revoked.body.data).toMatchObject({ valid: false, reason: "INVALID_QR" });
   });
 
