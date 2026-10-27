@@ -162,12 +162,20 @@ export const getMyQrPass = async (userId: number) => {
   const pass = await prismaClient.personalQrPass.findFirst({
     where: { userId, active: true },
     orderBy: { createdAt: "desc" },
-    select: { id: true, createdAt: true, lastUsedAt: true },
+    select: {
+      id: true,
+      createdAt: true,
+      lastUsedAt: true,
+      property: { select: { id: true, identifier: true, name: true } },
+      user: { select: { name: true, lastName: true } },
+    },
   });
   return {
     active: !!pass,
     createdAt: pass?.createdAt.toISOString() ?? null,
     lastUsedAt: pass?.lastUsedAt?.toISOString() ?? null,
+    property: pass?.property ?? null,
+    person: pass ? { firstName: pass.user.name, lastName: pass.user.lastName } : null,
     expiresIn: 60,
   };
 };
