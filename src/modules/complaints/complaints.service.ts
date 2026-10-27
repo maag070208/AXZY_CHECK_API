@@ -4,13 +4,15 @@ import { prismaClient } from "@src/core/config/database";
 import { ABLY_CHANNELS, publishToChannel } from "@src/core/config/ably";
 import { AppError } from "@src/core/errors/app-error";
 import { assertStatusUpdated, assertTransition, COMPLAINT_TRANSITIONS } from "@src/core/transitions/transitions";
+import { StorageService } from "@src/modules/storage/storage.service";
+import { MAX_COMPLAINT_PHOTO_BYTES, MAX_COMPLAINT_VIDEO_BYTES } from "./complaints.schemas";
 import type { createComplaintBody, listComplaintsQuery } from "./complaints.schemas";
 
 type CreateComplaintInput = z.infer<typeof createComplaintBody>;
 type ListComplaintsInput = z.output<typeof listComplaintsQuery>;
 
 /** Quién actúa. `canManage` = tiene `complaint.manage` (personal); el residente solo ve las suyas. */
-export type ComplaintActor = { id: number; canManage: boolean };
+export type ComplaintActor = { id: number; canManage: boolean; username?: string };
 
 const AUTHOR_SELECT = { select: { id: true, name: true, lastName: true } } as const;
 
@@ -22,6 +24,40 @@ export const residentPropertyId = async (userId: number): Promise<number | null>
     select: { propertyId: true },
   });
   return resident?.propertyId ?? null;
+};
+
+const sanitizeForKey = (value: string) => value.replace(/[^a-zA-Z0-9]/g, "_");
+
+type EvidenceItem = { type: "IMAGE" | "VIDEO"; url: string; key: string; size: number };
+
+/**
+ * S-34: la evidencia la sube el cliente por `/uploads` y luego la adjunta por nombre. No se confía en lo que
+ * diga el cliente: cada archivo debe existir en el almacenamiento, ser de quien lo adjunta (la llave lleva su
+ * usuario), respetar el tamaño real y su URL se reconstruye desde la llave (nadie guarda enlaces a otros sitios).
+ * Sin bucket configurado (desarrollo y pruebas) no se verifica.
+ */
+export const verifyEvidence = async (
+  actor: ComplaintActor,
+  media: EvidenceItem[],
+  storage: Pick<StorageService, "getObjectMeta"> = new StorageService(),
+): Promise<EvidenceItem[]> => {
+  const bucket = process.env.AWS_BUCKET_NAME;
+  if (!bucket || media.length === 0) return media;
+
+  const region = process.env.AWS_REGION || "us-east-2";
+  const ownerPrefix = actor.username ? `${sanitizeForKey(actor.username)}_` : null;
+  const verified: EvidenceItem[] = [];
+  for (const item of media) {
+    if (!ownerPrefix || !item.key.startsWith(ownerPrefix)) {
+      throw new AppError("EVIDENCE_NOT_OWNED", "Un archivo de evidencia no pertenece a tu cuenta", 403);
+    }
+    const meta = await storage.getObjectMeta(bucket, item.key);
+    if (!meta) throw new AppError("EVIDENCE_NOT_FOUND", "Un archivo de evidencia no está en el almacenamiento", 409);
+    const limit = item.type === "VIDEO" ? MAX_COMPLAINT_VIDEO_BYTES : MAX_COMPLAINT_PHOTO_BYTES;
+    if (meta.size > limit) throw new AppError("EVIDENCE_TOO_LARGE", "Un archivo de evidencia supera el tamaño permitido", 400);
+    verified.push({ ...item, size: meta.size, url: `https://${bucket}.s3.${region}.amazonaws.com/${item.key}` });
+  }
+  return verified;
 };
 
 const canSee = (actor: ComplaintActor, complaint: { authorId: number }) => actor.canManage || complaint.authorId === actor.id;
@@ -65,6 +101,7 @@ export const closeExpiredResolvedComplaints = async (): Promise<number> => {
 export const createComplaint = async (actor: ComplaintActor, data: CreateComplaintInput) => {
   const propertyId = await residentPropertyId(actor.id);
   if (!propertyId) throw new AppError("NO_ACTIVE_RESIDENCE", "Tu cuenta no está ligada a una propiedad activa", 403);
+  const evidence = await verifyEvidence(actor, (data.media ?? []) as EvidenceItem[]);
 
   const complaint = await prismaClient.$transaction(async (tx) => {
     const created = await tx.complaint.create({
@@ -74,7 +111,7 @@ export const createComplaint = async (actor: ComplaintActor, data: CreateComplai
         category: data.category,
         title: data.title,
         description: data.description,
-        media: data.media?.length ? (data.media as Prisma.InputJsonValue) : undefined,
+        media: evidence.length ? (evidence as unknown as Prisma.InputJsonValue) : undefined,
       },
     });
     await tx.complaintEvent.create({

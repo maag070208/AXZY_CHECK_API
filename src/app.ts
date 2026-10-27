@@ -9,6 +9,7 @@ import YAML from "yamljs";
 //middlewares
 import { prismaClient } from "@src/core/config/database";
 import { redactResponseSecrets } from "@src/core/middlewares/redact-secrets.middleware";
+import { signResponseMediaUrls } from "@src/core/middlewares/sign-media-urls.middleware";
 import { errorHandler } from "@src/core/middlewares/error-handler.middleware";
 import { requestContext } from "@src/core/middlewares/request-context.middleware";
 import { rejectNullBytes } from "@src/core/middlewares/reject-null-bytes.middleware";
@@ -43,6 +44,7 @@ app.use([
   express.json({ limit: "1mb" }), // S-17 / E-17: límite de tamaño del body
   rejectNullBytes, // Postgres no admite \u0000 en textos: 400 en lugar de 500
   redactResponseSecrets, // ninguna respuesta lleva la clave password (S-09)
+  signResponseMediaUrls, // las URLs de archivos salen firmadas y de vida corta (S-24)
   helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }),
   cors({ origin: allowedOrigins }),
   // S-28: registrar solo la ruta, sin la cadena de consulta (puede traer nombres, correos o códigos).

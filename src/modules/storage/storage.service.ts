@@ -93,6 +93,17 @@ export class StorageService {
     return getSignedUrl(this.client, command, { expiresIn: expiresInSeconds });
   }
 
+  /** Tamaño y tipo reales del objeto en S3, o null si no existe. Sólo NotFound cuenta como "no existe". */
+  async getObjectMeta(bucketName: string, key: string): Promise<{ size: number; contentType?: string } | null> {
+    try {
+      const head = await this.client.send(new HeadObjectCommand({ Bucket: bucketName, Key: key }));
+      return { size: Number(head.ContentLength ?? 0), contentType: head.ContentType };
+    } catch (error) {
+      if (error instanceof NotFound) return null;
+      throw error;
+    }
+  }
+
   /** ¿Existe el objeto en S3? Sólo NotFound cuenta como "no existe"; otros errores se propagan. */
   async objectExists(bucketName: string, key: string): Promise<boolean> {
     try {

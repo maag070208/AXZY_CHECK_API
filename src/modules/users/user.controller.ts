@@ -1,4 +1,6 @@
 import { Request, Response } from "express";
+import { bumpTokenVersion, registerFailedLogin, resetLoginAttempts } from "./user.service";
+import { invalidateSession } from "../common/middlewares/auth.middleware";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { getSetting } from "@src/core/settings/app-settings.service";
 import { getPermissionsForRole } from "@src/core/permissions/permissions.service";
@@ -30,9 +32,16 @@ export const login = async (req: Request, res: Response) => {
       return invalidCredentials();
     }
 
+    // S-25: cuenta bloqueada temporalmente por intentos fallidos.
+    if (user.lockedUntil && user.lockedUntil.getTime() > Date.now()) {
+      const minutes = Math.max(1, Math.ceil((user.lockedUntil.getTime() - Date.now()) / 60000));
+      return res.status(429).json(createTResult("", [`Demasiados intentos fallidos. Intenta de nuevo en ${minutes} minuto(s).`]));
+    }
+
     const isPasswordValid = await comparePassword(password, user.password);
 
     if (!isPasswordValid) {
+      await registerFailedLogin(user.id, user.failedLoginCount ?? 0);
       return invalidCredentials();
     }
 
@@ -97,6 +106,7 @@ export const login = async (req: Request, res: Response) => {
 
     // Update logged in status
     await updateUser(user.id, { isLoggedIn: true });
+    if ((user.failedLoginCount ?? 0) > 0 || user.lockedUntil) await resetLoginAttempts(user.id);
 
     const tokenPayload = {
       id: user.id,
@@ -104,6 +114,8 @@ export const login = async (req: Request, res: Response) => {
       lastName: user.lastName,
       username: user.username,
       role: user.role?.name,
+      // Versión de sesión (S-26): al cambiar, los tokens anteriores quedan revocados.
+      tv: user.tokenVersion ?? 0,
       // Se guarda en la sesión para pintar la foto en header/drawer sin otra llamada.
       photoUrl: user.photoUrl ?? user.residentProfile?.photoUrl ?? null,
     };
@@ -121,6 +133,8 @@ export const logout = async (req: Request, res: Response) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json(createTResult(null, ["No autenticado"]));
     await updateUser(userId, { isLoggedIn: false });
+    await bumpTokenVersion(Number(userId));
+    invalidateSession(Number(userId));
     return res.status(200).json(createTResult(true));
   } catch (error: any) {
     return respondError(res, error);
@@ -247,7 +261,21 @@ export const changePassword = async (req: Request, res: Response) => {
     const hashed = await hashPassword(newPassword);
     await updateUser(Number(id), { password: hashed });
 
-    return res.status(200).json(createTResult(true));
+    // Revoca las demás sesiones y entrega un token nuevo a quien cambió la contraseña (no pierde la suya).
+    const tokenVersion = await bumpTokenVersion(Number(id));
+    invalidateSession(Number(id));
+    const full = await getUserByUsername(user.username);
+    const token = await generateJWT({
+      id: user.id,
+      name: user.name,
+      lastName: user.lastName,
+      username: user.username,
+      role: full?.role?.name,
+      tv: tokenVersion,
+      photoUrl: full?.photoUrl ?? full?.residentProfile?.photoUrl ?? null,
+    });
+
+    return res.status(200).json(createTResult({ token }));
   } catch (error: any) {
     return respondError(res, error);
   }
@@ -263,6 +291,9 @@ export const resetPassword = async (req: Request, res: Response) => {
 
     const hashed = await hashPassword(newPassword);
     await updateUser(Number(id), { password: hashed });
+    await resetLoginAttempts(Number(id));
+    await bumpTokenVersion(Number(id));
+    invalidateSession(Number(id));
 
     return res.status(200).json(createTResult(true));
   } catch (error: any) {

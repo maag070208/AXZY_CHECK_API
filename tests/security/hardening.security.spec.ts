@@ -101,7 +101,7 @@ describe("S-09 · la respuesta de alta de usuario no contiene la contraseña", (
     const res = await request(app)
       .post("/api/v1/users")
       .set("Authorization", `Bearer ${tokenFor(admin)}`)
-      .send({ name: "Nuevo", lastName: "Guardia", username: `nuevo_${Date.now()}`, password: "123456", roleId: role.id });
+      .send({ name: "Nuevo", lastName: "Guardia", username: `nuevo_${Date.now()}`, password: "ClaveSegura2026", roleId: role.id });
 
     expect(res.status).toBe(201);
     expect(res.body.data.username).toBeDefined();

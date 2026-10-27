@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { strongPassword } from "@src/core/validation/password";
 import { emptyable, emailAddress, optionalPhone10, optionalText, personName, phone10, positiveId } from "@src/core/validation/common";
 
 const text = (max: number) => optionalText(2, max);
@@ -21,7 +22,7 @@ export const addResidentBody = z.object({
   name: personName,
   lastName: text(120),
   username: z.string().trim().min(4, "debe tener al menos 4 caracteres").max(50, "no puede pasar de 50 caracteres").regex(/^[a-zA-Z0-9._-]+$/, "solo letras, números, puntos, guiones y guiones bajos"),
-  password: z.string().min(6, "debe tener al menos 6 caracteres").max(100, "no puede pasar de 100 caracteres"),
+  password: strongPassword,
   propertyId: emptyable(positiveId),
   ...personFields,
 });
@@ -30,7 +31,7 @@ export const putResidentBody = z.object({
   name: personName.optional(),
   lastName: text(120),
   username: z.string().trim().min(4, "debe tener al menos 4 caracteres").max(50, "no puede pasar de 50 caracteres").regex(/^[a-zA-Z0-9._-]+$/, "solo letras, números, puntos, guiones y guiones bajos").optional(),
-  password: z.string().min(6, "debe tener al menos 6 caracteres").max(100, "no puede pasar de 100 caracteres").optional(),
+  password: strongPassword.optional(),
   propertyId: emptyable(positiveId),
   ...personFields,
 });

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { positiveId } from "@src/core/validation/common";
+import { strongPassword } from "@src/core/validation/password";
 
 export const loginBody = z.object({
   username: z.string().trim().min(1, "es obligatorio"),
@@ -11,7 +12,7 @@ export const createUserBody = z
     name: z.string().trim().min(1, "es obligatorio").max(100),
     lastName: z.string().trim().max(100).nullish(),
     username: z.string().trim().min(3, "debe tener al menos 3 caracteres").max(50),
-    password: z.string().min(6, "debe tener al menos 6 caracteres").max(100),
+    password: strongPassword,
     roleId: positiveId.optional(),
     role: z.string().trim().min(1).optional(),
     scheduleId: positiveId.nullish(),
@@ -41,9 +42,9 @@ export const updateUserBody = z
 
 export const changePasswordBody = z.object({
   oldPassword: z.string().min(1, "es obligatoria"),
-  newPassword: z.string().min(6, "debe tener al menos 6 caracteres"),
+  newPassword: strongPassword,
 });
 
 export const resetPasswordBody = z.object({
-  newPassword: z.string().min(6, "debe tener al menos 6 caracteres"),
+  newPassword: strongPassword,
 });

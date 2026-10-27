@@ -1,0 +1,18 @@
+# Base de datos LOCAL de desarrollo (auditoría S-19). Persistente en un volumen.
+# Uso: pnpm db:dev:up   y apuntar DATABASE_URL a:
+#   postgresql://postgres:dev@localhost:55434/checkapp_dev
+# Después: pnpm prisma:migrate && pnpm prisma:seed
+services:
+  postgres-dev:
+    image: postgres:16-alpine
+    container_name: checkapp-postgres-dev
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: dev
+      POSTGRES_DB: checkapp_dev
+    ports:
+      - "55434:5432"
+    volumes:
+      - checkapp_dev_data:/var/lib/postgresql/data
+volumes:
+  checkapp_dev_data:

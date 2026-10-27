@@ -4,6 +4,7 @@ import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { StorageService } from "../storage/storage.service";
 import { respondError } from "@src/core/errors/http-error";
 import { getClientRef } from "@src/core/utils/idempotency";
+import { contentMatchesDeclaredType } from "@src/core/utils/file-signature";
 
 const storageService = new StorageService();
 
@@ -16,6 +17,11 @@ export const uploadFile = async (req: Request, res: Response) => {
     const bucketName = process.env.AWS_BUCKET_NAME;
     if (!bucketName) {
       throw new AppError("STORAGE_NOT_CONFIGURED", "El almacenamiento de archivos no está disponible", 503);
+    }
+
+    // S-30: el tipo declarado por el cliente no basta; el contenido debe ser realmente ese tipo de archivo.
+    if (!contentMatchesDeclaredType(req.file.buffer, req.file.mimetype)) {
+      throw new AppError("UNSUPPORTED_FILE_CONTENT", "El contenido del archivo no coincide con su tipo", 415);
     }
 
     const user = req.user as { username?: string; name?: string } | undefined;

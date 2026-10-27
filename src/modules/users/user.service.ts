@@ -190,3 +190,38 @@ export const deleteUser = async (id: number) => {
     return deleted;
   });
 };
+
+// ---- Endurecimiento de sesión (auditoría S-25, S-26) ----
+
+/** Intentos fallidos antes de bloquear la cuenta, y minutos de bloqueo. */
+export const LOGIN_MAX_ATTEMPTS = Number(process.env.LOGIN_MAX_ATTEMPTS ?? 5);
+export const LOGIN_LOCK_MINUTES = Number(process.env.LOGIN_LOCK_MINUTES ?? 15);
+
+/** Registra un intento fallido; al llegar al máximo bloquea la cuenta y reinicia el contador. */
+export const registerFailedLogin = async (userId: number, currentFailures: number) => {
+  const failures = currentFailures + 1;
+  const lock = failures >= LOGIN_MAX_ATTEMPTS;
+  await prismaClient.user.update({
+    where: { id: userId },
+    data: {
+      failedLoginCount: lock ? 0 : failures,
+      lockedUntil: lock ? new Date(Date.now() + LOGIN_LOCK_MINUTES * 60 * 1000) : null,
+    },
+  });
+  return { locked: lock };
+};
+
+/** Inicio de sesión correcto: limpia el contador y el bloqueo. */
+export const resetLoginAttempts = async (userId: number) => {
+  await prismaClient.user.update({ where: { id: userId }, data: { failedLoginCount: 0, lockedUntil: null } });
+};
+
+/** Revoca todas las sesiones del usuario: los tokens emitidos antes dejan de ser válidos. */
+export const bumpTokenVersion = async (userId: number): Promise<number> => {
+  const updated = await prismaClient.user.update({
+    where: { id: userId },
+    data: { tokenVersion: { increment: 1 } },
+    select: { tokenVersion: true },
+  });
+  return updated.tokenVersion;
+};

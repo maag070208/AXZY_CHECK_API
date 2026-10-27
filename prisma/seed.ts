@@ -1,6 +1,7 @@
 import { PrismaClient } from "@prisma/client";
 import { catalogsSeed } from "./seeds/base/catalogs";
 import { relationshipsSeed } from "./seeds/base/relationships";
+import { assertSafeDatabase } from "./seeds/base/db-guard";
 import { systemSettingsSeed } from "./seeds/base/system-settings";
 import { hackerLog } from "./seeds/base/logger";
 import { incidentCatalogsSeed } from "./seeds/client/incidents";
@@ -25,6 +26,7 @@ const prisma = new PrismaClient();
  *           accesos). Solo con SEED_FLOWS=true y nunca en producción; son los mismos que usan las pruebas e2e.
  */
 async function main() {
+  assertSafeDatabase("seed");
   hackerLog.header('Master Seeding Sequence');
 
   await catalogsSeed(prisma);

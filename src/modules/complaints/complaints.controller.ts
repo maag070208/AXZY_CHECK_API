@@ -6,8 +6,8 @@ import * as complaintService from "./complaints.service";
 
 /** Actor autenticado. `authenticate` corre antes, así que `req.user` existe. */
 const actorOf = async (req: Request): Promise<complaintService.ComplaintActor> => {
-  const user = req.user as { id: number; role: string };
-  return { id: Number(user.id), canManage: await roleHasPermission(user.role, "complaint.manage") };
+  const user = req.user as { id: number; role: string; username?: string };
+  return { id: Number(user.id), username: user.username, canManage: await roleHasPermission(user.role, "complaint.manage") };
 };
 
 export const listComplaints = async (req: Request, res: Response) => {

@@ -81,6 +81,11 @@ model User {
   username                 String                   @unique
   password                 String
   active                   Boolean                  @default(true)
+  /// Se incrementa para revocar todas las sesiones del usuario (logout, cambio o reinicio de contraseña).
+  tokenVersion             Int                      @default(0)
+  /// Bloqueo temporal por intentos fallidos de inicio de sesión.
+  failedLoginCount         Int                      @default(0)
+  lockedUntil              DateTime?
   softDelete               Boolean                  @default(false)
   shiftStart               String?
   shiftEnd                 String?

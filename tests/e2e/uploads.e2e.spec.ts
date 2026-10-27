@@ -42,19 +42,20 @@ beforeEach(async () => {
 
 describe("subida directa POST /uploads", () => {
   const U = `${V1}/uploads`;
-  const png = Buffer.from("89504e470d0a1a0a", "hex");
+  const png = Buffer.from("89504e470d0a1a0a0000000d", "hex");
 
   it("camino feliz: sube una imagen y devuelve URL, tipo y llave con el nombre saneado", async () => {
     const res = await api().post(U).set("Authorization", s.guard1.auth).field("location", "Alberca / Norte #1").attach("file", png, { filename: "foto.png", contentType: "image/png" });
     const data = expectOk(res);
     expect(data).toMatchObject({ type: "IMAGE", mimetype: "image/png", size: png.length, bucket: "bucket-de-pruebas" });
     expect(data.key).toMatch(/^flow_guard1_Alberca___Norte__1_\d{14}\.png$/);
-    expect(data.url).toBe(`https://bucket-de-pruebas.s3.us-east-2.amazonaws.com/${data.key}`);
+    // S-24: la URL pública del bucket se entrega firmada (lectura de vida corta).
+    expect(data.url).toBe("https://bucket-de-pruebas.s3.example.test/lectura");
     expect(uploadFile).toHaveBeenCalledTimes(1);
   });
 
   it("un video se clasifica como VIDEO", async () => {
-    const data = expectOk(await api().post(U).set("Authorization", s.maint.auth).attach("file", Buffer.from("video"), { filename: "clip.mp4", contentType: "video/mp4" }));
+    const data = expectOk(await api().post(U).set("Authorization", s.maint.auth).attach("file", Buffer.from("00000018667479706d703432", "hex"), { filename: "clip.mp4", contentType: "video/mp4" }));
     expect(data.type).toBe("VIDEO");
     expect(data.key).toMatch(/^flow_maint_unknown_/);
   });
