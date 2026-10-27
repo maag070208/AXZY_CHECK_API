@@ -20,6 +20,11 @@ import { API_META } from "@src/core/constants/api-version";
 //server
 export const app = express();
 
+// S-27: detrás de un proxy (Railway) la IP real viene en X-Forwarded-For. Sin esto, el límite por IP
+// vería la IP del proxy para todos. TRUST_PROXY = número de saltos de confianza (producción: 1).
+const trustProxyHops = Number(process.env.TRUST_PROXY ?? (process.env.NODE_ENV === "production" ? 1 : 0));
+if (trustProxyHops > 0) app.set("trust proxy", trustProxyHops);
+
 // Orígenes permitidos (S-05). Las apps nativas no envían Origin y no se ven afectadas.
 // En producción se define CORS_ORIGINS en el entorno del cliente.
 const allowedOrigins = (process.env.CORS_ORIGINS ?? "http://localhost:5002,http://localhost:5004")
@@ -40,7 +45,11 @@ app.use([
   redactResponseSecrets, // ninguna respuesta lleva la clave password (S-09)
   helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }),
   cors({ origin: allowedOrigins }),
-  morgan(process.env.NODE_ENV === "test" ? "tiny" : "dev"),
+  // S-28: registrar solo la ruta, sin la cadena de consulta (puede traer nombres, correos o códigos).
+  morgan(
+    ((tokens: any, req: any, res: any) =>
+      [tokens.method(req, res), String(req.originalUrl ?? req.url).split("?")[0], tokens.status(req, res), tokens["response-time"](req, res) + "ms"].join(" ")) as any,
+  ),
 ]);
 
 // Documentación del contrato. Fuera de producción: en producción publicaría todo

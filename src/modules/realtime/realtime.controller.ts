@@ -18,7 +18,7 @@ export const getRealtimeToken = async (req: Request, res: Response) => {
       return res.status(401).json(createTResult(null, ["Usuario no autenticado"]));
     }
 
-    const tokenRequest = await createSubscribeTokenRequest(`user-${userId}`);
+    const tokenRequest = await createSubscribeTokenRequest(`user-${userId}`, req.user?.role, Number(userId));
     if (!tokenRequest) {
       return res
         .status(503)

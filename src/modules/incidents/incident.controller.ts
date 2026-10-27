@@ -27,7 +27,6 @@ export const createIncident = async (req: Request, res: Response) => {
     if (!guardId) {
         return res.status(401).json(createTResult(null, ["Usuario no autenticado"]));
     }
-    console.log("body", req.body);
     // Media is now passed as an array of objects { type, url, key }
     const mediaFiles = media || [];
 

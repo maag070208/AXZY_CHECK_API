@@ -11,6 +11,25 @@ export const ABLY_CHANNELS = {
   DASHBOARD_LIVE: "dashboard:live-ops",
 } as const;
 
+/** Roles del personal: los únicos que pueden escuchar los canales internos (chat, alertas de turno, dashboard). */
+const STAFF_ROLES = ["ADMIN", "SHIFT", "GUARD", "MAINT"];
+
+/**
+ * @description Capacidades de tiempo real según el rol (S-18). El personal escucha los canales internos;
+ * cualquier otro rol (p. ej. el residente) solo puede escuchar su canal personal `user:<id>`, que hoy
+ * no recibe contenido interno.
+ */
+export const realtimeCapabilityFor = (role: string | undefined, userId: number): Record<string, Array<"subscribe">> => {
+  if (role && STAFF_ROLES.includes(role)) {
+    return {
+      [ABLY_CHANNELS.CHAT_TEAM]: ["subscribe"],
+      [ABLY_CHANNELS.SHIFT_ALERTS]: ["subscribe"],
+      [ABLY_CHANNELS.DASHBOARD_LIVE]: ["subscribe"],
+    };
+  }
+  return { [`user:${userId}`]: ["subscribe"] };
+};
+
 /**
  * @description Lazily-initialized Ably REST client used by the API to publish
  * realtime events (chat messages, shift-handover alerts) and to mint
@@ -87,6 +106,8 @@ export const publishToChannel = async (
  */
 export const createSubscribeTokenRequest = async (
   clientId: string,
+  role: string | undefined,
+  userId: number,
 ): Promise<Ably.TokenRequest | null> => {
   const client = getAblyClient();
   if (!client) return null;
@@ -94,11 +115,7 @@ export const createSubscribeTokenRequest = async (
   try {
     return await client.auth.createTokenRequest({
       clientId,
-      capability: {
-        [ABLY_CHANNELS.CHAT_TEAM]: ["subscribe"],
-        [ABLY_CHANNELS.SHIFT_ALERTS]: ["subscribe"],
-        [ABLY_CHANNELS.DASHBOARD_LIVE]: ["subscribe"],
-      },
+      capability: realtimeCapabilityFor(role, userId),
     });
   } catch (error) {
     console.error("[Ably] Error creando token request:", error);
