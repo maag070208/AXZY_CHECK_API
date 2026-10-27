@@ -6,6 +6,7 @@ import request from "supertest";
 import { app } from "@src/app";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
 import { buildUser, tokenFor } from "../factories";
+import jwt from "jsonwebtoken";
 import { resetPinAttempts } from "@src/modules/access-pins/access-pins.service";
 
 beforeEach(async () => {
@@ -66,6 +67,33 @@ describe("clave peatonal", () => {
     expect(status.body.data).not.toHaveProperty("pin");
   });
 
+  it("el residente puede elegir su propia clave y se valida igual", async () => {
+    const property = await makeProperty("PIN-CUSTOM");
+    const resident = await makeResident(property.id);
+    const { auth: guardToken } = await guardAuth();
+
+    const created = await request(app).post(`${api}/access-pins/me`).set("Authorization", resident.auth).send({ pin: "246810" });
+    expect(created.status).toBe(201);
+    expect(created.body.data.pin).toBe("246810");
+
+    const validated = await request(app).post(`${api}/access-pins/validate`).set("Authorization", guardToken).send({ pin: "246810" });
+    expect(validated.status).toBe(200);
+    expect(validated.body.data.valid).toBe(true);
+  });
+
+  it("rechaza una clave que ya está en uso sin revocar la anterior", async () => {
+    const one = await makeProperty("PIN-DUP-1");
+    const two = await makeProperty("PIN-DUP-2");
+    const first = await makeResident(one.id);
+    const second = await makeResident(two.id);
+
+    expect((await request(app).post(`${api}/access-pins/me`).set("Authorization", first.auth).send({ pin: "135790" })).status).toBe(201);
+    const duplicate = await request(app).post(`${api}/access-pins/me`).set("Authorization", second.auth).send({ pin: "135790" });
+    expect(duplicate.status).toBe(409);
+    expect(duplicate.body.code).toBe("PIN_IN_USE");
+    expect(await prisma.accessPin.count({ where: { userId: second.user.id, active: true } })).toBe(0);
+  });
+
   it("caseta valida el PIN y registra el acceso permitido", async () => {
     const property = await makeProperty("PIN-2");
     const resident = await makeResident(property.id);
@@ -78,6 +106,70 @@ describe("clave peatonal", () => {
 
     const event = await prisma.accessEvent.findFirstOrThrow({ where: { propertyId: property.id }, orderBy: { id: "desc" } });
     expect(event).toMatchObject({ method: "PIN", decision: "ALLOWED", guardId: guard.id });
+  });
+
+  it("emite un pase QR personal y lo valida en caseta", async () => {
+    const property = await makeProperty("PIN-QR");
+    const resident = await makeResident(property.id);
+    const { guard, auth: guardToken } = await guardAuth();
+
+    const issued = await request(app).post(`${api}/access-pins/me/qr/token`).set("Authorization", resident.auth);
+    expect(issued.status).toBe(200);
+    expect(issued.body.data.token).toBeTruthy();
+    expect(issued.body.data.expiresIn).toBe(60);
+
+    const status = await request(app).get(`${api}/access-pins/me/qr`).set("Authorization", resident.auth);
+    expect(status.body.data.active).toBe(true);
+
+    const validated = await request(app)
+      .post(`${api}/access-pins/pass/validate`)
+      .set("Authorization", guardToken)
+      .send({ token: issued.body.data.token });
+    expect(validated.status).toBe(200);
+    expect(validated.body.data).toMatchObject({ valid: true, property: { identifier: "PIN-QR" } });
+
+    const event = await prisma.accessEvent.findFirstOrThrow({ where: { propertyId: property.id }, orderBy: { id: "desc" } });
+    expect(event).toMatchObject({ method: "QR", decision: "ALLOWED", reason: "PERSONAL_QR", guardId: guard.id });
+  });
+
+  it("rechaza un pase QR expirado o revocado", async () => {
+    const property = await makeProperty("PIN-QR-2");
+    const resident = await makeResident(property.id);
+    const { auth: guardToken } = await guardAuth();
+    const issued = await request(app).post(`${api}/access-pins/me/qr/token`).set("Authorization", resident.auth);
+    const pass = await prisma.personalQrPass.findFirstOrThrow({ where: { userId: resident.user.id, active: true } });
+
+    const expired = jwt.sign(
+      { kind: "PERSONAL_QR", passId: pass.id, userId: resident.user.id, propertyId: property.id },
+      process.env.APP_SECRET as string,
+      { expiresIn: -1 },
+    );
+    const expiredResponse = await request(app).post(`${api}/access-pins/pass/validate`).set("Authorization", guardToken).send({ token: expired });
+    expect(expiredResponse.body.data).toMatchObject({ valid: false, reason: "EXPIRED_QR" });
+
+    expect((await request(app).delete(`${api}/access-pins/me/qr`).set("Authorization", resident.auth)).status).toBe(200);
+    const revoked = await request(app).post(`${api}/access-pins/pass/validate`).set("Authorization", guardToken).send({ token: issued.body.data.token });
+    expect(revoked.body.data).toMatchObject({ valid: false, reason: "INVALID_QR" });
+  });
+
+  it("un pase QR personal no entra si la propiedad tiene adeudo", async () => {
+    const property = await makeProperty("PIN-QR-DEBT");
+    const resident = await makeResident(property.id);
+    const admin = `Bearer ${tokenFor(await buildUser("ADMIN"))}`;
+    const { auth: guardToken } = await guardAuth();
+    const issued = await request(app).post(`${api}/access-pins/me/qr/token`).set("Authorization", resident.auth);
+
+    await request(app).post(`${api}/charges`).set("Authorization", admin).send({
+      propertyId: property.id,
+      residentId: resident.user.id,
+      concept: "Cuota vencida QR",
+      category: "EXTRA",
+      amount: 500,
+      dueDate: new Date(Date.now() - 40 * DAY).toISOString().slice(0, 10),
+    });
+
+    const response = await request(app).post(`${api}/access-pins/pass/validate`).set("Authorization", guardToken).send({ token: issued.body.data.token });
+    expect(response.body.data).toMatchObject({ valid: false, reason: "PROPERTY_DEBT" });
   });
 
   it("bloquea la validación después de 5 intentos fallidos por guardia", async () => {
