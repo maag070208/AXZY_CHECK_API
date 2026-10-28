@@ -319,6 +319,7 @@ export const changePassword = async (req: Request, res: Response) => {
     // Revoca las demás sesiones y entrega un token nuevo a quien cambió la contraseña (no pierde la suya).
     const tokenVersion = await bumpTokenVersion(Number(id));
     invalidateSession(Number(id));
+    await revokeAllRefreshTokens(Number(id));
     const full = await getUserByUsername(user.username);
     const token = await generateJWT({
       id: user.id,
@@ -327,9 +328,10 @@ export const changePassword = async (req: Request, res: Response) => {
       username: user.username,
       role: full?.role?.name,
       tv: tokenVersion,
-      photoUrl: full?.photoUrl ?? full?.residentProfile?.photoUrl ?? null,
+      photoUrl: full?.photoUrl ?? null,
     });
 
+    setSessionCookies(res, token, await issueRefreshToken(Number(id)));
     return res.status(200).json(createTResult({ token }));
   } catch (error: any) {
     return respondError(res, error);
@@ -349,6 +351,7 @@ export const resetPassword = async (req: Request, res: Response) => {
     await resetLoginAttempts(Number(id));
     await bumpTokenVersion(Number(id));
     invalidateSession(Number(id));
+    await revokeAllRefreshTokens(Number(id));
 
     return res.status(200).json(createTResult(true));
   } catch (error: any) {
@@ -363,6 +366,7 @@ export const deleteUser = async (req: Request, res: Response) => {
     if (!deleted) {
       return res.status(404).json(createTResult(null, ["Usuario no encontrado"]));
     }
+    await revokeAllRefreshTokens(Number(id));
     return res.status(200).json(createTResult(true));
   } catch (error: any) {
     return respondError(res, error);

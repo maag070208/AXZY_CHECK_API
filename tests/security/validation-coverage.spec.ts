@@ -14,6 +14,7 @@ afterAll(async () => {
 /** Escrituras que no reciben cuerpo que validar, con el motivo. */
 const EXEMPT: Record<string, string> = {
   "POST /api/v1/users/logout": "sin cuerpo: la identidad viene del token",
+  "POST /api/v1/users/refresh": "sin cuerpo: rota la cookie HttpOnly",
   "POST /api/v1/uploads/": "multipart: tipo y tamaño los valida multer",
   "PUT /api/v1/club/:id/resolve": "sin cuerpo",
   "PUT /api/v1/incidents/:id/resolve": "sin cuerpo",
