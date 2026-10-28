@@ -2,7 +2,7 @@ import { prismaClient } from "@src/core/config/database";
 import { AppError } from "@src/core/errors/app-error";
 import { assertStatusUpdated, assertTransition, INVITATION_TRANSITIONS } from "@src/core/transitions/transitions";
 import { USER_PUBLIC_SELECT } from "@src/core/constants/user-select";
-import { AccessDecision, AccessDirection, AccessMethod } from "@prisma/client";
+import { AccessDecision, AccessDirection, AccessMethod, ResidentStatus } from "@prisma/client";
 import { getPropertyAccessStatus, recordAccessEvent } from "../access-control/access-control.service";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
@@ -61,8 +61,16 @@ export const getDataTableInvitations = async (params: ITDataTableFetchParams): P
     return { rows, total };
 };
 
-/** ¿La propiedad indicada es la de la cuenta de residente? (el residente solo invita a la suya). */
+/**
+ * ¿La residente vive en esa propiedad? (solo invita a la suya). Vale el vínculo canónico Person → Resident
+ * activo, igual que quejas y cargos; `User.propertyId` se acepta por las cuentas anteriores a ese vínculo.
+ */
 export const residentOwnsProperty = async (userId: number, propertyId: number): Promise<boolean> => {
+    const link = await prismaClient.resident.findFirst({
+        where: { propertyId, status: ResidentStatus.ACTIVE, person: { userId }, property: { softDelete: false } },
+        select: { id: true },
+    });
+    if (link) return true;
     const user = await prismaClient.user.findUnique({ where: { id: userId }, select: { propertyId: true } });
     return user?.propertyId != null && user.propertyId === propertyId;
 };

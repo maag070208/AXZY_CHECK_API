@@ -25,6 +25,27 @@ export const requirePermission = (code: PermissionCode) => {
 };
 
 /**
+ * @description Permite la petición si el rol tiene al menos uno de los permisos `codes`. Útil cuando una
+ * ruta la usan dos públicos (p. ej. la caseta con `*.manage` y la residente con su permiso propio); el
+ * controlador sigue acotando a lo suyo a quien no tenga el permiso amplio.
+ */
+export const requireAnyPermission = (...codes: PermissionCode[]) => {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const role: string | undefined = req.user?.role;
+      if (role) {
+        for (const code of codes) {
+          if (await roleHasPermission(role, code)) return next();
+        }
+      }
+      return res.status(403).json(createTResult(null, [FORBIDDEN_MESSAGE]));
+    } catch (error) {
+      return next(error);
+    }
+  };
+};
+
+/**
  * @description Permite la petición si el usuario es el dueño del recurso
  * (`req.params[param]`) o si su rol tiene el permiso `code`.
  * Debe ejecutarse después de `authenticate`.

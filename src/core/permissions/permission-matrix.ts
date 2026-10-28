@@ -53,6 +53,8 @@ export const PERMISSIONS = [
   { code: "invitation.view", description: "Consultar mis invitaciones" },
   { code: "invitation.create", description: "Generar mis invitaciones" },
   { code: "invitation.revoke", description: "Revocar mis invitaciones" },
+  // Caseta y personal: todos los pases, alta para cualquier casa y registro de entrada/salida.
+  { code: "invitation.manage", description: "Consultar todos los pases y registrar entradas y salidas" },
   // Buzón de quejas (módulo 13). El residente solo ve las suyas; el personal las gestiona.
   { code: "complaint.create", description: "Levantar quejas o sugerencias" },
   { code: "complaint.view", description: "Consultar quejas (el residente, solo las propias)" },
@@ -129,10 +131,12 @@ export const ROLE_PERMISSIONS: Record<string, readonly PermissionCode[]> = {
     "announcement.view",
     "vehicle.view",
     "accesspin.validate",
+    "invitation.manage",
   ],
   GUARD: [
     "access.check",
     "accesspin.validate",
+    "invitation.manage",
     "chat.use",
     "recurring.operate",
     "round.view",
