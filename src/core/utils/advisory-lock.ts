@@ -22,4 +22,5 @@ export const withAdvisoryLock = async (key: number, fn: () => Promise<void>): Pr
 export const LOCK_KEYS = {
   SHIFT_ALERT_MORNING: 710001,
   SHIFT_ALERT_EVENING: 710002,
+  INVITATION_EXPIRY: 710003,
 } as const;

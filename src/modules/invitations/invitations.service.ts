@@ -6,6 +6,7 @@ import { AccessDecision, AccessDirection, AccessMethod, ResidentStatus } from "@
 import { getPropertyAccessStatus, recordAccessEvent } from "../access-control/access-control.service";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
+import { enqueueOutbox } from "@src/core/outbox/outbox";
 import { residentOwnsProperty as residentOwnsPropertyShared } from "../residents/resident-property.service";
 
 function generateCode() {
@@ -120,6 +121,41 @@ export const getInvitationByIdOrCode = async (identifier: string) => {
     });
 };
 
+/**
+ * Revisa pases PENDING que ya vencieron sin entrar. Los marca EXPIRED y encola
+ * una notificación in-app/push para quien los creó. Es idempotente: solo toca
+ * PENDING y el cron usa un advisory lock.
+ */
+export const expirePendingInvitations = async (now: Date = new Date()): Promise<number> => {
+    return prismaClient.$transaction(async (tx) => {
+        const rows = await tx.invitation.findMany({
+            where: { status: 'PENDING', validUntil: { lt: now } },
+            select: { id: true, code: true, guestName: true, createdById: true, property: { select: { identifier: true } } },
+        });
+        if (rows.length === 0) return 0;
+
+        const ids = rows.map((row) => row.id);
+        const { count } = await tx.invitation.updateMany({
+            where: { id: { in: ids }, status: 'PENDING' },
+            data: { status: 'EXPIRED' },
+        });
+
+        for (const row of rows) {
+            await enqueueOutbox('notification.send', {
+                userIds: [row.createdById],
+                title: 'Pase vencido',
+                body: `La visita de ${row.guestName} a ${row.property.identifier} venció sin registrar entrada.`,
+                data: {
+                    type: 'INVITATION_EXPIRED',
+                    invitationId: String(row.id),
+                    code: row.code,
+                },
+            }, tx);
+        }
+        return count;
+    });
+};
+
 export const updateInvitationStatus = async (
     id: number,
     status: 'ENTERED' | 'EXITED' | 'CANCELLED',
@@ -128,7 +164,7 @@ export const updateInvitationStatus = async (
 ) => {
     const current = await prismaClient.invitation.findUnique({
         where: { id },
-        select: { status: true, notes: true, validFrom: true, validUntil: true, propertyId: true, code: true },
+        select: { status: true, notes: true, validFrom: true, validUntil: true, propertyId: true, code: true, revokedReason: true, revokedAt: true },
     });
     if (!current) throw new AppError("INVITATION_NOT_FOUND", "Invitación no encontrada", 404);
     assertTransition(INVITATION_TRANSITIONS, current.status, status);
@@ -169,8 +205,14 @@ export const updateInvitationStatus = async (
     const data: any = { status };
     if (status === 'ENTERED') data.entryTime = new Date();
     if (status === 'EXITED') data.exitTime = new Date();
-    if (status === 'CANCELLED' && reason?.trim()) {
-        data.notes = current.notes ? `${current.notes}\n[Revocación] ${reason.trim()}` : `[Revocación] ${reason.trim()}`;
+    if (status === 'CANCELLED') {
+        const cleanReason = reason?.trim();
+        data.revokedReason = cleanReason ?? current.revokedReason ?? "Sin motivo registrado";
+        data.revokedAt = new Date();
+        data.revokedById = actorId ?? null;
+        if (cleanReason) {
+            data.notes = current.notes ? `${current.notes}\n[Revocación] ${cleanReason}` : `[Revocación] ${cleanReason}`;
+        }
     }
 
     const { count } = await prismaClient.invitation.updateMany({ where: { id, status: current.status }, data });

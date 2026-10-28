@@ -387,6 +387,9 @@ model Invitation {
   entryTime    DateTime?
   exitTime     DateTime?
   notes        String?
+  revokedReason String?
+  revokedAt    DateTime?
+  revokedById  Int?
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
   typeId       Int

@@ -2,6 +2,7 @@ import { app } from "@src/app";
 import { registerShiftAlertCron } from "@src/core/jobs/shift-alert.cron";
 import { registerOutboxWorker } from "@src/core/jobs/outbox.cron";
 import { registerCollectionsCron } from "@src/core/jobs/collections.cron";
+import { registerInvitationExpiryCron } from "@src/core/jobs/invitation-expiry.cron";
 import { prismaClient } from "@src/core/config/database";
 import { registerFirebasePush } from "@src/core/push/firebase-sender";
 
@@ -11,6 +12,7 @@ const PORT = Number(process.env.PORT ?? 4444);
 registerFirebasePush();
 registerShiftAlertCron();
 registerCollectionsCron();
+registerInvitationExpiryCron();
 registerOutboxWorker();
 
 const server = app.listen(PORT, "0.0.0.0", () => {

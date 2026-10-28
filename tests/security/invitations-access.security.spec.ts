@@ -149,7 +149,8 @@ describe("/invitations · residente dueña", () => {
     expect((await request(app).put(`${api}/${passA.id}/status`).set("Authorization", residentA.auth).send({ status: "ENTERED" })).status).toBe(403);
     const revoked = await request(app).put(`${api}/${passA.id}/status`).set("Authorization", residentA.auth).send({ status: "CANCELLED", reason: "Ya no viene" });
     expect(revoked.status).toBe(200);
-    expect(revoked.body.data.status).toBe("CANCELLED");
+    expect(revoked.body.data).toMatchObject({ status: "CANCELLED", revokedReason: "Ya no viene" });
+    expect(revoked.body.data.revokedAt).toBeTruthy();
   });
 
 

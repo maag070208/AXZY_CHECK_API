@@ -40,7 +40,7 @@ export const MAINTENANCE_TRANSITIONS: TransitionTable<MaintenanceStatus> = {
 };
 
 export const INVITATION_TRANSITIONS: TransitionTable<InvitationStatus> = {
-  PENDING: ["ENTERED", "CANCELLED"],
+  PENDING: ["ENTERED", "CANCELLED", "EXPIRED"],
   ENTERED: ["EXITED"],
   EXITED: [],
   EXPIRED: [],
