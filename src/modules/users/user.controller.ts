@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { bumpTokenVersion, registerFailedLogin, resetLoginAttempts } from "./user.service";
 import { invalidateSession } from "../common/middlewares/auth.middleware";
+import { clearSessionCookies, readCookie, REFRESH_COOKIE, setSessionCookies } from "@src/core/utils/auth-cookies";
+import { issueRefreshToken, revokeAllRefreshTokens, revokeRefreshToken, rotateRefreshToken } from "./refresh-token.service";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { getSetting } from "@src/core/settings/app-settings.service";
 import { getPermissionsForRole } from "@src/core/permissions/permissions.service";
@@ -117,10 +119,14 @@ export const login = async (req: Request, res: Response) => {
       // Versión de sesión (S-26): al cambiar, los tokens anteriores quedan revocados.
       tv: user.tokenVersion ?? 0,
       // Se guarda en la sesión para pintar la foto en header/drawer sin otra llamada.
-      photoUrl: user.photoUrl ?? user.residentProfile?.photoUrl ?? null,
+      photoUrl: user.photoUrl ?? null,
     };
 
-    return res.status(200).json(createTResult(await generateJWT(tokenPayload)));
+    const token = await generateJWT(tokenPayload);
+    // WEB usa cookies HttpOnly; la APP sigue recibiendo el access token en el body.
+    const refreshToken = await issueRefreshToken(user.id);
+    setSessionCookies(res, token, refreshToken);
+    return res.status(200).json(createTResult(token));
   } catch (error: any) {
     return respondError(res, error);
   }
@@ -135,6 +141,10 @@ export const logout = async (req: Request, res: Response) => {
     await updateUser(userId, { isLoggedIn: false });
     await bumpTokenVersion(Number(userId));
     invalidateSession(Number(userId));
+    const refresh = readCookie(req, REFRESH_COOKIE);
+    if (refresh) await revokeRefreshToken(refresh);
+    await revokeAllRefreshTokens(Number(userId));
+    clearSessionCookies(res);
     return res.status(200).json(createTResult(true));
   } catch (error: any) {
     return respondError(res, error);
@@ -182,6 +192,51 @@ export const createUser = async (req: Request, res: Response) => {
     // Nunca devolver el hash de la contraseña (S-09).
     const { password: _omit, ...safeUser } = user as typeof user & { password?: string };
     return res.status(201).json(createTResult(safeUser));
+  } catch (error: any) {
+    return respondError(res, error);
+  }
+};
+
+/** Sesión actual para WEB: la cookie HttpOnly es la fuente, no localStorage. */
+export const me = async (req: Request, res: Response) => {
+  try {
+    const userId = Number(req.user?.id);
+    const user = await getUserProfile(userId);
+    if (!user) return res.status(404).json(createTResult(null, ["Usuario no encontrado"]));
+    return res.status(200).json(createTResult({
+      id: user.id,
+      name: user.name,
+      lastName: user.lastName,
+      username: user.username,
+      role: user.role?.name ?? null,
+      photoUrl: user.photoUrl ?? null,
+    }));
+  } catch (error: any) {
+    return respondError(res, error);
+  }
+};
+
+/** Rota el refresh HttpOnly y emite un access token nuevo. */
+export const refresh = async (req: Request, res: Response) => {
+  try {
+    const raw = readCookie(req, REFRESH_COOKIE);
+    if (!raw) return res.status(401).json(createTResult(null, ["Refresh token requerido"]));
+    const rotated = await rotateRefreshToken(raw);
+    if (!rotated) return res.status(401).json(createTResult(null, ["Refresh token inválido o expirado"]));
+
+    const user = await getUserProfile(rotated.userId);
+    if (!user || !user.active || user.softDelete) return res.status(401).json(createTResult(null, ["Sesión no válida"]));
+    const token = await generateJWT({
+      id: user.id,
+      name: user.name,
+      lastName: user.lastName,
+      username: user.username,
+      role: user.role?.name,
+      tv: user.tokenVersion ?? 0,
+      photoUrl: user.photoUrl ?? null,
+    });
+    setSessionCookies(res, token, rotated.token);
+    return res.status(200).json(createTResult(token));
   } catch (error: any) {
     return respondError(res, error);
   }

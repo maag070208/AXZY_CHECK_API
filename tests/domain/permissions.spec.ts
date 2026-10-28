@@ -37,6 +37,7 @@ describe("matriz sembrada", () => {
       "club.view",
       "incident.create",
       "incident.view",
+      "invitation.manage",
       "maintenance.create",
       "maintenance.view",
       "recurring.operate",

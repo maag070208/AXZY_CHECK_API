@@ -111,6 +111,7 @@ model User {
   property                 Property?                @relation(fields: [propertyId], references: [id])
   recurringConfiguration   RecurringConfiguration?  @relation(fields: [recurringConfigurationId], references: [id])
   role                     Role                     @relation(fields: [roleId], references: [id])
+  refreshTokens            RefreshToken[]
   schedule                 Schedule?                @relation(fields: [scheduleId], references: [id])
   recurringConfigurations  RecurringConfiguration[] @relation("RecurringAssignments")
   chatMessages             ChatMessage[]            @relation("ChatMessages")
@@ -1454,4 +1455,17 @@ model PersonalQrPass {
 
   @@index([userId, active])
   @@index([propertyId, active])
+}
+
+/// Token opaco de refresh, guardado solo como hash. Se rota en cada uso.
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
 }

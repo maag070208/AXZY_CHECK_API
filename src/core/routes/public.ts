@@ -9,6 +9,7 @@ export const PUBLIC_ROUTES: ReadonlyArray<{ method: string; path: string }> = [
   { method: "GET", path: "/" }, // health check
   { method: "GET", path: "/meta" }, // versión/contrato para la APP
   { method: "POST", path: "/users/login" },
+  { method: "POST", path: "/users/refresh" },
 ];
 
 export const isPublicRoute = (method: string, path: string): boolean =>

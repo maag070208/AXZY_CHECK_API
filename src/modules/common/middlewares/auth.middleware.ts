@@ -3,6 +3,7 @@ import { Request, Response, NextFunction } from 'express';
 import { verifyToken } from '../../../core/utils/security';
 import { createTResult } from '../../../core/mappers/tresult.mapper';
 import { prismaClient } from '../../../core/config/database';
+import { readCookie, SESSION_COOKIE } from '../../../core/utils/auth-cookies';
 
 type SessionState = { tokenVersion: number; active: boolean; expiresAt: number };
 const sessionCache = new Map<number, SessionState>();
@@ -30,11 +31,12 @@ const loadSession = async (userId: number): Promise<SessionState | null> => {
 export const authenticate = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const authHeader = req.headers.authorization;
-        if (!authHeader) {
+        const cookieToken = readCookie(req, SESSION_COOKIE);
+        if (!authHeader && !cookieToken) {
             return res.status(401).json(createTResult(null, ['No token provided']));
         }
 
-        const token = authHeader.split(' ')[1]; 
+        const token = authHeader?.split(' ')[1] ?? readCookie(req, SESSION_COOKIE);
         if (!token) {
             return res.status(401).json(createTResult(null, ['Invalid token format']));
         }

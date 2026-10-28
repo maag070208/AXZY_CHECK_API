@@ -46,7 +46,7 @@ app.use([
   redactResponseSecrets, // ninguna respuesta lleva la clave password (S-09)
   signResponseMediaUrls, // las URLs de archivos salen firmadas y de vida corta (S-24)
   helmet({ crossOriginResourcePolicy: { policy: "cross-origin" } }),
-  cors({ origin: allowedOrigins }),
+  cors({ origin: allowedOrigins, credentials: true }),
   // S-28: registrar solo la ruta, sin la cadena de consulta (puede traer nombres, correos o códigos).
   morgan(
     ((tokens: any, req: any, res: any) =>

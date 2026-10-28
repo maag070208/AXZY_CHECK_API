@@ -19,6 +19,7 @@ export const generateJWT = async (payload: Record<string, unknown>) =>
 
 export const generateToken = async (email: string) => 
   jwt.sign({email}, secretKey, {
+    algorithm: 'HS256',
     expiresIn: '1d',
   });
 

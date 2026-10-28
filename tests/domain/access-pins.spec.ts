@@ -66,6 +66,32 @@ describe("clave peatonal", () => {
     expect(status.body.data).not.toHaveProperty("pin");
   });
 
+  it("usa la casa del vínculo Person → Resident aunque User.propertyId tenga otra", async () => {
+    const houseA = await makeProperty("PIN-LINK-A");
+    const houseB = await makeProperty("PIN-LINK-B");
+    const resident = await makeResident(houseA.id);
+    await prisma.user.update({ where: { id: resident.user.id }, data: { propertyId: houseB.id } });
+
+    const pin = await generatePin(resident.auth);
+    const stored = await prisma.accessPin.findFirstOrThrow({ where: { userId: resident.user.id, active: true } });
+    expect(stored.propertyId).toBe(houseA.id);
+
+    const { auth: guardToken } = await guardAuth();
+    const validated = await request(app).post(`${api}/access-pins/validate`).set("Authorization", guardToken).send({ pin });
+    expect(validated.body.data).toMatchObject({ valid: true, property: { identifier: "PIN-LINK-A" } });
+  });
+
+  it("usa User.propertyId como respaldo si no hay vínculo de residente", async () => {
+    const property = await makeProperty("PIN-LEGACY");
+    const user = await buildUser("RESDN");
+    await prisma.user.update({ where: { id: user.id }, data: { propertyId: property.id } });
+    const auth = `Bearer ${tokenFor(user)}`;
+
+    const pin = await generatePin(auth);
+    const stored = await prisma.accessPin.findFirstOrThrow({ where: { userId: user.id, active: true } });
+    expect(stored.propertyId).toBe(property.id);
+  });
+
   it("el residente puede elegir su propia clave y se valida igual", async () => {
     const property = await makeProperty("PIN-CUSTOM");
     const resident = await makeResident(property.id);
@@ -129,6 +155,26 @@ describe("clave peatonal", () => {
 
     const event = await prisma.accessEvent.findFirstOrThrow({ where: { propertyId: property.id }, orderBy: { id: "desc" } });
     expect(event).toMatchObject({ method: "QR", decision: "ALLOWED", reason: "PERSONAL_QR", guardId: guard.id });
+  });
+
+  it("el QR personal usa la casa del vínculo aunque User.propertyId sea otra", async () => {
+    const houseA = await makeProperty("PIN-QR-LINK-A");
+    const houseB = await makeProperty("PIN-QR-LINK-B");
+    const resident = await makeResident(houseA.id);
+    await prisma.user.update({ where: { id: resident.user.id }, data: { propertyId: houseB.id } });
+    const { auth: guardToken } = await guardAuth();
+
+    const issued = await request(app).post(`${api}/access-pins/me/qr/token`).set("Authorization", resident.auth);
+    expect(issued.status).toBe(200);
+
+    const pass = await prisma.personalQrPass.findFirstOrThrow({ where: { userId: resident.user.id, active: true } });
+    expect(pass.propertyId).toBe(houseA.id);
+
+    const validated = await request(app)
+      .post(`${api}/access-pins/pass/validate`)
+      .set("Authorization", guardToken)
+      .send({ token: issued.body.data.token });
+    expect(validated.body.data).toMatchObject({ valid: true, property: { identifier: "PIN-QR-LINK-A" } });
   });
 
   it("rechaza un pase QR expirado o revocado", async () => {
