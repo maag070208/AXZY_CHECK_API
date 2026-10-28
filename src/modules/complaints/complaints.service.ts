@@ -7,6 +7,7 @@ import { assertStatusUpdated, assertTransition, COMPLAINT_TRANSITIONS } from "@s
 import { StorageService } from "@src/modules/storage/storage.service";
 import { MAX_COMPLAINT_PHOTO_BYTES, MAX_COMPLAINT_VIDEO_BYTES } from "./complaints.schemas";
 import type { createComplaintBody, listComplaintsQuery } from "./complaints.schemas";
+import { findResidentPropertyId } from "../residents/resident-property.service";
 
 type CreateComplaintInput = z.infer<typeof createComplaintBody>;
 type ListComplaintsInput = z.output<typeof listComplaintsQuery>;
@@ -16,15 +17,7 @@ export type ComplaintActor = { id: number; canManage: boolean; username?: string
 
 const AUTHOR_SELECT = { select: { id: true, name: true, lastName: true } } as const;
 
-/** Propiedad activa del residente: Person.userId → Resident (ACTIVE). Null si no tiene ninguna. */
-export const residentPropertyId = async (userId: number): Promise<number | null> => {
-  const resident = await prismaClient.resident.findFirst({
-    where: { status: ResidentStatus.ACTIVE, person: { userId }, property: { softDelete: false } },
-    orderBy: [{ isPrimary: "desc" }, { id: "asc" }],
-    select: { propertyId: true },
-  });
-  return resident?.propertyId ?? null;
-};
+export const residentPropertyId = (userId: number): Promise<number | null> => findResidentPropertyId(userId);
 
 const sanitizeForKey = (value: string) => value.replace(/[^a-zA-Z0-9]/g, "_");
 

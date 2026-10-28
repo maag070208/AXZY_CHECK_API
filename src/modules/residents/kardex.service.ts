@@ -1,4 +1,5 @@
 import { ResidentStatus } from "@prisma/client";
+import { findResidentPropertyId } from "./resident-property.service";
 import { prismaClient } from "@src/core/config/database";
 import { AppError } from "@src/core/errors/app-error";
 import type { ResidentKardexQuery } from "./kardex.schemas";
@@ -37,14 +38,7 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   AJUSTE: "Ajuste",
 };
 
-const residentPropertyId = async (userId: number): Promise<number | null> => {
-  const resident = await prismaClient.resident.findFirst({
-    where: { status: ResidentStatus.ACTIVE, person: { userId }, property: { softDelete: false } },
-    orderBy: [{ isPrimary: "desc" }, { id: "asc" }],
-    select: { propertyId: true },
-  });
-  return resident?.propertyId ?? null;
-};
+const residentPropertyId = (userId: number): Promise<number | null> => findResidentPropertyId(userId);
 
 /**
  * Kardex del residente: timeline de accesos de sus invitados, incidencias de su

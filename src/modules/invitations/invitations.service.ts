@@ -6,6 +6,7 @@ import { AccessDecision, AccessDirection, AccessMethod, ResidentStatus } from "@
 import { getPropertyAccessStatus, recordAccessEvent } from "../access-control/access-control.service";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
+import { residentOwnsProperty as residentOwnsPropertyShared } from "../residents/resident-property.service";
 
 function generateCode() {
     return 'AXZ-' + Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -65,15 +66,7 @@ export const getDataTableInvitations = async (params: ITDataTableFetchParams): P
  * ¿La residente vive en esa propiedad? (solo invita a la suya). Vale el vínculo canónico Person → Resident
  * activo, igual que quejas y cargos; `User.propertyId` se acepta por las cuentas anteriores a ese vínculo.
  */
-export const residentOwnsProperty = async (userId: number, propertyId: number): Promise<boolean> => {
-    const link = await prismaClient.resident.findFirst({
-        where: { propertyId, status: ResidentStatus.ACTIVE, person: { userId }, property: { softDelete: false } },
-        select: { id: true },
-    });
-    if (link) return true;
-    const user = await prismaClient.user.findUnique({ where: { id: userId }, select: { propertyId: true } });
-    return user?.propertyId != null && user.propertyId === propertyId;
-};
+export const residentOwnsProperty = (userId: number, propertyId: number) => residentOwnsPropertyShared(userId, propertyId);
 
 /** Quién creó la invitación, o null si no existe. */
 export const getInvitationOwner = async (id: number): Promise<number | null> => {

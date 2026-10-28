@@ -2,6 +2,7 @@ import { ChargeCategory, ChargeStatus, Prisma, ResidentStatus } from "@prisma/cl
 import type { z } from "zod";
 import { prismaClient } from "@src/core/config/database";
 import { AppError } from "@src/core/errors/app-error";
+import { findResidentPropertyId } from "../residents/resident-property.service";
 import type {
   createChargeBody,
   createPaymentBody,
@@ -55,15 +56,7 @@ const PROPERTY_SELECT = { select: { id: true, identifier: true, name: true } } a
 const RESIDENT_SELECT = { select: { id: true, name: true, lastName: true, username: true } } as const;
 const USER_SELECT = { select: { id: true, name: true, lastName: true } } as const;
 
-/** Propiedad activa del residente: Person.userId → Resident (ACTIVE). */
-export const residentPropertyId = async (userId: number): Promise<number | null> => {
-  const resident = await prismaClient.resident.findFirst({
-    where: { status: ResidentStatus.ACTIVE, person: { userId }, property: { softDelete: false } },
-    orderBy: [{ isPrimary: "desc" }, { id: "asc" }],
-    select: { propertyId: true },
-  });
-  return resident?.propertyId ?? null;
-};
+export const residentPropertyId = (userId: number): Promise<number | null> => findResidentPropertyId(userId);
 
 const ensureProperty = async (propertyId: number) => {
   const property = await prismaClient.property.findFirst({

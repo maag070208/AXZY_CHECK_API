@@ -2,6 +2,7 @@ import { AccessDecision, AccessDirection, AccessMethod, Prisma, VehicleStatus } 
 import { randomBytes } from "crypto";
 import { prismaClient } from "@src/core/config/database";
 import { AppError } from "@src/core/errors/app-error";
+import { requireResidentPropertyId } from "../residents/resident-property.service";
 import { getPropertyAccessStatus, recordAccessEvent } from "../access-control/access-control.service";
 
 const normalizePlate = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, "");
@@ -35,14 +36,7 @@ const serializeVehicle = (vehicle: any) => ({
   createdAt: vehicle.createdAt.toISOString(),
 });
 
-const residentPropertyId = async (userId: number) => {
-  const user = await prismaClient.user.findFirst({
-    where: { id: userId, active: true, softDelete: false, role: { name: "RESDN" } },
-    select: { propertyId: true },
-  });
-  if (!user?.propertyId) throw new AppError("RESIDENT_WITHOUT_PROPERTY", "Tu cuenta no tiene una propiedad asignada", 400);
-  return user.propertyId;
-};
+const residentPropertyId = async (userId: number) => requireResidentPropertyId(userId);
 
 const assertQuota = async (propertyId: number, excludeId?: number) => {
   const property = await prismaClient.property.findUnique({ where: { id: propertyId }, select: { vehicleQuota: true } });

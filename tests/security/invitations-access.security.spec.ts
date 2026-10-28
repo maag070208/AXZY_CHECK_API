@@ -152,6 +152,23 @@ describe("/invitations · residente dueña", () => {
     expect(revoked.body.data.status).toBe("CANCELLED");
   });
 
+
+  it("toma el vínculo Person → Resident y no la propiedad legacy cuando difieren", async () => {
+    const { houseA, houseB, residentA, type } = await scenario();
+    await prisma.user.update({ where: { id: residentA.user.id }, data: { propertyId: houseB.id } });
+
+    expect((await request(app).post(api).set("Authorization", residentA.auth).send(newPass(houseA.id, type.id))).status).toBe(201);
+    expect((await request(app).post(api).set("Authorization", residentA.auth).send(newPass(houseB.id, type.id))).status).toBe(403);
+  });
+
+  it("acepta User.propertyId como respaldo solo si no hay vínculo de residente", async () => {
+    const { houseA, type } = await scenario();
+    const { user, auth } = await authFor("RESDN");
+    await prisma.user.update({ where: { id: user.id }, data: { propertyId: houseA.id } });
+
+    expect((await request(app).post(api).set("Authorization", auth).send(newPass(houseA.id, type.id))).status).toBe(201);
+  });
+
   it("no crea pases para una casa que no es suya", async () => {
     const { houseA, houseB, residentA, type } = await scenario();
 

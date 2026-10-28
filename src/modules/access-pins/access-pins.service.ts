@@ -4,6 +4,7 @@ import { prismaClient } from "@src/core/config/database";
 import { secretKey } from "@src/core/config/config";
 import { AppError } from "@src/core/errors/app-error";
 import { getPropertyAccessStatus, recordAccessEvent } from "../access-control/access-control.service";
+import { findResidentPropertyId, requireResidentPropertyId } from "../residents/resident-property.service";
 
 const PIN_ATTEMPTS = 5;
 const LOCK_MS = 15 * 60 * 1000;
@@ -14,14 +15,7 @@ export const resetPinAttempts = () => attempts.clear();
 
 const hashPin = (pin: string) => createHmac("sha256", secretKey).update(pin).digest("hex");
 
-const propertyForResident = async (userId: number) => {
-  const user = await prismaClient.user.findFirst({
-    where: { id: userId, active: true, softDelete: false, role: { name: "RESDN" } },
-    select: { propertyId: true },
-  });
-  if (!user?.propertyId) throw new AppError("RESIDENT_WITHOUT_PROPERTY", "Tu cuenta no tiene una propiedad asignada", 400);
-  return user.propertyId;
-};
+const propertyForResident = async (userId: number) => requireResidentPropertyId(userId);
 
 const activePinFor = (userId: number) =>
   prismaClient.accessPin.findFirst({ where: { userId, active: true }, orderBy: { createdAt: "desc" } });
@@ -234,7 +228,11 @@ export const validatePersonalQrPass = async (token: string, guardId: number) => 
     const stale = await prismaClient.personalQrPass.findFirst({ where: { codeHash }, select: { id: true } });
     return { valid: false, reason: stale ? "EXPIRED_QR" : "INVALID_QR" };
   }
-  if (!pass.user.active || pass.user.softDelete || pass.user.propertyId !== pass.propertyId) {
+  const linkedPropertyId = await findResidentPropertyId(pass.userId);
+  const hasAccessToProperty = linkedPropertyId !== null
+    ? linkedPropertyId === pass.propertyId
+    : pass.user.propertyId === pass.propertyId;
+  if (!pass.user.active || pass.user.softDelete || !hasAccessToProperty) {
     return { valid: false, reason: "INVALID_QR" };
   }
 
