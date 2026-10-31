@@ -1,6 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import * as invitationsService from './invitations.service';
+import { streamVisitStatsPdf } from './visit-stats-pdf.service';
 import { respondError } from "@src/core/errors/http-error";
 
 const FORBIDDEN_MESSAGE = "No tienes permisos para realizar esta acción";
@@ -119,6 +120,36 @@ export const stats = async (req: Request, res: Response, next: NextFunction) => 
             propertyId: propertyId ? Number(propertyId) : undefined,
         });
         return res.status(200).json(createTResult(result));
+    } catch (error: any) {
+        return next(error);
+    }
+};
+
+/** Los mismos indicadores, en PDF para entregar a la administración. */
+export const statsPdf = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { from, to, propertyId } = req.query as { from: string; to: string; propertyId?: string };
+        await streamVisitStatsPdf(res, {
+            from: new Date(from),
+            to: new Date(to),
+            propertyId: propertyId ? Number(propertyId) : undefined,
+        });
+    } catch (error: any) {
+        return next(error);
+    }
+};
+
+export const getVisitAlerts = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        return res.status(200).json(createTResult(await invitationsService.getVisitAlerts(req.user!.id)));
+    } catch (error: any) {
+        return next(error);
+    }
+};
+
+export const setVisitAlerts = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        return res.status(200).json(createTResult(await invitationsService.setVisitAlerts(req.user!.id, req.body.enabled)));
     } catch (error: any) {
         return next(error);
     }

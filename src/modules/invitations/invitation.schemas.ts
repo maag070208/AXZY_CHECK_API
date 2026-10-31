@@ -40,3 +40,5 @@ export const visitStatsQuery = z
     propertyId: positiveId.optional(),
   })
   .refine((v) => Date.parse(v.to) >= Date.parse(v.from), { message: "la fecha final no puede ser anterior a la inicial", path: ["to"] });
+
+export const visitAlertsBody = z.object({ enabled: z.boolean() });

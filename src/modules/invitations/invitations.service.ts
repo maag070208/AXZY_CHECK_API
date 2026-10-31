@@ -302,8 +302,13 @@ export const updateInvitationStatus = async (
             metadata: { code: current.code },
         });
 
-        // Aviso al residente de la casa: la visita entró o salió.
-        const userIds = await residentUserIdsOfProperty(current.propertyId);
+        // Aviso al residente de la casa: la visita entró o salió (cada quien puede apagarlo).
+        const residentIds = await residentUserIdsOfProperty(current.propertyId);
+        const subscribed = await prismaClient.user.findMany({
+            where: { id: { in: residentIds }, visitAlertsEnabled: true },
+            select: { id: true },
+        });
+        const userIds = subscribed.map((user) => user.id);
         if (userIds.length > 0) {
             const entered = status === 'ENTERED';
             await enqueueOutbox('notification.send', {
@@ -370,6 +375,17 @@ export const listPendingApprovals = async (actor: { id: number; role: string }) 
         },
         orderBy: { createdAt: "asc" },
     });
+};
+
+/** ¿El usuario recibe avisos cuando sus visitas entran o salen? */
+export const getVisitAlerts = async (userId: number) => {
+    const user = await prismaClient.user.findUniqueOrThrow({ where: { id: userId }, select: { visitAlertsEnabled: true } });
+    return { enabled: user.visitAlertsEnabled };
+};
+
+export const setVisitAlerts = async (userId: number, enabled: boolean) => {
+    await prismaClient.user.update({ where: { id: userId }, data: { visitAlertsEnabled: enabled } });
+    return { enabled };
 };
 
 /** Duración máxima de permanencia (horas) configurable en AppSetting `visit.maxStayHours`. */

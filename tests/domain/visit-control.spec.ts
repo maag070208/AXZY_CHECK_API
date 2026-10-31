@@ -275,3 +275,43 @@ describe("indicadores y estado de caseta", () => {
     expect((await request(app).get(`${api}/stats`).query({ from, to }).set("Authorization", guard.auth)).status).toBe(403);
   });
 });
+
+describe("preferencia de avisos y PDF", () => {
+  it("el residente apaga los avisos de entrada, pero sigue recibiendo las solicitudes de autorización", async () => {
+    const house = await makeProperty("PF-1");
+    const resident = await makeResident(house.id);
+    const guard = await authFor("GUARD");
+
+    expect((await request(app).get(`${api}/visit-alerts`).set("Authorization", resident.auth)).body.data).toEqual({ enabled: true });
+    const off = await request(app).put(`${api}/visit-alerts`).set("Authorization", resident.auth).send({ enabled: false });
+    expect(off.body.data).toEqual({ enabled: false });
+
+    const created = await request(app).post(api).set("Authorization", guard.auth).send(walkIn(house.id, await typeId("VISITOR")));
+    await request(app).put(`${api}/${created.body.data.id}/approval`).set("Authorization", resident.auth).send({ decision: "APPROVE" });
+    await request(app).put(`${api}/${created.body.data.id}/status`).set("Authorization", guard.auth).send({ status: "ENTERED" });
+
+    expect(await notificationsOf("INVITATION_APPROVAL")).toHaveLength(1);
+    expect(await notificationsOf("INVITATION_ENTERED")).toHaveLength(0);
+  });
+
+  it("el guardia no tiene preferencia de residente (403)", async () => {
+    const guard = await authFor("GUARD");
+    expect((await request(app).put(`${api}/visit-alerts`).set("Authorization", guard.auth).send({ enabled: false })).status).toBe(403);
+  });
+
+  it("el admin descarga los indicadores en PDF; el guardia no", async () => {
+    const admin = await authFor("ADMIN");
+    const guard = await authFor("GUARD");
+    const query = { from: new Date(Date.now() - 24 * HOUR).toISOString(), to: new Date().toISOString() };
+
+    const pdf = await request(app).get(`${api}/stats/export.pdf`).query(query).set("Authorization", admin.auth).buffer(true).parse((res, done) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk: Buffer) => chunks.push(chunk));
+      res.on("end", () => done(null, Buffer.concat(chunks)));
+    });
+    expect(pdf.status).toBe(200);
+    expect(pdf.headers["content-type"]).toContain("application/pdf");
+    expect((pdf.body as Buffer).subarray(0, 4).toString()).toBe("%PDF");
+    expect((await request(app).get(`${api}/stats/export.pdf`).query(query).set("Authorization", guard.auth)).status).toBe(403);
+  });
+});

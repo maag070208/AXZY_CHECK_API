@@ -3,7 +3,7 @@ import * as invitationsController from './invitations.controller';
 import { validate } from "@src/core/validation/validate";
 import { idParam } from "@src/core/validation/common";
 import { requireAnyPermission, requirePermission } from "@src/modules/common/middlewares/require-permission.middleware";
-import { approvalBody, createInvitationBody, updateInvitationStatusBody, visitStatsQuery } from "./invitation.schemas";
+import { approvalBody, createInvitationBody, updateInvitationStatusBody, visitAlertsBody, visitStatsQuery } from "./invitation.schemas";
 
 const router = Router();
 
@@ -16,6 +16,9 @@ router.post("/", requireAnyPermission("invitation.manage", "invitation.create"),
 router.get("/pending-approvals", requireAnyPermission("invitation.approve"), invitationsController.pendingApprovals);
 router.get("/caseta-status", requirePermission("invitation.manage"), invitationsController.casetaStatus);
 router.get("/stats", requirePermission("access.event.view"), validate({ query: visitStatsQuery }), invitationsController.stats);
+router.get("/stats/export.pdf", requirePermission("access.event.view"), validate({ query: visitStatsQuery }), invitationsController.statsPdf);
+router.get("/visit-alerts", requirePermission("invitation.view"), invitationsController.getVisitAlerts);
+router.put("/visit-alerts", requirePermission("invitation.view"), validate({ body: visitAlertsBody }), invitationsController.setVisitAlerts);
 
 router.get("/:id", requireAnyPermission("invitation.manage", "invitation.view"), invitationsController.getOne);
 router.put("/:id/status", requireAnyPermission("invitation.manage", "invitation.revoke"), validate({ params: idParam, body: updateInvitationStatusBody }), invitationsController.updateStatus);

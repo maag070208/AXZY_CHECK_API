@@ -66,6 +66,8 @@ model InvitationType {
 
 model User {
   invitationsApproved      Invitation[]             @relation("InvitationApprovedBy")
+  /// Avisos cuando una visita entra o sale. Las solicitudes de autorización siempre llegan.
+  visitAlertsEnabled       Boolean                  @default(true)
   complaintsAuthored       Complaint[]              @relation("ComplaintAuthor")
   complaintsAssigned       Complaint[]              @relation("ComplaintAssignee")
   accessEventsAsGuard      AccessEvent[]            @relation("AccessEventGuard")
