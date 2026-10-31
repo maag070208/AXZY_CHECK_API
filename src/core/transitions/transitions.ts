@@ -40,6 +40,8 @@ export const MAINTENANCE_TRANSITIONS: TransitionTable<MaintenanceStatus> = {
 };
 
 export const INVITATION_TRANSITIONS: TransitionTable<InvitationStatus> = {
+  // Visita sin cita: el residente (o el jefe, al escalar) la aprueba → PENDING, o la rechaza → CANCELLED.
+  PENDING_APPROVAL: ["PENDING", "CANCELLED", "EXPIRED"],
   PENDING: ["ENTERED", "CANCELLED", "EXPIRED"],
   ENTERED: ["EXITED"],
   EXITED: [],

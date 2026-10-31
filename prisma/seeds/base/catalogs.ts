@@ -55,17 +55,19 @@ export const catalogsSeed = async (prisma: PrismaClient) => {
 
     // 4. Invitation Types
     const invitationTypes = [
-        { name: 'VISITOR', value: 'Visita Común' },
-        { name: 'PROVIDER', value: 'Proveedor / Delivery' },
-        { name: 'SERVICE', value: 'Servicios Técnicos' },
-        { name: 'RESIDENT', value: 'Residente' },
-        { name: 'COMMON', value: 'Áreas Comunes' },
+        { name: 'VISITOR', value: 'Visita Común', requiresApproval: true },
+        { name: 'PROVIDER', value: 'Proveedor / Delivery', requiresApproval: true },
+        { name: 'SERVICE', value: 'Servicios Técnicos', requiresApproval: true },
+        { name: 'RESIDENT', value: 'Residente', requiresApproval: true },
+        { name: 'COMMON', value: 'Áreas Comunes', requiresApproval: true },
+        // Repartidores: la caseta los registra sin autorización previa del residente.
+        { name: 'DELIVERY', value: 'Repartidor / entrega', requiresApproval: false },
     ];
 
     for (const type of invitationTypes) {
         await prisma.invitationType.upsert({
             where: { name: type.name },
-            update: { value: type.value },
+            update: { value: type.value, requiresApproval: type.requiresApproval },
             create: { ...type, isSystem: true },
         });
     }
@@ -73,7 +75,7 @@ export const catalogsSeed = async (prisma: PrismaClient) => {
     // 5. Catálogos de estados y tipos (T-F0-13): reflejan los valores de los enums.
     const enumCatalogs = {
         assignmentStatusCatalog: [['PENDING', 'Pendiente'], ['CHECKING', 'En revisión'], ['UNDER_REVIEW', 'Bajo revisión'], ['REVIEWED', 'Revisada'], ['ANOMALY', 'Anomalía']],
-        invitationStatusCatalog: [['PENDING', 'Pendiente'], ['ENTERED', 'Ingresó'], ['EXITED', 'Salió'], ['EXPIRED', 'Vencida'], ['CANCELLED', 'Cancelada']],
+        invitationStatusCatalog: [['PENDING_APPROVAL', 'Por autorizar'], ['PENDING', 'Pendiente'], ['ENTERED', 'Ingresó'], ['EXITED', 'Salió'], ['EXPIRED', 'Vencida'], ['CANCELLED', 'Cancelada']],
         scanTypeCatalog: [['ASSIGNMENT', 'Asignación'], ['RECURRING', 'Recurrente'], ['FREE', 'Libre']],
         incidentStatusCatalog: [['PENDING', 'Pendiente'], ['ATTENDED', 'Atendido']],
         roundStatusCatalog: [['IN_PROGRESS', 'En curso'], ['COMPLETED', 'Completada']],

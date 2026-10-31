@@ -206,7 +206,8 @@ describe("recargos", () => {
     const resident = await makeResident(property.id);
     const auth = await adminAuth();
     const recent = await createOverdueCharge(auth, property.id, resident.user.id, 500);
-    await prisma.charge.update({ where: { id: recent }, data: { dueDate: new Date("2026-10-24") } });
+    // Dentro de los días de gracia (2 días atrás con 5 de gracia). Fecha relativa: una fija vence sola.
+    await prisma.charge.update({ where: { id: recent }, data: { dueDate: new Date(Date.now() - 2 * 24 * 3600_000) } });
     const paid = await createOverdueCharge(auth, property.id, resident.user.id, 500);
     await prisma.charge.update({ where: { id: paid }, data: { status: "PAID" } });
 

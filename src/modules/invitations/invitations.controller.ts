@@ -21,7 +21,7 @@ export const datatable = async (req: Request, res: Response) => {
 
 export const create = async (req: Request, res: Response) => {
     try {
-        const { guestName, propertyId, validFrom, validUntil, notes, typeId } = req.body;
+        const { guestName, propertyId, validFrom, validUntil, notes, typeId, expectedPlate, walkIn } = req.body;
         // La residente solo invita a su propia propiedad.
         if (isResident(req) && !(await invitationsService.residentOwnsProperty(req.user!.id, Number(propertyId)))) {
             return forbidden(res);
@@ -36,7 +36,10 @@ export const create = async (req: Request, res: Response) => {
             validFrom: new Date(validFrom),
             validUntil: new Date(validUntil),
             notes,
-            typeId: Number(typeId)
+            typeId: Number(typeId),
+            expectedPlate,
+            // Solo el personal de caseta crea visitas sin cita; la residente no puede marcarlas.
+            walkIn: !isResident(req) && walkIn === true,
         });
         
         return res.status(201).json(createTResult(result));
@@ -65,6 +68,56 @@ export const updateStatus = async (req: Request, res: Response, next: NextFuncti
             if (own !== null && (own !== req.user!.id || status !== "CANCELLED")) return forbidden(res);
         }
         const result = await invitationsService.updateInvitationStatus(Number(req.params.id), status, reason, req.user?.id);
+        return res.status(200).json(createTResult(result));
+    } catch (error: any) {
+        return next(error);
+    }
+};
+
+/** Visitas sin cita esperando autorización (residente: las de su casa; jefe y admin: todas). */
+export const pendingApprovals = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const result = await invitationsService.listPendingApprovals({ id: req.user!.id, role: req.user!.role });
+        return res.status(200).json(createTResult(result));
+    } catch (error: any) {
+        return next(error);
+    }
+};
+
+/** Autoriza o rechaza una visita sin cita. La regla de propiedad vive en el servicio. */
+export const decideApproval = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { decision, reason } = req.body;
+        const result = await invitationsService.decideVisitApproval(
+            Number(req.params.id),
+            { id: req.user!.id, role: req.user!.role },
+            decision,
+            reason,
+        );
+        return res.status(200).json(createTResult(result));
+    } catch (error: any) {
+        return next(error);
+    }
+};
+
+/** Lo que la caseta necesita para marcar visitas que rebasaron su permanencia. */
+export const casetaStatus = async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+        return res.status(200).json(createTResult(await invitationsService.getCasetaStatus()));
+    } catch (error: any) {
+        return next(error);
+    }
+};
+
+/** Indicadores de visitas para la administración. */
+export const stats = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { from, to, propertyId } = req.query as { from: string; to: string; propertyId?: string };
+        const result = await invitationsService.getVisitStats({
+            from: new Date(from),
+            to: new Date(to),
+            propertyId: propertyId ? Number(propertyId) : undefined,
+        });
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return next(error);

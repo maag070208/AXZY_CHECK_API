@@ -60,9 +60,12 @@ model InvitationType {
   active      Boolean      @default(true)
   order       Int          @default(0)
   isSystem    Boolean      @default(false)
+  /// Si false, la caseta registra la visita sin autorización del residente (p. ej. repartidores).
+  requiresApproval Boolean @default(true)
 }
 
 model User {
+  invitationsApproved      Invitation[]             @relation("InvitationApprovedBy")
   complaintsAuthored       Complaint[]              @relation("ComplaintAuthor")
   complaintsAssigned       Complaint[]              @relation("ComplaintAssignee")
   accessEventsAsGuard      AccessEvent[]            @relation("AccessEventGuard")
@@ -390,6 +393,14 @@ model Invitation {
   revokedReason String?
   revokedAt    DateTime?
   revokedById  Int?
+  /// Placa que el residente anticipa (normalizada: A-Z y 0-9). Para cotejar en caseta.
+  expectedPlate String?
+  /// Visita sin cita creada en caseta.
+  walkIn       Boolean          @default(false)
+  /// Quién autorizó una visita sin cita y cuándo.
+  approvedById Int?
+  approvedAt   DateTime?
+  approvedBy   User?            @relation("InvitationApprovedBy", fields: [approvedById], references: [id])
   createdAt    DateTime         @default(now())
   updatedAt    DateTime         @updatedAt
   typeId       Int
@@ -403,6 +414,7 @@ model Invitation {
 
   @@index([code])
   @@index([propertyId, status])
+  @@index([expectedPlate])
 }
 
 model Location {
@@ -1070,6 +1082,7 @@ enum AssignmentStatus {
 }
 
 enum InvitationStatus {
+  PENDING_APPROVAL
   PENDING
   ENTERED
   EXITED
