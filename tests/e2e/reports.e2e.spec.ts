@@ -201,11 +201,13 @@ describe("casa club · particularidades", () => {
   const C = `${V1}/club`;
 
   it("el mismo clientRef no duplica el reporte (reintentos de la APP)", async () => {
-    const body = { title: "Desde la APP sin red", clientRef: "app-123", createdAt: "2026-01-02T10:00:00.000Z" };
-    const first = expectOk(await api().post(C).set("Authorization", s.guard1.auth).send(body), 201);
-    const again = expectOk(await api().post(C).set("Authorization", s.guard1.auth).send(body), 201);
+    const capturedAt = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString();
+    const body = { title: "Desde la APP sin red", clientRef: "app-123", createdAt: capturedAt };
+    const send = () => api().post(C).set("Authorization", s.guard1.auth).set("X-Offline-Sync", "true").send(body);
+    const first = expectOk(await send(), 201);
+    const again = expectOk(await send(), 201);
     expect(again.id).toBe(first.id);
-    expect(new Date(first.createdAt).toISOString()).toBe("2026-01-02T10:00:00.000Z");
+    expect(new Date(first.createdAt).toISOString()).toBe(capturedAt);
     expect(await prisma.incident.count({ where: { clientRef: "app-123" } })).toBe(1);
   });
 
