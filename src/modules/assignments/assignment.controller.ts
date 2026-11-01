@@ -76,7 +76,7 @@ export const updateStatus = async (req: Request, res: Response, next: NextFuncti
 export const toggleTask = async (req: Request, res: Response) => {
     try {
         const { taskId } = req.params;
-        const result = await assignmentService.toggleAssignmentTask(Number(taskId), req.user as { id: number; role: string });
+        const result = await assignmentService.toggleAssignmentTask(Number(taskId), req.user as { id: number; role: string }, req.body?.completed);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return respondError(res, error);

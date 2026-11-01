@@ -3,7 +3,7 @@ import { Request, Response } from "express";
 import { StorageService } from "../storage/storage.service";
 import * as clubService from "./club.service";
 import { respondError } from "@src/core/errors/http-error";
-import { getClientRef, getOfflineOrigin } from "@src/core/utils/idempotency";
+import { getClientRef, getOccurredAt, getOfflineOrigin } from "@src/core/utils/idempotency";
 
 export const getDataTable = async (req: Request, res: Response) => {
   try {
@@ -18,8 +18,9 @@ const storageService = new StorageService();
 
 export const createClub = async (req: Request, res: Response) => {
   try {
-    const { title, categoryId, typeId, description, media, latitude, longitude, createdAt } = req.body;
+    const { title, categoryId, typeId, description, media, latitude, longitude } = req.body;
     const clientRef = getClientRef(req);
+    const occurredAt = getOccurredAt(req);
     const origin = getOfflineOrigin(req);
     const guardId = req.user?.id;
 
@@ -39,7 +40,7 @@ export const createClub = async (req: Request, res: Response) => {
       latitude: latitude ? Number(latitude) : undefined,
       longitude: longitude ? Number(longitude) : undefined,
       clientRef: clientRef ? String(clientRef) : undefined,
-      createdAt: createdAt ? new Date(String(createdAt)) : undefined,
+      createdAt: occurredAt,
       ...origin,
     });
 

@@ -154,7 +154,8 @@ export const updateAssignmentStatus = async (id: number, status: AssignmentStatu
 }
 
 // Toggle task completion
-export const toggleAssignmentTask = async (taskId: number, actor: { id: number; role: string }) => {
+/** Con `completed` fija el valor: un reintento offline no debe volver a invertir la tarea. */
+export const toggleAssignmentTask = async (taskId: number, actor: { id: number; role: string }, completed?: boolean) => {
     const task = await prisma.assignmentTask.findUnique({ where: { id: taskId }, include: { assignment: { select: { guardId: true } } } });
     if (!task) throw new AppError("TASK_NOT_FOUND", "Tarea no encontrada", 404);
     // Cada guardia completa solo las tareas de SUS asignaciones; la supervisión puede con todas.
@@ -162,11 +163,12 @@ export const toggleAssignmentTask = async (taskId: number, actor: { id: number; 
         throw new AppError("FORBIDDEN", "No tienes permisos para realizar esta acción", 403);
     }
 
+    const next = completed ?? !task.completed;
     return prisma.assignmentTask.update({
         where: { id: taskId },
-        data: { 
-            completed: !task.completed,
-            completedAt: !task.completed ? new Date() : null
+        data: {
+            completed: next,
+            completedAt: next ? (task.completedAt ?? new Date()) : null
         }
     });
 }

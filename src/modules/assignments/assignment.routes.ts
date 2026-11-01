@@ -3,7 +3,7 @@ import { createAssignment, getAllAssignments, getMyAssignments, updateStatus, to
 import { requirePermission } from "../common/middlewares/require-permission.middleware";
 import { validate } from "@src/core/validation/validate";
 import { idParam } from "@src/core/validation/common";
-import { createAssignmentBody, updateAssignmentStatusBody } from "./assignment.schemas";
+import { createAssignmentBody, toggleTaskBody, updateAssignmentStatusBody } from "./assignment.schemas";
 
 const router = Router();
 
@@ -17,6 +17,6 @@ router.patch("/:id/status", requirePermission("assignments.manage"), validate({ 
 
 // Personal operativo: ver las suyas y completar tareas.
 router.get("/me", requirePermission("assignment.view"), getMyAssignments);
-router.patch("/tasks/:taskId/toggle", requirePermission("assignment.view"), toggleTask);
+router.patch("/tasks/:taskId/toggle", requirePermission("assignment.view"), validate({ body: toggleTaskBody }), toggleTask);
 
 export default router;

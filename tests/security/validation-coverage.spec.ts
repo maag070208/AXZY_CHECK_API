@@ -20,7 +20,6 @@ const EXEMPT: Record<string, string> = {
   "PUT /api/v1/incidents/:id/resolve": "sin cuerpo",
   "PUT /api/v1/maintenance/:id/resolve": "sin cuerpo",
   "PUT /api/v1/rounds/:id/end": "sin cuerpo",
-  "PATCH /api/v1/assignments/tasks/:taskId/toggle": "sin cuerpo",
   "PUT /api/v1/catalog-admin/categories/:id/pin": "sin cuerpo",
   "PUT /api/v1/catalog-admin/types/:id/pin": "sin cuerpo",
 };

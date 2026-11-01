@@ -2,6 +2,8 @@ import { z } from "zod";
 import { AssignmentStatus } from "@prisma/client";
 import { flag, positiveId } from "@src/core/validation/common";
 
+export const toggleTaskBody = z.object({ completed: z.boolean().optional() });
+
 export const createAssignmentBody = z.object({
   guardId: positiveId,
   locationId: positiveId,

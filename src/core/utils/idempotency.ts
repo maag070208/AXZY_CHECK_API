@@ -16,23 +16,30 @@ export const getClientRef = (req: Request): string | undefined => {
   return value ? value.slice(0, 100) : undefined;
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+const OFFLINE_MAX_AGE_MS = 7 * DAY_MS;
+
+const isOfflineSync = (req: Request) =>
+  req.body?.createdOffline === true ||
+  String(req.header("X-Offline-Sync") ?? "").toLowerCase() === "true";
+
 /** Timestamp enviado por el cliente (ISO), si es válido. */
 export const getOccurredAt = (req: Request, field = "createdAt"): Date | undefined => {
   const raw = req.body?.[field];
   if (!raw) return undefined;
   const date = new Date(String(raw));
   if (Number.isNaN(date.getTime())) return undefined;
-  // Evita fechas absurdas fuera de ±24 h; el servidor conserva su hora de recepción.
-  const diff = Math.abs(Date.now() - date.getTime());
-  return diff <= 24 * 60 * 60 * 1000 ? date : undefined;
+  // Evita fechas absurdas; el servidor conserva su hora de recepción. Lo capturado sin red puede
+  // llegar días después y debe conservar su hora real.
+  const age = Date.now() - date.getTime();
+  const maxAge = isOfflineSync(req) ? OFFLINE_MAX_AGE_MS : DAY_MS;
+  return age <= maxAge && age >= -DAY_MS ? date : undefined;
 };
 
 
 /** Origen de un registro sincronizado: online o desde la cola offline. */
 export const getOfflineOrigin = (req: Request) => {
-  const offline =
-    req.body?.createdOffline === true ||
-    String(req.header("X-Offline-Sync") ?? "").toLowerCase() === "true";
+  const offline = isOfflineSync(req);
   return {
     createdOffline: offline,
     syncedAt: offline ? new Date() : undefined,

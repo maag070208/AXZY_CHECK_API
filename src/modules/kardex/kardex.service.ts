@@ -34,7 +34,8 @@ export const registerCheck = async (data: {
     if (!round || round.guardId !== data.userId) {
       throw new AppError("ROUND_NOT_OWNED", "La ronda indicada no pertenece al guardia.", 403);
     }
-    if (round.status !== 'IN_PROGRESS') {
+    // Un check capturado sin red llega tarde por definición: la ronda pudo cerrarse antes de sincronizar.
+    if (round.status !== 'IN_PROGRESS' && !data.createdOffline) {
       throw new AppError("ROUND_CLOSED", "La ronda indicada ya está cerrada.", 409);
     }
   }
