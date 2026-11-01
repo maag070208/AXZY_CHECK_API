@@ -3,7 +3,7 @@ import path from "path";
 import axios from "axios";
 import PDFDocument from "pdfkit";
 import { getConfig } from "@src/core/utils/config";
-import { branding } from "@src/client/branding";
+import { branding, reportTimeZone } from "@src/client/branding";
 
 /* =========================================================================
  *  SISTEMA DE DISEÑO — mismo lenguaje visual del dashboard de CheckApp:
@@ -73,7 +73,7 @@ const PHOTO_GAP = 8;
 const PHOTO_HEIGHT = 116;
 
 /** Zona horaria para fechas/horas (evita depender de la zona del servidor). */
-const REPORT_TIME_ZONE = process.env.REPORT_TIME_ZONE ?? branding.reportTimeZone;
+const REPORT_TIME_ZONE = reportTimeZone;
 
 export interface PdfMediaItem {
     type: "IMAGE" | "VIDEO";

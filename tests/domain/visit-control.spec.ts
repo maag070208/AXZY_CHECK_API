@@ -6,6 +6,7 @@ import request from "supertest";
 import { app } from "@src/app";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
 import { buildUser, RoleName, tokenFor } from "../factories";
+import ExcelJS from "exceljs";
 import { expirePendingInvitations } from "@src/modules/invitations/invitations.service";
 
 const api = "/api/v1/invitations";
@@ -54,6 +55,13 @@ const walkIn = (propertyId: number, type: number, extra: Record<string, unknown>
   walkIn: true,
   ...extra,
 });
+
+const downloadBinary = (url: string, query: Record<string, string>, auth: string) =>
+  request(app).get(url).query(query).set("Authorization", auth).buffer(true).parse((res, done) => {
+    const chunks: Buffer[] = [];
+    res.on("data", (chunk: Buffer) => chunks.push(chunk));
+    res.on("end", () => done(null, Buffer.concat(chunks)));
+  });
 
 /** Notificaciones encoladas de un tipo, con los userIds a los que van. */
 const notificationsOf = async (type: string) => {
@@ -276,6 +284,155 @@ describe("indicadores y estado de caseta", () => {
   });
 });
 
+describe("intentos rechazados en caseta", () => {
+  const passOf = async (status: "PENDING" | "EXPIRED" | "CANCELLED" | "EXITED", code: string, propertyId: number, window = { from: -HOUR, until: HOUR }) => {
+    const owner = await authFor("RESDN");
+    return prisma.invitation.create({
+      data: {
+        code,
+        guestName: "Visita",
+        createdById: owner.user.id,
+        propertyId,
+        typeId: await typeId("VISITOR"),
+        status,
+        validFrom: new Date(Date.now() + window.from),
+        validUntil: new Date(Date.now() + window.until),
+      },
+    });
+  };
+  const denied = (invitationId: number) => prisma.accessEvent.findMany({ where: { invitationId, decision: "DENIED" } });
+
+  it.each([
+    ["EXPIRED", "EXPIRED"],
+    ["CANCELLED", "REVOKED"],
+    ["EXITED", "ALREADY_USED"],
+  ] as const)("leer un pase %s deja el rechazo %s en la bitácora", async (status, reason) => {
+    const house = await makeProperty(`RJ-${status}`);
+    const guard = await authFor("GUARD");
+    const pass = await passOf(status, `AXZ-${status}`, house.id);
+
+    const res = await request(app).post(`${api}/scan`).set("Authorization", guard.auth).send({ code: pass.code });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ id: pass.id, status });
+    expect(await denied(pass.id)).toEqual([expect.objectContaining({ reason, guardId: guard.user.id, method: "QR", direction: "ENTRY" })]);
+  });
+
+  it("un pase pendiente fuera de horario cuenta como aún no vigente o vencido", async () => {
+    const house = await makeProperty("RJ-W");
+    const guard = await authFor("GUARD");
+    const early = await passOf("PENDING", "AXZ-EARLY", house.id, { from: HOUR, until: 2 * HOUR });
+    const late = await passOf("PENDING", "AXZ-LATE", house.id, { from: -2 * HOUR, until: -HOUR });
+
+    await request(app).post(`${api}/scan`).set("Authorization", guard.auth).send({ code: early.code });
+    await request(app).post(`${api}/scan`).set("Authorization", guard.auth).send({ code: late.code });
+
+    expect((await denied(early.id))[0].reason).toBe("NOT_YET_VALID");
+    expect((await denied(late.id))[0].reason).toBe("EXPIRED");
+  });
+
+  it("forzar la entrada de un pase anulado responde error y también queda el rechazo", async () => {
+    const house = await makeProperty("RJ-F");
+    const guard = await authFor("GUARD");
+    const pass = await passOf("CANCELLED", "AXZ-FORCE", house.id);
+
+    const res = await request(app).put(`${api}/${pass.id}/status`).set("Authorization", guard.auth).send({ status: "ENTERED" });
+    expect(res.status).toBe(409);
+    expect((await denied(pass.id))[0].reason).toBe("REVOKED");
+  });
+
+  it("un pase válido o una visita dentro no cuentan como rechazo", async () => {
+    const house = await makeProperty("RJ-OK");
+    const guard = await authFor("GUARD");
+    const pass = await passOf("PENDING", "AXZ-OK", house.id);
+
+    await request(app).post(`${api}/scan`).set("Authorization", guard.auth).send({ code: pass.code });
+    await request(app).put(`${api}/${pass.id}/status`).set("Authorization", guard.auth).send({ status: "ENTERED" });
+    await request(app).post(`${api}/scan`).set("Authorization", guard.auth).send({ code: pass.code });
+
+    expect(await denied(pass.id)).toEqual([]);
+  });
+
+  it("código inexistente responde 404; mantenimiento y residente no leen pases (403)", async () => {
+    const guard = await authFor("GUARD");
+    const maint = await authFor("MAINT");
+    const resident = await authFor("RESDN");
+
+    expect((await request(app).post(`${api}/scan`).set("Authorization", guard.auth).send({ code: "AXZ-NOPE" })).status).toBe(404);
+    expect((await request(app).post(`${api}/scan`).set("Authorization", guard.auth).send({ code: "" })).status).toBe(400);
+    expect((await request(app).post(`${api}/scan`).set("Authorization", maint.auth).send({ code: "AXZ-1" })).status).toBe(403);
+    expect((await request(app).post(`${api}/scan`).set("Authorization", resident.auth).send({ code: "AXZ-1" })).status).toBe(403);
+  });
+});
+
+describe("indicadores por periodo", () => {
+  const visitWith = async (propertyId: number, type: string, code: string, times: { entry: Date; exit?: Date; validUntil?: Date }) => {
+    const owner = await authFor("RESDN");
+    return prisma.invitation.create({
+      data: {
+        code,
+        guestName: "Visita",
+        createdById: owner.user.id,
+        propertyId,
+        typeId: await typeId(type),
+        status: times.exit ? "EXITED" : "ENTERED",
+        validFrom: new Date(times.entry.getTime() - HOUR),
+        validUntil: times.validUntil ?? new Date(times.entry.getTime() + 24 * HOUR),
+        entryTime: times.entry,
+        exitTime: times.exit ?? null,
+      },
+    });
+  };
+
+  it("cuadra visitas, entregas, excedidas y sin salida por día, semana y mes", async () => {
+    const house = await makeProperty("PR-1");
+    const admin = await authFor("ADMIN");
+    const t = (iso: string) => new Date(iso);
+
+    // Lunes 5 y martes 6 de octubre de 2026 (misma semana); jueves 1 está en la semana anterior.
+    await visitWith(house.id, "VISITOR", "AXZ-P1", { entry: t("2026-10-05T18:00:00Z"), exit: t("2026-10-05T19:00:00Z") });
+    await visitWith(house.id, "DELIVERY", "AXZ-P2", { entry: t("2026-10-06T18:00:00Z"), exit: t("2026-10-06T18:10:00Z") });
+    await visitWith(house.id, "VISITOR", "AXZ-P3", { entry: t("2026-10-01T18:00:00Z"), exit: t("2026-10-02T08:00:00Z") });
+    await visitWith(house.id, "VISITOR", "AXZ-P4", { entry: t("2026-09-30T18:00:00Z"), validUntil: t("2026-09-30T22:00:00Z") });
+
+    const res = await request(app)
+      .get(`${api}/stats`)
+      .query({ from: "2026-09-29T00:00:00Z", to: "2026-10-07T00:00:00Z" })
+      .set("Authorization", admin.auth);
+
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ entries: 4, deliveries: 1, exceededStay: 1, noExit: 1 });
+    expect(res.body.data.byMonth).toEqual([
+      { period: "2026-09", count: 1, deliveries: 0 },
+      { period: "2026-10", count: 3, deliveries: 1 },
+    ]);
+    expect(res.body.data.byWeek).toEqual([
+      { period: "2026-09-28", count: 2, deliveries: 0 },
+      { period: "2026-10-05", count: 2, deliveries: 1 },
+    ]);
+    expect(res.body.data.byDay).toEqual([
+      { period: "2026-09-30", count: 1, deliveries: 0 },
+      { period: "2026-10-01", count: 1, deliveries: 0 },
+      { period: "2026-10-05", count: 1, deliveries: 0 },
+      { period: "2026-10-06", count: 1, deliveries: 1 },
+    ]);
+  });
+
+  it("los motivos de rechazo salen en español", async () => {
+    const house = await makeProperty("PR-2");
+    const admin = await authFor("ADMIN");
+    await prisma.accessEvent.create({
+      data: { propertyId: house.id, method: "QR", direction: "ENTRY", source: "GUARD", decision: "DENIED", reason: "ALREADY_USED" },
+    });
+
+    const res = await request(app)
+      .get(`${api}/stats`)
+      .query({ from: new Date(Date.now() - HOUR).toISOString(), to: new Date(Date.now() + HOUR).toISOString() })
+      .set("Authorization", admin.auth);
+
+    expect(res.body.data.rejected).toEqual({ total: 1, byReason: [{ reason: "ALREADY_USED", label: "Pase ya usado", count: 1 }] });
+  });
+});
+
 describe("preferencia de avisos y PDF", () => {
   it("el residente apaga los avisos de entrada, pero sigue recibiendo las solicitudes de autorización", async () => {
     const house = await makeProperty("PF-1");
@@ -313,5 +470,21 @@ describe("preferencia de avisos y PDF", () => {
     expect(pdf.headers["content-type"]).toContain("application/pdf");
     expect((pdf.body as Buffer).subarray(0, 4).toString()).toBe("%PDF");
     expect((await request(app).get(`${api}/stats/export.pdf`).query(query).set("Authorization", guard.auth)).status).toBe(403);
+  });
+
+  it("el admin descarga los indicadores en Excel con una hoja por indicador; el guardia no", async () => {
+    const admin = await authFor("ADMIN");
+    const guard = await authFor("GUARD");
+    const query = { from: new Date(Date.now() - 24 * HOUR).toISOString(), to: new Date().toISOString() };
+
+    const file = await downloadBinary(`${api}/stats/export.xlsx`, query, admin.auth);
+    expect(file.status).toBe(200);
+    expect(file.headers["content-type"]).toContain("spreadsheetml.sheet");
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(file.body as ArrayBuffer);
+    expect(book.worksheets.map((sheet) => sheet.name)).toEqual(["Resumen", "Por día", "Por semana", "Por mes", "Por hora", "Por casa", "Rechazos"]);
+    expect(book.getWorksheet("Resumen")!.getRow(4).values).toEqual([undefined, "Entradas", 0]);
+
+    expect((await request(app).get(`${api}/stats/export.xlsx`).query(query).set("Authorization", guard.auth)).status).toBe(403);
   });
 });

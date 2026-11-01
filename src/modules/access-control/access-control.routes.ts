@@ -5,6 +5,8 @@ import { requirePermission } from "@src/modules/common/middlewares/require-permi
 import {
   deleteException,
   exportEvents,
+  exportEventsPdf,
+  exportEventsXlsx,
   getEvents,
   getExceptions,
   getRule,
@@ -28,6 +30,8 @@ router.get("/delinquency-rule", requirePermission("delinquency.view"), getRule);
 router.put("/delinquency-rule", requirePermission("delinquency.manage"), validate({ body: delinquencyRuleBody }), putRule);
 router.get("/events", requirePermission("access.event.view"), validate({ query: accessEventsQuery }), getEvents);
 router.get("/events/export.csv", requirePermission("access.event.view"), validate({ query: accessEventsExportQuery }), exportEvents);
+router.get("/events/export.xlsx", requirePermission("access.event.view"), validate({ query: accessEventsExportQuery }), exportEventsXlsx);
+router.get("/events/export.pdf", requirePermission("access.event.view"), validate({ query: accessEventsExportQuery }), exportEventsPdf);
 router.get("/exceptions", requirePermission("delinquency.view"), validate({ query: accessExceptionQuery }), getExceptions);
 router.post("/exceptions", requirePermission("delinquency.manage"), validate({ body: accessExceptionBody }), postException);
 router.delete("/exceptions/:id", requirePermission("delinquency.manage"), validate({ params: idParam }), deleteException);

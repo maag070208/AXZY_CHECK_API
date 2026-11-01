@@ -2,6 +2,7 @@
  * Fase 2A — bloqueo por adeudo en caseta, excepciones de administración y
  * bitácora base de accesos.
  */
+import ExcelJS from "exceljs";
 import request from "supertest";
 import { app } from "@src/app";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
@@ -222,6 +223,36 @@ describe("bloqueo de visitas por adeudo", () => {
     expect(exported.headers["content-type"]).toContain("text/csv");
     expect(exported.text).toContain("Fecha");
     expect(exported.text).toContain("Denegado");
+    expect(exported.text).toContain("Adeudo");
+
+    const binary = (res: any, done: (err: Error | null, body: Buffer) => void) => {
+      const chunks: Buffer[] = [];
+      res.on("data", (chunk: Buffer) => chunks.push(chunk));
+      res.on("end", () => done(null, Buffer.concat(chunks)));
+    };
+    const pdf = await request(app)
+      .get(`${api}/access/events/export.pdf?propertyId=${property.id}&decision=DENIED`)
+      .set("Authorization", admin)
+      .buffer(true)
+      .parse(binary);
+    expect(pdf.status).toBe(200);
+    expect((pdf.body as Buffer).subarray(0, 4).toString()).toBe("%PDF");
+
+    const xlsx = await request(app)
+      .get(`${api}/access/events/export.xlsx?propertyId=${property.id}&decision=DENIED`)
+      .set("Authorization", admin)
+      .buffer(true)
+      .parse(binary);
+    expect(xlsx.status).toBe(200);
+    expect(xlsx.headers["content-type"]).toContain("spreadsheetml.sheet");
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(xlsx.body as ArrayBuffer);
+    const sheet = book.getWorksheet("Bitácora")!;
+    expect(sheet.getRow(1).getCell(8).value).toBe("Decisión");
+    expect(sheet.getRow(2).getCell(8).value).toBe("Denegado");
+
+    const { auth: guardDownload } = await guardAuth();
+    expect((await request(app).get(`${api}/access/events/export.xlsx`).set("Authorization", guardDownload)).status).toBe(403);
 
     const mine = await request(app).get(`${api}/my-access/events`).set("Authorization", resident.auth);
     expect(mine.status).toBe(200);

@@ -41,4 +41,6 @@ export const visitStatsQuery = z
   })
   .refine((v) => Date.parse(v.to) >= Date.parse(v.from), { message: "la fecha final no puede ser anterior a la inicial", path: ["to"] });
 
+export const scanBody = z.object({ code: z.string().trim().min(1, "indica el código").max(40, "no puede pasar de 40 caracteres") });
+
 export const visitAlertsBody = z.object({ enabled: z.boolean() });

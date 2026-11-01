@@ -8,3 +8,6 @@ export const branding = {
   /** Zona horaria por defecto de los PDF (REPORT_TIME_ZONE la reemplaza). */
   reportTimeZone: "America/Tijuana",
 } as const;
+
+/** Zona horaria del residencial para reportes y exportaciones. */
+export const reportTimeZone = process.env.REPORT_TIME_ZONE ?? branding.reportTimeZone;

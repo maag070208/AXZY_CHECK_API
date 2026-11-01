@@ -2,8 +2,10 @@ import { prismaClient } from "@src/core/config/database";
 import { AppError } from "@src/core/errors/app-error";
 import { assertStatusUpdated, assertTransition, INVITATION_TRANSITIONS } from "@src/core/transitions/transitions";
 import { USER_PUBLIC_SELECT } from "@src/core/constants/user-select";
-import { AccessDecision, AccessDirection, AccessMethod, InvitationStatus, Prisma, ResidentStatus } from "@prisma/client";
-import { getPropertyAccessStatus, recordAccessEvent } from "../access-control/access-control.service";
+import { AccessDecision, AccessDirection, AccessMethod, Invitation, InvitationStatus, Prisma, ResidentStatus } from "@prisma/client";
+import { ACCESS_REASON_LABEL, getPropertyAccessStatus, recordAccessEvent } from "../access-control/access-control.service";
+import { ABLY_CHANNELS, publishToChannel } from "@src/core/config/ably";
+import { reportTimeZone } from "@src/client/branding";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 import { enqueueOutbox } from "@src/core/outbox/outbox";
@@ -18,7 +20,6 @@ const WALK_IN_HOURS = 4;
 /** Estados que todavía pueden llegar a la caseta; el vencimiento los cierra. */
 const OPEN_STATUSES: InvitationStatus[] = ["PENDING", "PENDING_APPROVAL"];
 /** Zona horaria del residencial para agrupar por día y hora en los indicadores. */
-const RESIDENCE_TZ = "America/Mexico_City";
 
 function generateCode() {
     return 'AXZ-' + Math.random().toString(36).substring(2, 8).toUpperCase();
@@ -174,6 +175,48 @@ export const createInvitation = async (data: CreateInvitationInput) => {
         }
     }
 
+    notifyCaseta();
+    return invitation;
+};
+
+/** Aviso a la caseta de que cambió una visita. Solo es la señal de recargar: no lleva datos de la visita. */
+const notifyCaseta = () => void publishToChannel(ABLY_CHANNELS.DASHBOARD_LIVE, "refresh", { reason: "invitation-updated" });
+
+/**
+ * Por qué un pase no puede entrar ahora, con los códigos de la bitácora. Null si puede entrar o si ya está
+ * dentro: ahí toca registrar su salida, no es un intento rechazado.
+ */
+const entryDenialReason = (pass: Pick<Invitation, "status" | "validFrom" | "validUntil">, now = new Date()) => {
+    switch (pass.status) {
+        case "EXPIRED": return "EXPIRED";
+        case "CANCELLED": return "REVOKED";
+        case "EXITED": return "ALREADY_USED";
+        case "PENDING_APPROVAL": return "NO_AUTHORIZATION";
+        case "PENDING":
+            if (now < pass.validFrom) return "NOT_YET_VALID";
+            return now > pass.validUntil ? "EXPIRED" : null;
+        default: return null;
+    }
+};
+
+const recordDeniedEntry = (pass: { id: number; propertyId: number; code: string }, reason: string, guardId?: number) =>
+    recordAccessEvent({
+        propertyId: pass.propertyId,
+        invitationId: pass.id,
+        method: AccessMethod.QR,
+        direction: AccessDirection.ENTRY,
+        decision: AccessDecision.DENIED,
+        reason,
+        guardId: guardId ?? null,
+        metadata: { code: pass.code },
+    });
+
+/** Lectura de un pase en caseta: devuelve el pase y deja en la bitácora el intento si no puede entrar. */
+export const scanInvitation = async (code: string, guardId?: number) => {
+    const invitation = await getInvitationByIdOrCode(code);
+    if (!invitation) throw new AppError("INVITATION_NOT_FOUND", "Invitación no encontrada", 404);
+    const denial = entryDenialReason(invitation);
+    if (denial) await recordDeniedEntry(invitation, denial, guardId);
     return invitation;
 };
 
@@ -199,7 +242,7 @@ export const getInvitationByIdOrCode = async (identifier: string) => {
  * usa un advisory lock.
  */
 export const expirePendingInvitations = async (now: Date = new Date()): Promise<number> => {
-    return prismaClient.$transaction(async (tx) => {
+    const expired = await prismaClient.$transaction(async (tx) => {
         const rows = await tx.invitation.findMany({
             where: { status: { in: OPEN_STATUSES }, validUntil: { lt: now } },
             select: { id: true, code: true, guestName: true, createdById: true, property: { select: { identifier: true } } },
@@ -226,6 +269,8 @@ export const expirePendingInvitations = async (now: Date = new Date()): Promise<
         }
         return count;
     });
+    if (expired > 0) notifyCaseta();
+    return expired;
 };
 
 export const updateInvitationStatus = async (
@@ -239,6 +284,9 @@ export const updateInvitationStatus = async (
         select: { status: true, notes: true, validFrom: true, validUntil: true, propertyId: true, code: true, guestName: true, revokedReason: true, revokedAt: true },
     });
     if (!current) throw new AppError("INVITATION_NOT_FOUND", "Invitación no encontrada", 404);
+
+    const denial = status === 'ENTERED' ? entryDenialReason(current) : null;
+    if (denial) await recordDeniedEntry({ ...current, id }, denial, actorId);
     assertTransition(INVITATION_TRANSITIONS, current.status, status);
 
     let accessReason: string | undefined;
@@ -320,6 +368,7 @@ export const updateInvitationStatus = async (
         }
     }
 
+    notifyCaseta();
     return prismaClient.invitation.findUniqueOrThrow({ where: { id } });
 };
 
@@ -356,6 +405,7 @@ export const decideVisitApproval = async (
 
     const { count } = await prismaClient.invitation.updateMany({ where: { id, status: "PENDING_APPROVAL" }, data: update });
     assertStatusUpdated(count);
+    notifyCaseta();
     return prismaClient.invitation.findUniqueOrThrow({ where: { id } });
 };
 
@@ -413,7 +463,7 @@ export const getCasetaStatus = async () => {
 /** Día (AAAA-MM-DD) y hora (0-23) de una fecha en la zona del residencial. */
 const localParts = (date: Date) => {
     const parts = new Intl.DateTimeFormat("en-CA", {
-        timeZone: RESIDENCE_TZ,
+        timeZone: reportTimeZone,
         year: "numeric",
         month: "2-digit",
         day: "2-digit",
@@ -424,12 +474,31 @@ const localParts = (date: Date) => {
     return { day: `${value("year")}-${value("month")}-${value("day")}`, hour: Number(value("hour")) };
 };
 
+/** Lunes (AAAA-MM-DD) de la semana de un día. */
+const weekOf = (day: string) => {
+    const date = new Date(`${day}T00:00:00Z`);
+    date.setUTCDate(date.getUTCDate() - ((date.getUTCDay() + 6) % 7));
+    return date.toISOString().slice(0, 10);
+};
+
+/** Entradas y entregas por periodo, en orden cronológico. */
+const countByPeriod = (rows: { period: string; delivery: boolean }[]) => {
+    const totals = new Map<string, { count: number; deliveries: number }>();
+    for (const { period, delivery } of rows) {
+        const bucket = totals.get(period) ?? { count: 0, deliveries: 0 };
+        bucket.count += 1;
+        if (delivery) bucket.deliveries += 1;
+        totals.set(period, bucket);
+    }
+    return [...totals.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([period, bucket]) => ({ period, ...bucket }));
+};
+
 const average = (values: number[]) => (values.length ? Math.round(values.reduce((sum, v) => sum + v, 0) / values.length) : null);
 
 /**
- * Indicadores de visitas en un rango: entradas por día y hora, estancia promedio (general y por casa),
- * rechazos por motivo y visitas que hoy rebasan la permanencia. Se agrega en memoria: el volumen por
- * residencial es de cientos de visitas al mes.
+ * Indicadores de visitas en un rango: entradas y entregas por día, semana y mes, horas pico, estancia promedio
+ * (general y por casa), rechazos por motivo, visitas que rebasaron su tiempo y visitas sin salida. Se agrega en
+ * memoria: el volumen por residencial es de cientos de visitas al mes.
  */
 export const getVisitStats = async (params: { from: Date; to: Date; propertyId?: number }) => {
     const { from, to, propertyId } = params;
@@ -440,7 +509,14 @@ export const getVisitStats = async (params: { from: Date; to: Date; propertyId?:
     const [entered, created, denied, overstayedIds] = await Promise.all([
         prismaClient.invitation.findMany({
             where: { ...scope, entryTime: { gte: from, lte: to } },
-            select: { propertyId: true, entryTime: true, exitTime: true, property: { select: { identifier: true } } },
+            select: {
+                propertyId: true,
+                entryTime: true,
+                exitTime: true,
+                validUntil: true,
+                property: { select: { identifier: true } },
+                type: { select: { name: true } },
+            },
         }),
         prismaClient.invitation.groupBy({
             by: ["status"],
@@ -458,13 +534,19 @@ export const getVisitStats = async (params: { from: Date; to: Date; propertyId?:
         rows.filter((row) => row.exitTime && row.entryTime).map((row) => (row.exitTime!.getTime() - row.entryTime!.getTime()) / 60_000);
 
     const byHour = Array.from({ length: 24 }, () => 0);
-    const byDayMap = new Map<string, number>();
-    for (const row of entered) {
-        if (!row.entryTime) continue;
+    const visits = entered.flatMap((row) => {
+        if (!row.entryTime) return [];
         const { day, hour } = localParts(row.entryTime);
         byHour[hour] += 1;
-        byDayMap.set(day, (byDayMap.get(day) ?? 0) + 1);
-    }
+        return [{ day, delivery: row.type.name === "DELIVERY" }];
+    });
+    const groupedBy = (periodOf: (day: string) => string) =>
+        countByPeriod(visits.map(({ day, delivery }) => ({ period: periodOf(day), delivery })));
+
+    // Rebasó su tiempo: se quedó más que la permanencia máxima o más allá del horario de su pase.
+    const limitMs = maxStayHours * 3600_000;
+    const overstayed = (row: (typeof entered)[number], until: Date) =>
+        !!row.entryTime && (until.getTime() - row.entryTime.getTime() > limitMs || until > row.validUntil);
 
     const byPropertyMap = new Map<number, { propertyId: number; identifier: string; entries: typeof entered }>();
     for (const row of entered) {
@@ -484,7 +566,10 @@ export const getVisitStats = async (params: { from: Date; to: Date; propertyId?:
         entries: entered.length,
         averageStayMinutes: average(stays(entered)),
         byStatus: created.map((row) => ({ status: row.status, count: row._count._all })),
-        byDay: [...byDayMap.entries()].sort(([a], [b]) => a.localeCompare(b)).map(([day, count]) => ({ day, count })),
+        deliveries: visits.filter((visit) => visit.delivery).length,
+        byDay: groupedBy((day) => day),
+        byWeek: groupedBy(weekOf),
+        byMonth: groupedBy((day) => day.slice(0, 7)),
         byHour: byHour.map((count, hour) => ({ hour, count })),
         byProperty: [...byPropertyMap.values()]
             .map((bucket) => ({
@@ -496,8 +581,12 @@ export const getVisitStats = async (params: { from: Date; to: Date; propertyId?:
             .sort((a, b) => b.entries - a.entries),
         rejected: {
             total: denied.length,
-            byReason: [...rejectedByReason.entries()].sort(([, a], [, b]) => b - a).map(([reason, count]) => ({ reason, count })),
+            byReason: [...rejectedByReason.entries()]
+                .sort(([, a], [, b]) => b - a)
+                .map(([reason, count]) => ({ reason, label: ACCESS_REASON_LABEL[reason] ?? reason, count })),
         },
         overstayedNow: overstayedIds.length,
+        exceededStay: entered.filter((row) => row.exitTime && overstayed(row, row.exitTime)).length,
+        noExit: entered.filter((row) => !row.exitTime && overstayed(row, now)).length,
     };
 };

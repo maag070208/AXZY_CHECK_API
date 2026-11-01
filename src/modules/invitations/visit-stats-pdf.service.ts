@@ -28,18 +28,26 @@ export const streamVisitStatsPdf = async (
 
   heading("Resumen");
   doc.text(`Entradas: ${stats.entries}`);
+  doc.text(`Entregas de repartidores: ${stats.deliveries}`);
   doc.text(`Permanencia promedio: ${formatMinutes(stats.averageStayMinutes)}`);
   doc.text(`Intentos rechazados: ${stats.rejected.total}`);
-  doc.text(`Visitas fuera de tiempo ahora: ${stats.overstayedNow} (límite ${stats.maxStayHours} h)`);
+  doc.text(`Excedieron su tiempo: ${stats.exceededStay} (límite ${stats.maxStayHours} h)`);
+  doc.text(`Sin salida registrada: ${stats.noExit}`);
+  doc.text(`Visitas fuera de tiempo ahora: ${stats.overstayedNow}`);
 
   heading("Horas pico");
   const peaks = stats.byHour.filter((h) => h.count > 0).sort((a, b) => b.count - a.count).slice(0, 5);
   if (peaks.length === 0) doc.text("Sin entradas en el periodo.");
   peaks.forEach((h) => doc.text(`${String(h.hour).padStart(2, "0")}:00  ·  ${h.count} entradas`));
 
-  heading("Visitas por día");
-  if (stats.byDay.length === 0) doc.text("Sin entradas en el periodo.");
-  stats.byDay.forEach((d) => doc.text(`${d.day}  ·  ${d.count}`));
+  const periods = (title: string, rows: typeof stats.byDay) => {
+    heading(title);
+    if (rows.length === 0) doc.text("Sin entradas en el periodo.");
+    rows.forEach((row) => doc.text(`${row.period}  ·  ${row.count} visitas  ·  ${row.deliveries} entregas`));
+  };
+  periods("Visitas por mes", stats.byMonth);
+  periods("Visitas por semana (inicia lunes)", stats.byWeek);
+  periods("Visitas por día", stats.byDay);
 
   heading("Casas con más visitas");
   if (stats.byProperty.length === 0) doc.text("Sin visitas en el periodo.");
@@ -49,7 +57,7 @@ export const streamVisitStatsPdf = async (
 
   heading("Motivos de rechazo");
   if (stats.rejected.byReason.length === 0) doc.text("Ningún intento rechazado.");
-  stats.rejected.byReason.forEach((r) => doc.text(`${r.reason}  ·  ${r.count}`));
+  stats.rejected.byReason.forEach((r) => doc.text(`${r.label}  ·  ${r.count}`));
 
   doc.end();
 };

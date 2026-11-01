@@ -1,3 +1,4 @@
+import { streamAccessEventsPdf, streamAccessEventsXlsx } from "./access-log-export.service";
 import { Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { respondError } from "@src/core/errors/http-error";
@@ -52,6 +53,22 @@ export const exportEvents = async (req: Request, res: Response) => {
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="bitacora-accesos-${new Date().toISOString().slice(0, 10)}.csv"`);
     return res.status(200).send(csv);
+  } catch (error: unknown) {
+    return respondError(res, error);
+  }
+};
+
+export const exportEventsXlsx = async (req: Request, res: Response) => {
+  try {
+    await streamAccessEventsXlsx(res, req.query as any);
+  } catch (error: unknown) {
+    return respondError(res, error);
+  }
+};
+
+export const exportEventsPdf = async (req: Request, res: Response) => {
+  try {
+    await streamAccessEventsPdf(res, req.query as any);
   } catch (error: unknown) {
     return respondError(res, error);
   }

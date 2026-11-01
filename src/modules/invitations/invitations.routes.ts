@@ -3,7 +3,7 @@ import * as invitationsController from './invitations.controller';
 import { validate } from "@src/core/validation/validate";
 import { idParam } from "@src/core/validation/common";
 import { requireAnyPermission, requirePermission } from "@src/modules/common/middlewares/require-permission.middleware";
-import { approvalBody, createInvitationBody, updateInvitationStatusBody, visitAlertsBody, visitStatsQuery } from "./invitation.schemas";
+import { approvalBody, createInvitationBody, scanBody, updateInvitationStatusBody, visitAlertsBody, visitStatsQuery } from "./invitation.schemas";
 
 const router = Router();
 
@@ -11,12 +11,14 @@ const router = Router();
 // acota a la residente a sus pases (lista, consulta y solo revocar).
 router.post("/datatable", requireAnyPermission("invitation.manage", "invitation.view"), invitationsController.datatable);
 router.post("/", requireAnyPermission("invitation.manage", "invitation.create"), validate({ body: createInvitationBody }), invitationsController.create);
+router.post("/scan", requirePermission("invitation.manage"), validate({ body: scanBody }), invitationsController.scan);
 
 // Rutas fijas antes de `/:id`, para que no se confundan con un id.
 router.get("/pending-approvals", requireAnyPermission("invitation.approve"), invitationsController.pendingApprovals);
 router.get("/caseta-status", requirePermission("invitation.manage"), invitationsController.casetaStatus);
 router.get("/stats", requirePermission("access.event.view"), validate({ query: visitStatsQuery }), invitationsController.stats);
 router.get("/stats/export.pdf", requirePermission("access.event.view"), validate({ query: visitStatsQuery }), invitationsController.statsPdf);
+router.get("/stats/export.xlsx", requirePermission("access.event.view"), validate({ query: visitStatsQuery }), invitationsController.statsXlsx);
 router.get("/visit-alerts", requirePermission("invitation.view"), invitationsController.getVisitAlerts);
 router.put("/visit-alerts", requirePermission("invitation.view"), validate({ body: visitAlertsBody }), invitationsController.setVisitAlerts);
 

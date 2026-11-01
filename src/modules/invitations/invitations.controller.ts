@@ -2,6 +2,7 @@ import { NextFunction, Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import * as invitationsService from './invitations.service';
 import { streamVisitStatsPdf } from './visit-stats-pdf.service';
+import { streamVisitStatsXlsx } from './visit-stats-xlsx.service';
 import { respondError } from "@src/core/errors/http-error";
 
 const FORBIDDEN_MESSAGE = "No tienes permisos para realizar esta acción";
@@ -57,6 +58,15 @@ export const getOne = async (req: Request, res: Response) => {
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return respondError(res, error);
+    }
+};
+
+/** Lectura de un pase en caseta: si no puede entrar, el intento queda en la bitácora. */
+export const scan = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        return res.status(200).json(createTResult(await invitationsService.scanInvitation(req.body.code, req.user?.id)));
+    } catch (error: any) {
+        return next(error);
     }
 };
 
@@ -130,6 +140,20 @@ export const statsPdf = async (req: Request, res: Response, next: NextFunction) 
     try {
         const { from, to, propertyId } = req.query as { from: string; to: string; propertyId?: string };
         await streamVisitStatsPdf(res, {
+            from: new Date(from),
+            to: new Date(to),
+            propertyId: propertyId ? Number(propertyId) : undefined,
+        });
+    } catch (error: any) {
+        return next(error);
+    }
+};
+
+/** Los mismos indicadores, en Excel. */
+export const statsXlsx = async (req: Request, res: Response, next: NextFunction) => {
+    try {
+        const { from, to, propertyId } = req.query as { from: string; to: string; propertyId?: string };
+        await streamVisitStatsXlsx(res, {
             from: new Date(from),
             to: new Date(to),
             propertyId: propertyId ? Number(propertyId) : undefined,

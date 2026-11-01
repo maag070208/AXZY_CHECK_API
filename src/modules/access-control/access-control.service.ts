@@ -154,6 +154,28 @@ export const getGuardAccessStatus = async (propertyId: number) => {
   };
 };
 
+/** Motivos de la bitácora en español, para reportes y exportaciones. */
+export const ACCESS_REASON_LABEL: Record<string, string> = {
+  PROPERTY_DEBT: "Adeudo",
+  EXCEPTION: "Excepción",
+  PIN_VALID: "PIN válido",
+  PERSONAL_QR: "Pase QR personal",
+  INVALID_PIN: "PIN inválido",
+  VEHICLE_ENTRY: "Entrada de vehículo",
+  VEHICLE_EXIT: "Salida de vehículo",
+  EXIT: "Salida",
+  CLEAR: "Sin adeudo",
+  IN_SCHEDULE: "En horario",
+  OUT_OF_SCHEDULE: "Fuera de horario",
+  REVOKED: "Revocado",
+  EXPIRED: "Vencido",
+  NOT_YET_VALID: "Aún no vigente",
+  ALREADY_USED: "Pase ya usado",
+  SCOPE_MISMATCH: "Tipo de acceso distinto",
+  UNKNOWN_PASS: "Pase desconocido",
+  NO_AUTHORIZATION: "Sin autorización",
+};
+
 export const recordAccessEvent = async (input: {
   propertyId: number;
   personId?: number | null;
@@ -280,20 +302,30 @@ const csvCell = (value: unknown) => {
   return `"${text.replace(/"/g, '""')}"`;
 };
 
-export const exportAccessEventsCsv = async (query: Omit<Parameters<typeof listAccessEvents>[0], "page" | "pageSize">) => {
+export const ACCESS_EXPORT_HEADER = ["Fecha", "Propiedad", "Persona", "Vehículo", "Invitado", "Método", "Sentido", "Decisión", "Guardia", "Motivo"];
+
+export type AccessExportQuery = Omit<Parameters<typeof listAccessEvents>[0], "page" | "pageSize">;
+
+/** Filas del historial para CSV, Excel y PDF, con tope de 5,000 registros por archivo. */
+export const accessEventExportRows = async (query: AccessExportQuery) => {
   const result = await listAccessEvents({ ...query, page: 1, pageSize: 5000 });
-  const header = ["Fecha", "Propiedad", "Persona", "Vehículo", "Invitado", "Método", "Sentido", "Decisión", "Guardia", "Motivo"];
-  const rows = result.items.map((event: any) => [
-    event.occurredAt.toISOString(),
-    event.property ? `${event.property.identifier} · ${event.property.name}` : "",
-    event.person ? `${event.person.firstName} ${event.person.lastName ?? ""}`.trim() : "",
-    event.vehicle ? `${event.vehicle.plate}${event.vehicle.tagCode ? ` / ${event.vehicle.tagCode}` : ""}` : "",
-    event.invitation ? `${event.invitation.guestName} (${event.invitation.code})` : "",
-    event.method,
-    event.direction === "ENTRY" ? "Entrada" : "Salida",
-    event.decision === "ALLOWED" ? "Permitido" : "Denegado",
-    event.guard ? `${event.guard.name} ${event.guard.lastName ?? ""}`.trim() : "",
-    event.reason ?? "",
-  ]);
-  return `\uFEFF${[header, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
+  return result.items.map((event: any) => ({
+    occurredAt: event.occurredAt as Date,
+    cells: [
+      event.property ? `${event.property.identifier} · ${event.property.name}` : "",
+      event.person ? `${event.person.firstName} ${event.person.lastName ?? ""}`.trim() : "",
+      event.vehicle ? `${event.vehicle.plate}${event.vehicle.tagCode ? ` / ${event.vehicle.tagCode}` : ""}` : "",
+      event.invitation ? `${event.invitation.guestName} (${event.invitation.code})` : "",
+      event.method,
+      event.direction === "ENTRY" ? "Entrada" : "Salida",
+      event.decision === "ALLOWED" ? "Permitido" : "Denegado",
+      event.guard ? `${event.guard.name} ${event.guard.lastName ?? ""}`.trim() : "",
+      event.reason ? ACCESS_REASON_LABEL[event.reason] ?? event.reason : "",
+    ] as string[],
+  }));
+};
+
+export const exportAccessEventsCsv = async (query: AccessExportQuery) => {
+  const rows = (await accessEventExportRows(query)).map((row) => [row.occurredAt.toISOString(), ...row.cells]);
+  return `\uFEFF${[ACCESS_EXPORT_HEADER, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
 };
