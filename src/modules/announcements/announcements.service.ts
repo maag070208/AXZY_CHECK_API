@@ -115,6 +115,28 @@ export const listAnnouncements = async (query: { page: number; pageSize: number 
   return { items: items.map(serializeAnnouncement), total, page: query.page, pageSize: query.pageSize };
 };
 
+type SendNotificationInput = {
+  userIds: number[];
+  title: string;
+  body: string;
+  data?: Record<string, string>;
+};
+
+/** Manda un aviso a usuarios concretos por el outbox (bandeja + push, con reintentos). */
+export const sendDirectNotification = async (input: SendNotificationInput) => {
+  const found = await prismaClient.user.count({ where: { id: { in: input.userIds } } });
+  if (found !== input.userIds.length) {
+    throw new AppError("NOTIFICATION_USER_NOT_FOUND", "Hay usuarios que no existen", 404);
+  }
+  await enqueueOutbox("notification.send", {
+    userIds: input.userIds,
+    title: input.title,
+    body: input.body,
+    ...(input.data ? { data: input.data } : {}),
+  });
+  return { recipients: input.userIds.length };
+};
+
 export const listMyNotifications = async (userId: number, query: { page: number; pageSize: number }) => {
   const [items, total] = await prismaClient.$transaction([
     prismaClient.notification.findMany({

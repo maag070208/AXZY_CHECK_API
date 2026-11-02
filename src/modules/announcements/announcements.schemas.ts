@@ -33,3 +33,13 @@ export const notificationListQuery = z.object({
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(50).default(30),
 });
+
+/** Aviso directo a usuarios concretos: crea la notificación en la bandeja y manda push. */
+export const sendNotificationBody = z
+  .object({
+    userIds: z.array(positiveId).min(1, "elige al menos un usuario").max(200).transform((ids) => [...new Set(ids)]),
+    title: z.string().trim().min(3, "escribe un título").max(120),
+    body: z.string().trim().min(3, "escribe el mensaje").max(500),
+    data: z.record(z.string(), z.string()).optional(),
+  })
+  .strict();

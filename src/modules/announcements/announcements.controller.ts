@@ -7,6 +7,7 @@ import {
   listMyNotifications,
   markNotificationRead,
   registerPushDevice,
+  sendDirectNotification,
   unreadNotificationCount,
 } from "./announcements.service";
 
@@ -23,6 +24,14 @@ export const list = async (req: Request, res: Response) => {
 export const create = async (req: Request, res: Response) => {
   try {
     return res.status(201).json(createTResult(await createAnnouncement(req.body, userId(req))));
+  } catch (error: unknown) {
+    return respondError(res, error);
+  }
+};
+
+export const sendNotification = async (req: Request, res: Response) => {
+  try {
+    return res.status(202).json(createTResult(await sendDirectNotification(req.body)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
