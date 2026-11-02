@@ -3,6 +3,10 @@ import { AppError } from "@src/core/errors/app-error";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 
+/** Un escaneo está completo con reporte guardado (notas) y al menos una evidencia. */
+export const isCompletedScan = (scan: { notes: string | null; media: unknown }) =>
+    !!scan.notes?.trim() && Array.isArray(scan.media) && scan.media.length > 0;
+
 export const getDataTableRecurring = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
     const prismaParams = getPrismaPaginationParams(params);
 
@@ -281,9 +285,7 @@ export const getRecurringConfigurationsForUser = async (userId: number) => {
     for (const scan of scans) {
         const entry = scanState.get(scan.locationId) ?? {};
         if (!entry.latest || scan.timestamp > entry.latest.timestamp) entry.latest = scan;
-        const media = Array.isArray(scan.media) ? scan.media : [];
-        const isCompletedScan = !!scan.notes?.trim() && media.length > 0;
-        if (isCompletedScan && (!entry.completed || scan.timestamp > entry.completed.timestamp)) {
+        if (isCompletedScan(scan) && (!entry.completed || scan.timestamp > entry.completed.timestamp)) {
             entry.completed = scan;
         }
         scanState.set(scan.locationId, entry);

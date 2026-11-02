@@ -6,8 +6,17 @@ import { roleHasPermission } from "@src/core/permissions/permissions.service";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { ASSIGNMENT_TRANSITIONS, assertStatusUpdated, assertTransition } from "@src/core/transitions/transitions";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
+import { isCompletedScan } from "@src/modules/recurring/recurring.service";
 
 const prisma = prismaClient;
+
+/** Asignación abierta: todavía no la cierra un supervisor. */
+const ACTIVE_STATUSES = [
+  AssignmentStatus.PENDING,
+  AssignmentStatus.CHECKING,
+  AssignmentStatus.UNDER_REVIEW,
+  AssignmentStatus.ANOMALY,
+];
 
 export const getDataTableAssignments = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
   const prismaParams = getPrismaPaginationParams(params);
@@ -54,14 +63,7 @@ export const createAssignment = async (data: {
     where: {
       guardId: data.guardId,
       locationId: data.locationId,
-      status: {
-        in: [
-          AssignmentStatus.PENDING,
-          AssignmentStatus.CHECKING,
-          AssignmentStatus.UNDER_REVIEW,
-          AssignmentStatus.ANOMALY,
-        ],
-      },
+      status: { in: ACTIVE_STATUSES },
     },
   });
 
@@ -101,19 +103,21 @@ export const createAssignment = async (data: {
 
 // Get assignments for a specific guard (My Assignments)
 export const getAssignmentsByGuard = async (guardId: number) => {
-  return prisma.assignment.findMany({
-    where: { 
-      guardId,
-      status: {
-        in: [AssignmentStatus.PENDING, AssignmentStatus.ANOMALY]
-      }
-    },
+  const assignments = await prisma.assignment.findMany({
+    where: { guardId, status: { in: ACTIVE_STATUSES } },
     include: {
       location: true,
       tasks: true,
+      kardex: { select: { notes: true, media: true } },
     },
     orderBy: { createdAt: "desc" },
   });
+
+  // CHECKING nace con el borrador del escaneo: `delivered` distingue un reporte terminado de uno a medias.
+  return assignments.map(({ kardex, ...assignment }) => ({
+    ...assignment,
+    delivered: kardex.some(isCompletedScan),
+  }));
 };
 
 // Get all assignments (filtering optional)

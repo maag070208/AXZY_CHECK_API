@@ -61,6 +61,8 @@ describe("rutas recurrentes", () => {
   });
 
   it("my-list: el guardia ve solo SUS rutas activas y qué puntos ya escaneó en la ronda en curso", async () => {
+    // La ronda sembrada es de hace unas 2 h: de madrugada caería en el día anterior.
+    await prisma.kardex.updateMany({ where: { userId: s.guard1.id }, data: { timestamp: new Date() } });
     const mine = expectOk(await api().get(`${R}/my-list`).set("Authorization", s.guard1.auth));
     expect(mine.map((c: any) => c.id)).toEqual([flows.routes.configurationId]);
     // Sin ronda en curso cuentan los escaneos de hoy: los dos puntos de la ronda sembrada.
@@ -396,6 +398,24 @@ describe("bitácora (kardex)", () => {
 describe("asignaciones puntuales", () => {
   const A = `${V1}/assignments`;
 
+  it("/me distingue el borrador del escaneo del reporte entregado", async () => {
+    const [p1] = flows.routes.locationIds;
+    const created = expectOk(await api().post(A).set("Authorization", s.shift.auth).send({ guardId: String(s.guard1.id), locationId: p1 }), 201);
+    const mine = async () => expectOk(await api().get(`${A}/me`).set("Authorization", s.guard1.auth))[0];
+    expect(await mine()).toMatchObject({ id: created.id, status: "PENDING", delivered: false });
+
+    const draft = expectOk(await api().post(`${V1}/kardex`).set("Authorization", s.guard1.auth).send({ userId: s.guard1.id, locationId: p1, notes: "", media: [], assignmentId: created.id }), 201);
+    const scanned = await mine();
+    expect(scanned).toMatchObject({ status: "CHECKING", delivered: false });
+    expect(scanned.kardex).toBeUndefined();
+
+    expectOk(await api().patch(`${V1}/kardex/${draft.id}`).set("Authorization", s.guard1.auth).send({ notes: "Candado revisado" }));
+    expect((await mine()).delivered).toBe(false);
+
+    expectOk(await api().patch(`${V1}/kardex/${draft.id}`).set("Authorization", s.guard1.auth).send({ notes: "Candado revisado", media: photo() }));
+    expect(await mine()).toMatchObject({ status: "CHECKING", delivered: true });
+  });
+
   it("camino feliz: asignar → ver las mías → completar tarea → pasar por los estados → listar", async () => {
     const [p1] = flows.routes.locationIds;
     const created = expectOk(
@@ -415,8 +435,10 @@ describe("asignaciones puntuales", () => {
 
     for (const status of ["CHECKING", "UNDER_REVIEW", "ANOMALY", "REVIEWED"]) {
       expect(expectOk(await api().patch(`${A}/${created.id}/status`).set("Authorization", s.admin.auth).send({ status })).status).toBe(status);
+      // Sigue en la lista del guardia hasta que un supervisor la cierra.
+      const open = expectOk(await api().get(`${A}/me`).set("Authorization", s.guard1.auth));
+      expect(open.map((a: any) => a.id)).toEqual(status === "REVIEWED" ? [] : [created.id]);
     }
-    expect(expectOk(await api().get(`${A}/me`).set("Authorization", s.guard1.auth))).toEqual([]);
 
     const all = expectOk(await api().get(`${A}?guardId=${s.guard1.id}&status=REVIEWED`).set("Authorization", s.admin.auth));
     expect(all.map((a: any) => a.id)).toEqual([created.id]);
