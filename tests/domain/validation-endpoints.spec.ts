@@ -6,7 +6,7 @@
 import request from "supertest";
 import { app } from "@src/app";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser, tokenFor } from "../factories";
+import { buildUser, tokenFor, inDefaultClient } from "../factories";
 
 beforeEach(async () => {
   await resetDatabase();
@@ -46,8 +46,8 @@ describe("respuesta de validación", () => {
   it("un estado de asignación desconocido se rechaza antes de llegar al servicio", async () => {
     const admin = await buildUser("ADMIN");
     const guard = await buildUser("GUARD");
-    const location = await prisma.location.create({ data: { aisle: "A", spot: "1", number: "1", name: "Ubicación validación" } });
-    const assignment = await prisma.assignment.create({ data: { guardId: guard.id, locationId: location.id, assignedBy: admin.id } });
+    const location = await prisma.location.create({ data: { ...(await inDefaultClient()), aisle: "A", spot: "1", number: "1", name: "Ubicación validación" } });
+    const assignment = await prisma.assignment.create({ data: { ...(await inDefaultClient()), guardId: guard.id, locationId: location.id, assignedBy: admin.id } });
 
     const res = await request(app)
       .patch(`/api/v1/assignments/${assignment.id}/status`)
@@ -74,6 +74,7 @@ describe("invitaciones", () => {
     const otherUser = await buildUser("GUARD");
     const property = await prisma.property.create({
       data: {
+        ...(await inDefaultClient()),
         identifier: "P-VAL-1",
         name: "Casa validación",
         mainStreet: "Calle 1",

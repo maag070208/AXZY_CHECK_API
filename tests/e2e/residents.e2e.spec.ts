@@ -307,7 +307,7 @@ describe("personas, documentos y cuentas", () => {
   });
 
   it("los menores no tienen documentos", async () => {
-    const kid = await prisma.person.create({ data: { firstName: "Mini", birthDate: new Date(Date.UTC(new Date().getUTCFullYear() - 8, 1, 1)) } });
+    const kid = await prisma.person.create({ data: { clientId: flows.staff.clientId, firstName: "Mini", birthDate: new Date(Date.UTC(new Date().getUTCFullYear() - 8, 1, 1)) } });
     const file = await confirmedPrivateFile();
     expectFail(await api().post(`${PE}/${kid.id}/documents`).set("Authorization", s.admin.auth).send({ kindCode: "OTHER", mediaFileId: file.id }), 400, "PERSON_MINOR_NO_DOCUMENTS");
   });
@@ -322,7 +322,7 @@ describe("personas, documentos y cuentas", () => {
     expect((await prisma.user.findUniqueOrThrow({ where: { username: "iris_inquilina" }, include: { role: true } })).role.name).toBe("RESDN");
 
     expectFail(await api().post(`${PE}/${personId}/account`).set("Authorization", s.admin.auth).send({ username: "otro_usuario", password: "clave-iris-2" }), 409, "ACCOUNT_EXISTS");
-    const lone = await prisma.person.create({ data: { firstName: "Sola" } });
+    const lone = await prisma.person.create({ data: { clientId: flows.staff.clientId, firstName: "Sola" } });
     expectFail(await api().post(`${PE}/${lone.id}/account`).set("Authorization", s.admin.auth).send({ username: "sola_cuenta", password: "clave-sola-1" }), 409, "RESIDENT_NOT_ACTIVE");
     expectFail(await api().post(`${PE}/${MISSING_ID}/account`).set("Authorization", s.admin.auth).send({ username: "nadie_x", password: "clave-nadie-1" }), 404, "PERSON_NOT_FOUND");
     expectFail(await api().post(`${PE}/${lone.id}/account`).set("Authorization", s.admin.auth).send({ username: "ab", password: "123" }), 400, "VALIDATION_ERROR");

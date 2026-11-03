@@ -6,7 +6,7 @@ import { getClientRef, getOccurredAt, getOfflineOrigin } from "@src/core/utils/i
 
 export const getDataTable = async (req: Request, res: Response) => {
   try {
-    const result = await maintenanceService.getDataTableMaintenances(req.body);
+    const result = await maintenanceService.getDataTableMaintenances(req.body, req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
@@ -41,7 +41,7 @@ export const createMaintenance = async (req: Request, res: Response) => {
       clientRef,
       createdAt: occurredAt,
       ...origin,
-    });
+    }, req.scope);
 
     return res.status(201).json(createTResult(result));
   } catch (error: any) {
@@ -60,7 +60,7 @@ export const getMaintenances = async (req: Request, res: Response) => {
         if (category) filters.category = String(category);
         if (title) filters.title = String(title);
 
-        const result = await maintenanceService.getMaintenances(filters);
+        const result = await maintenanceService.getMaintenances(filters, req.scope);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return respondError(res, error);
@@ -76,7 +76,7 @@ export const resolveMaintenance = async (req: Request, res: Response, next: Next
             return res.status(401).json(createTResult(null, ["Usuario no autenticado"]));
         }
 
-        const result = await maintenanceService.resolveMaintenance(Number(id), Number(userId));
+        const result = await maintenanceService.resolveMaintenance(Number(id), Number(userId), req.scope);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return next(error);
@@ -85,7 +85,7 @@ export const resolveMaintenance = async (req: Request, res: Response, next: Next
 
 export const getPendingCount = async (req: Request, res: Response) => {
     try {
-        const count = await maintenanceService.getPendingMaintenancesCount();
+        const count = await maintenanceService.getPendingMaintenancesCount(req.scope);
         return res.status(200).json(createTResult({ count }));
     } catch (error: any) {
         return respondError(res, error);
@@ -95,12 +95,12 @@ export const getPendingCount = async (req: Request, res: Response) => {
 export const deleteMaintenance = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const maintenance = await maintenanceService.getMaintenanceById(Number(id));
+        const maintenance = await maintenanceService.getMaintenanceById(Number(id), req.scope);
         if (!maintenance) {
             return res.status(404).json(createTResult(null, ["Mantenimiento no encontrado"]));
         }
 
-        await maintenanceService.deleteMaintenance(Number(id));
+        await maintenanceService.deleteMaintenance(Number(id), req.scope);
         return res.status(200).json(createTResult(true));
     } catch (error: any) {
         return respondError(res, error);
@@ -116,7 +116,7 @@ export const deleteMedia = async (req: Request, res: Response) => {
             return res.status(400).json(createTResult(null, ["Falta el key del archivo"]));
         }
 
-        const maintenance = await maintenanceService.getMaintenanceById(Number(id));
+        const maintenance = await maintenanceService.getMaintenanceById(Number(id), req.scope);
         if (!maintenance || !maintenance.media) {
             return res.status(404).json(createTResult(null, ["Mantenimiento o media no encontrada"]));
         }
@@ -128,7 +128,7 @@ export const deleteMedia = async (req: Request, res: Response) => {
             return mKey !== String(key);
         });
 
-        await maintenanceService.updateMaintenanceMedia(Number(id), updatedMedia);
+        await maintenanceService.updateMaintenanceMedia(Number(id), updatedMedia, req.scope);
         return res.status(200).json(createTResult(true));
     } catch (error: any) {
         return respondError(res, error);

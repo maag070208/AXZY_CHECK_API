@@ -12,7 +12,7 @@ const actorOf = async (req: Request): Promise<complaintService.ComplaintActor> =
 
 export const listComplaints = async (req: Request, res: Response) => {
   try {
-    const result = await complaintService.listComplaints(await actorOf(req), req.query as any);
+    const result = await complaintService.listComplaints(await actorOf(req), req.query as any, req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: unknown) {
     return respondError(res, error);
@@ -21,7 +21,7 @@ export const listComplaints = async (req: Request, res: Response) => {
 
 export const createComplaint = async (req: Request, res: Response) => {
   try {
-    const result = await complaintService.createComplaint(await actorOf(req), req.body);
+    const result = await complaintService.createComplaint(await actorOf(req), req.body, req.scope);
     return res.status(201).json(createTResult(result));
   } catch (error: unknown) {
     return respondError(res, error);
@@ -30,7 +30,7 @@ export const createComplaint = async (req: Request, res: Response) => {
 
 export const getComplaint = async (req: Request, res: Response) => {
   try {
-    const result = await complaintService.getComplaint(await actorOf(req), Number(req.params.id));
+    const result = await complaintService.getComplaint(await actorOf(req), Number(req.params.id), req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: unknown) {
     return respondError(res, error);
@@ -39,7 +39,7 @@ export const getComplaint = async (req: Request, res: Response) => {
 
 export const addComplaintMessage = async (req: Request, res: Response) => {
   try {
-    const result = await complaintService.addComplaintMessage(await actorOf(req), Number(req.params.id), req.body);
+    const result = await complaintService.addComplaintMessage(await actorOf(req), Number(req.params.id), req.body, req.scope);
     return res.status(201).json(createTResult(result));
   } catch (error: unknown) {
     return respondError(res, error);
@@ -48,7 +48,7 @@ export const addComplaintMessage = async (req: Request, res: Response) => {
 
 export const changeComplaintStatus = async (req: Request, res: Response) => {
   try {
-    const result = await complaintService.changeComplaintStatus(await actorOf(req), Number(req.params.id), req.body.status);
+    const result = await complaintService.changeComplaintStatus(await actorOf(req), Number(req.params.id), req.body.status, req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: unknown) {
     return respondError(res, error);
@@ -57,7 +57,7 @@ export const changeComplaintStatus = async (req: Request, res: Response) => {
 
 export const reopenComplaint = async (req: Request, res: Response) => {
   try {
-    const result = await complaintService.reopenComplaint(await actorOf(req), Number(req.params.id));
+    const result = await complaintService.reopenComplaint(await actorOf(req), Number(req.params.id), req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: unknown) {
     return respondError(res, error);

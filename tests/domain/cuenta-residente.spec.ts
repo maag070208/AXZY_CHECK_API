@@ -5,7 +5,7 @@ import request from "supertest";
 import { app } from "@src/app";
 import { createResidentUser } from "@src/modules/residents/residents.service";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser, tokenFor } from "../factories";
+import { buildUser, tokenFor, inDefaultClient, defaultClient } from "../factories";
 
 beforeEach(async () => {
   await resetDatabase();
@@ -23,7 +23,7 @@ const propertyWithOwner = async (identifier: string) => {
   const type = await prisma.propertyType.findUniqueOrThrow({ where: { name: "CASA" } });
   const status = await prisma.propertyStatus.findUniqueOrThrow({ where: { name: "VACNT" } });
   return prisma.property.create({
-    data: { identifier, name: identifier, mainStreet: "C", typeId: type.id, statusId: status.id, kindId: kind.id, occupancyStatusId: vacant.id },
+    data: { ...(await inDefaultClient()), identifier, name: identifier, mainStreet: "C", typeId: type.id, statusId: status.id, kindId: kind.id, occupancyStatusId: vacant.id },
   });
 };
 
@@ -46,7 +46,7 @@ describe("cuenta de APP desde el residente", () => {
 
   it("T-A2-T5: una persona menor no puede tener cuenta", async () => {
     const property = await propertyWithOwner("ACC-2");
-    const kid = await prisma.person.create({ data: { firstName: "Niño", birthDate: new Date(Date.now() - 9 * 365 * 24 * 3600 * 1000) } });
+    const kid = await prisma.person.create({ data: { ...(await inDefaultClient()), firstName: "Niño", birthDate: new Date(Date.now() - 9 * 365 * 24 * 3600 * 1000) } });
     await prisma.resident.create({ data: { personId: kid.id, propertyId: property.id, kindId: (await prisma.residentKind.findUniqueOrThrow({ where: { code: "FAMILY" } })).id, startDate: new Date() } });
     const res = await request(app).post(`/api/v1/persons/${kid.id}/account`).set("Authorization", await adminToken()).send({ username: "nino.acc", password: "clave123" });
     expect(res.status).toBe(400);
@@ -56,7 +56,7 @@ describe("cuenta de APP desde el residente", () => {
   it("no se crea cuenta duplicada ni con un nombre de usuario ya usado", async () => {
     const property = await propertyWithOwner("ACC-3");
     const token = await adminToken();
-    await createResidentUser({ name: "Otro", username: "ocupado", password: "x", propertyId: property.id }, {});
+    await createResidentUser({ name: "Otro", username: "ocupado", password: "x", propertyId: property.id }, {}, await defaultClient());
     const added = await request(app).post(`/api/v1/properties/${property.id}/residents`).set("Authorization", token).send({ firstName: "Dana", kindCode: "OWNER" });
     const personId = added.body.data.person.id;
 

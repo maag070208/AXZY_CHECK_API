@@ -5,7 +5,7 @@ import request from "supertest";
 import { app } from "@src/app";
 import { decideAccess, Authorization, Moment } from "@src/modules/authorizations/access-decision";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser, tokenFor } from "../factories";
+import { buildUser, inDefaultClient, tokenFor } from "../factories";
 
 const base: Authorization = {
   scope: "PEDESTRIAN",
@@ -50,7 +50,7 @@ describe("API de autorizaciones", () => {
     const type = await prisma.propertyType.findUniqueOrThrow({ where: { name: "CASA" } });
     const status = await prisma.propertyStatus.findUniqueOrThrow({ where: { name: "VACNT" } });
     return prisma.property.create({
-      data: { identifier: "AUT-1", name: "Casa", mainStreet: "C", typeId: type.id, statusId: status.id, kindId: kind.id, occupancyStatusId: vacant.id },
+      data: { ...(await inDefaultClient()),  identifier: "AUT-1", name: "Casa", mainStreet: "C", typeId: type.id, statusId: status.id, kindId: kind.id, occupancyStatusId: vacant.id },
     });
   };
 
@@ -58,7 +58,7 @@ describe("API de autorizaciones", () => {
     const admin = `Bearer ${tokenFor(await buildUser("ADMIN"))}`;
     const guard = `Bearer ${tokenFor(await buildUser("GUARD"))}`;
     const property = await makeProperty();
-    const person = await prisma.person.create({ data: { firstName: "Jardinero" } });
+    const person = await prisma.person.create({ data: { ...(await inDefaultClient()), firstName: "Jardinero" } });
     const everyDay = { personId: person.id, days: [0, 1, 2, 3, 4, 5, 6], startTime: "00:00", endTime: "23:59", validFrom: "2026-01-01" };
 
     const created = await request(app).post(`/api/v1/properties/${property.id}/authorizations`).set("Authorization", admin).send(everyDay);
@@ -76,7 +76,7 @@ describe("API de autorizaciones", () => {
     const admin = `Bearer ${tokenFor(await buildUser("ADMIN"))}`;
     const guard = `Bearer ${tokenFor(await buildUser("GUARD"))}`;
     const property = await makeProperty();
-    const person = await prisma.person.create({ data: { firstName: "Empleada" } });
+    const person = await prisma.person.create({ data: { ...(await inDefaultClient()), firstName: "Empleada" } });
     const otherDay = (new Date().getUTCDay() + 1) % 7;
     await request(app)
       .post(`/api/v1/properties/${property.id}/authorizations`)
@@ -89,7 +89,7 @@ describe("API de autorizaciones", () => {
   it("validación: horario invertido se rechaza; sin autorización la caseta niega; el residente no consulta", async () => {
     const admin = `Bearer ${tokenFor(await buildUser("ADMIN"))}`;
     const property = await makeProperty();
-    const person = await prisma.person.create({ data: { firstName: "X" } });
+    const person = await prisma.person.create({ data: { ...(await inDefaultClient()), firstName: "X" } });
     const bad = await request(app)
       .post(`/api/v1/properties/${property.id}/authorizations`)
       .set("Authorization", admin)
@@ -98,7 +98,7 @@ describe("API de autorizaciones", () => {
     expect(bad.body.code).toBe("SCHEDULE_INVALID");
 
     // Un horario que cruza la medianoche (16:00 → 08:00) es válido: decideAccess lo soporta.
-    const night = await prisma.person.create({ data: { firstName: "Noche" } });
+    const night = await prisma.person.create({ data: { ...(await inDefaultClient()), firstName: "Noche" } });
     const overnight = await request(app)
       .post(`/api/v1/properties/${property.id}/authorizations`)
       .set("Authorization", admin)

@@ -47,7 +47,7 @@ describe("PDF con evidencia", () => {
     const category = await prisma.incidentCategory.findUniqueOrThrow({ where: { name: "SEGURIDAD" } });
     await prisma.incident.createMany({
       data: Array.from({ length: 14 }, (_, i) => ({
-        guardId: s.guard1.id, title: `Incidencia ${i} con ñ, acentos áéíóú y <etiquetas> & símbolos`, categoryId: category.id,
+        guardId: s.guard1.id, clientId: flows.staff.clientId, title: `Incidencia ${i} con ñ, acentos áéíóú y <etiquetas> & símbolos`, categoryId: category.id,
         description: `Descripción larga ${"muy larga ".repeat(120)}`, latitude: 32.5 + i / 1000, longitude: -117 - i / 1000,
         status: i % 2 ? "ATTENDED" : "PENDING", resolvedAt: i % 2 ? new Date() : null, resolvedById: i % 2 ? s.shift.id : null,
         media: [
@@ -93,7 +93,7 @@ describe("PDF con evidencia", () => {
   it("mantenimiento y casa club también paginan con evidencia", async () => {
     jest.spyOn(axios, "get").mockResolvedValue({ data: PNG });
     await prisma.maintenance.createMany({
-      data: Array.from({ length: 9 }, (_, i) => ({ guardId: s.maint.id, title: `Mantenimiento ${i}`, category: "Eléctrico", description: "texto ".repeat(300), media: [{ type: "IMAGE", url: `https://cdn.example.test/m${i}.png` }] })),
+      data: Array.from({ length: 9 }, (_, i) => ({ clientId: flows.staff.clientId, guardId: s.maint.id, title: `Mantenimiento ${i}`, category: "Eléctrico", description: "texto ".repeat(300), media: [{ type: "IMAGE", url: `https://cdn.example.test/m${i}.png` }] })),
     });
     for (const path of ["/maintenance/report/pdf", "/reports/club/pdf"]) {
       const res = await binary(api().get(`${V1}${path}?${q}&includeImages=true&includeLocation=false`).set("Authorization", s.admin.auth));

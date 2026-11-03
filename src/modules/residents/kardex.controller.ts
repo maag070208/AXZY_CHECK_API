@@ -6,7 +6,7 @@ import { getResidentKardex } from "./kardex.service";
 export const getMyKardex = async (req: Request, res: Response) => {
   try {
     const userId = Number((req.user as { id?: number } | undefined)?.id);
-    const result = await getResidentKardex(userId, req.query as any);
+    const result = await getResidentKardex(userId, req.query as any, req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: unknown) {
     return respondError(res, error);

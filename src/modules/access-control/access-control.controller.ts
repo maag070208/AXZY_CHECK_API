@@ -17,7 +17,7 @@ const actorId = (req: Request) => Number((req.user as { id?: number } | undefine
 
 export const getStatus = async (req: Request, res: Response) => {
   try {
-    return res.status(200).json(createTResult(await getGuardAccessStatus(Number(req.query.propertyId))));
+    return res.status(200).json(createTResult(await getGuardAccessStatus(Number(req.query.propertyId), req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -41,7 +41,7 @@ export const putRule = async (req: Request, res: Response) => {
 
 export const getEvents = async (req: Request, res: Response) => {
   try {
-    return res.status(200).json(createTResult(await listAccessEvents(req.query as any)));
+    return res.status(200).json(createTResult(await listAccessEvents(req.query as any, req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -49,7 +49,7 @@ export const getEvents = async (req: Request, res: Response) => {
 
 export const exportEvents = async (req: Request, res: Response) => {
   try {
-    const csv = await exportAccessEventsCsv(req.query as any);
+    const csv = await exportAccessEventsCsv(req.query as any, req.scope);
     res.setHeader("Content-Type", "text/csv; charset=utf-8");
     res.setHeader("Content-Disposition", `attachment; filename="bitacora-accesos-${new Date().toISOString().slice(0, 10)}.csv"`);
     return res.status(200).send(csv);
@@ -60,7 +60,7 @@ export const exportEvents = async (req: Request, res: Response) => {
 
 export const exportEventsXlsx = async (req: Request, res: Response) => {
   try {
-    await streamAccessEventsXlsx(res, req.query as any);
+    await streamAccessEventsXlsx(res, req.query as any, req.scope);
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -68,7 +68,7 @@ export const exportEventsXlsx = async (req: Request, res: Response) => {
 
 export const exportEventsPdf = async (req: Request, res: Response) => {
   try {
-    await streamAccessEventsPdf(res, req.query as any);
+    await streamAccessEventsPdf(res, req.query as any, req.scope);
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -76,7 +76,7 @@ export const exportEventsPdf = async (req: Request, res: Response) => {
 
 export const getExceptions = async (req: Request, res: Response) => {
   try {
-    return res.status(200).json(createTResult(await listAccessExceptions(req.query.propertyId ? Number(req.query.propertyId) : undefined)));
+    return res.status(200).json(createTResult(await listAccessExceptions(req.query.propertyId ? Number(req.query.propertyId) : undefined, req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -84,7 +84,7 @@ export const getExceptions = async (req: Request, res: Response) => {
 
 export const postException = async (req: Request, res: Response) => {
   try {
-    return res.status(201).json(createTResult(await createAccessException(actorId(req), req.body)));
+    return res.status(201).json(createTResult(await createAccessException(actorId(req), req.body, req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -92,7 +92,7 @@ export const postException = async (req: Request, res: Response) => {
 
 export const deleteException = async (req: Request, res: Response) => {
   try {
-    return res.status(200).json(createTResult(await revokeAccessException(Number(req.params.id))));
+    return res.status(200).json(createTResult(await revokeAccessException(Number(req.params.id), req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }

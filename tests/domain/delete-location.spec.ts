@@ -4,6 +4,7 @@
  */
 import { deleteLocation } from "@src/modules/locations/locations.service";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
+import { defaultClient, inDefaultClient } from "../factories";
 
 beforeEach(async () => {
   await resetDatabase();
@@ -14,9 +15,10 @@ afterAll(async () => {
 });
 
 it("elimina consignas y puntos de ruta asociados, y después la ubicación", async () => {
-  const point = await prisma.location.create({ data: { aisle: "A", spot: "1", number: "1", name: `Borrar-${Date.now()}` } });
+  const point = await prisma.location.create({ data: { ...(await inDefaultClient()), aisle: "A", spot: "1", number: "1", name: `Borrar-${Date.now()}` } });
   const config = await prisma.recurringConfiguration.create({
     data: {
+      ...(await inDefaultClient()),
       title: "Con punto a borrar",
       recurringLocations: {
         create: [{ locationId: point.id, tasks: { create: [{ description: "Revisar" }, { description: "Limpiar" }] } }],
@@ -24,7 +26,7 @@ it("elimina consignas y puntos de ruta asociados, y después la ubicación", asy
     },
   });
 
-  await deleteLocation(point.id);
+  await deleteLocation(point.id, await defaultClient());
 
   expect(await prisma.location.findUnique({ where: { id: point.id } })).toBeNull();
   expect(await prisma.recurringLocation.count({ where: { configurationId: config.id } })).toBe(0);

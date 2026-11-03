@@ -3,8 +3,12 @@ import { createTResult } from "@src/core/mappers/tresult.mapper";
 
 const FORBIDDEN_MESSAGE = "No tienes permisos para realizar esta acción";
 
-/** Personal operativo y administrativo. El residente (RESDN) no forma parte. */
-export const STAFF_ROLES: ReadonlyArray<string> = ["ADMIN", "SHIFT", "GUARD", "MAINT"];
+/**
+ * Personal operativo y administrativo. El residente (RESDN) no forma parte.
+ * CLIENT es el administrador del cliente (residencial, plaza o maquila): pasa este filtro para usar los
+ * módulos de su cliente; lo que puede hacer lo decide `requirePermission` con su lista de permisos.
+ */
+export const STAFF_ROLES: ReadonlyArray<string> = ["ADMIN", "SHIFT", "GUARD", "MAINT", "CLIENT"];
 
 export const isStaff = (role: string | undefined): boolean => role !== undefined && STAFF_ROLES.includes(role);
 

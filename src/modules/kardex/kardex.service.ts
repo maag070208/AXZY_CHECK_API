@@ -3,6 +3,7 @@ import { LIST_MAX_ROWS } from "@src/core/constants/limits";
 import { AssignmentStatus, ScanType } from "@prisma/client";
 import { ABLY_CHANNELS, publishToChannel } from "@src/core/config/ably";
 import { AppError } from "@src/core/errors/app-error";
+import { ClientScope, scopeByClient } from "@src/core/scope/client-scope";
 
 // New Core Logic: Register Check with Automatic Classification
 export const registerCheck = async (data: {
@@ -18,20 +19,32 @@ export const registerCheck = async (data: {
   scannedAt?: Date;
   createdOffline?: boolean;
   syncedAt?: Date;
-}) => {
+}, scope: ClientScope | undefined) => {
+  const { clientId } = scopeByClient(scope);
   if (data.clientRef) {
     const existing = await prismaClient.kardex.findUnique({
       where: { clientRef: data.clientRef },
     });
-    if (existing) return existing;
+    if (existing) {
+      // Reintento offline de otro cliente: no se devuelve ni se reubica (no mezclar datos de clientes).
+      if (existing.clientId !== clientId) {
+        throw new AppError("CLIENT_REF_CONFLICT", "La clave de sincronización pertenece a otro registro.", 409);
+      }
+      return existing;
+    }
   }
+
+  // El punto escaneado es del cliente donde trabaja quien escanea. 400 como antes (llave foránea): la cola offline
+  // de la APP ya trata así una ubicación inexistente.
+  const location = await prismaClient.location.findFirst({ where: { id: data.locationId, clientId }, select: { id: true } });
+  if (!location) throw new AppError("LOCATION_NOT_FOUND", "Ubicación no encontrada", 400);
 
   if (data.roundId) {
     const round = await prismaClient.round.findUnique({
       where: { id: data.roundId },
-      select: { guardId: true, status: true },
+      select: { guardId: true, status: true, clientId: true },
     });
-    if (!round || round.guardId !== data.userId) {
+    if (!round || round.guardId !== data.userId || round.clientId !== clientId) {
       throw new AppError("ROUND_NOT_OWNED", "La ronda indicada no pertenece al guardia.", 403);
     }
     // Un check capturado sin red llega tarde por definición: la ronda pudo cerrarse antes de sincronizar.
@@ -50,6 +63,7 @@ export const registerCheck = async (data: {
         where: {
             guardId: data.userId,
             locationId: data.locationId,
+            clientId,
             status: { in: [AssignmentStatus.PENDING, AssignmentStatus.CHECKING, AssignmentStatus.UNDER_REVIEW, AssignmentStatus.ANOMALY] }
         }
   });
@@ -84,6 +98,7 @@ export const registerCheck = async (data: {
   // Create the Kardex Record
   const created = await prismaClient.kardex.create({
     data: {
+        clientId,
         userId: data.userId,
         locationId: data.locationId,
         notes: data.notes,
@@ -130,8 +145,8 @@ export const getKardex = async (filters: {
   locationId?: number;
   startDate?: string;
   endDate?: string;
-}) => {
-  const where: any = {};
+}, scope: ClientScope | undefined) => {
+  const where: any = { ...scopeByClient(scope) };
 
   if (filters.userId) where.userId = Number(filters.userId);
   if (filters.locationId) where.locationId = Number(filters.locationId);
@@ -163,9 +178,10 @@ export const getKardex = async (filters: {
   });
 };
 
-export const getKardexById = async (id: number) => {
-  const kardex = await prismaClient.kardex.findUnique({
-    where: { id },
+/** Registro del cliente del alcance; de otro cliente devuelve null (404), como si no existiera. */
+export const getKardexById = async (id: number, scope: ClientScope | undefined) => {
+  const kardex = await prismaClient.kardex.findFirst({
+    where: { id, ...scopeByClient(scope) },
     include: {
       user: {
         select: { id: true, name: true, lastName: true, username: true, role: true },
@@ -219,12 +235,12 @@ export const getDataTableKardex = async (params: {
   limit: number;
   filters: any;
   sort?: { key: string; order: 'asc' | 'desc' };
-}) => {
+}, scope: ClientScope | undefined) => {
   const { page, limit, filters, sort } = params;
   const skip = (page - 1) * limit;
   const take = limit;
 
-  const where: any = {};
+  const where: any = { ...scopeByClient(scope) };
 
   if (filters.userId) {
     where.userId = Number(filters.userId);

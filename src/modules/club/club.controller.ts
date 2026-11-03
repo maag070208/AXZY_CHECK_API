@@ -7,7 +7,7 @@ import { getClientRef, getOccurredAt, getOfflineOrigin } from "@src/core/utils/i
 
 export const getDataTable = async (req: Request, res: Response) => {
   try {
-    const result = await clubService.getDataTableClub(req.body);
+    const result = await clubService.getDataTableClub(req.body, req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
@@ -42,7 +42,7 @@ export const createClub = async (req: Request, res: Response) => {
       clientRef: clientRef ? String(clientRef) : undefined,
       createdAt: occurredAt,
       ...origin,
-    });
+    }, req.scope);
 
     return res.status(201).json(createTResult(result));
   } catch (error: any) {
@@ -61,7 +61,7 @@ export const getClubs = async (req: Request, res: Response) => {
         if (category) filters.category = String(category);
         if (title) filters.title = String(title);
 
-        const result = await clubService.getClubs(filters);
+        const result = await clubService.getClubs(filters, req.scope);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return respondError(res, error);
@@ -77,7 +77,7 @@ export const resolveClub = async (req: Request, res: Response) => {
             return res.status(401).json(createTResult(null, ["Usuario no autenticado"]));
         }
 
-        const result = await clubService.resolveClub(Number(id), Number(userId));
+        const result = await clubService.resolveClub(Number(id), Number(userId), req.scope);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return respondError(res, error);
@@ -86,7 +86,7 @@ export const resolveClub = async (req: Request, res: Response) => {
 
 export const getPendingCount = async (req: Request, res: Response) => {
     try {
-        const count = await clubService.getPendingClubsCount();
+        const count = await clubService.getPendingClubsCount(req.scope);
         return res.status(200).json(createTResult({ count }));
     } catch (error: any) {
         return respondError(res, error);
@@ -96,7 +96,7 @@ export const getPendingCount = async (req: Request, res: Response) => {
 export const deleteClub = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const club = await clubService.getClubById(Number(id));
+        const club = await clubService.getClubById(Number(id), req.scope);
         if (!club) {
             return res.status(404).json(createTResult(null, ["Registro no encontrado"]));
         }
@@ -117,7 +117,7 @@ export const deleteMedia = async (req: Request, res: Response) => {
             return res.status(400).json(createTResult(null, ["Falta el key del archivo"]));
         }
 
-        const club = await clubService.getClubById(Number(id));
+        const club = await clubService.getClubById(Number(id), req.scope);
         if (!club || !club.media) {
             return res.status(404).json(createTResult(null, ["Registro o media no encontrada"]));
         }

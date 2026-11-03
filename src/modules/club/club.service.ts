@@ -5,6 +5,7 @@ import { LIST_MAX_ROWS } from "@src/core/constants/limits";
 import { USER_PUBLIC_SELECT } from "@src/core/constants/user-select";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
+import { ClientScope, scopeByClient } from "@src/core/scope/client-scope";
 
 /**
  * @description Constante discriminadora para los registros de Casa Club.
@@ -14,7 +15,9 @@ import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.uti
  */
 const CLUB_TYPE = 'CASA_CLUB';
 
-export const getDataTableClub = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
+export const getDataTableClub = async (params: ITDataTableFetchParams, scope: ClientScope | undefined): Promise<ITDataTableResponse<any>> => {
+    // Sin cliente en el alcance es 403, no una tabla vacía.
+    const { clientId } = scopeByClient(scope);
     const prismaParams = getPrismaPaginationParams(params);
 
     const searchVal = String(params.filters?.search || "").trim();
@@ -37,6 +40,9 @@ export const getDataTableClub = async (params: ITDataTableFetchParams): Promise<
 
     delete prismaParams.where.kind;
     prismaParams.where.kind = CLUB_TYPE;
+    // El filtro del cliente sale del alcance, nunca del cuerpo de la petición.
+    delete prismaParams.where.clientId;
+    prismaParams.where.clientId = clientId;
 
     const [rows, total] = await Promise.all([
         prismaClient.incident.findMany({
@@ -70,18 +76,26 @@ export const createClub = async (data: {
     createdAt?: Date;
     createdOffline?: boolean;
     syncedAt?: Date;
-}) => {
+}, scope: ClientScope | undefined) => {
+    const { clientId } = scopeByClient(scope);
     if (data.clientRef) {
         const existing = await prismaClient.incident.findUnique({
             where: { clientRef: data.clientRef },
         });
-        if (existing) return existing;
+        if (existing) {
+            // Reintento offline de otro cliente: no se devuelve ni se reubica.
+            if (existing.clientId !== clientId) {
+                throw new AppError("CLIENT_REF_CONFLICT", "La clave de sincronización pertenece a otro registro.", 409);
+            }
+            return existing;
+        }
     }
 
     const club = await prismaClient.incident.create({
         data: {
             guardId: data.guardId,
             kind: CLUB_TYPE,
+            clientId,
             title: data.title,
             categoryId: data.categoryId,
             typeId: data.typeId,
@@ -105,8 +119,8 @@ export const getClubs = async (filters: {
     guardId?: number;
     category?: string;
     title?: string;
-}) => {
-    const whereClause: any = { kind: CLUB_TYPE };
+}, scope: ClientScope | undefined) => {
+    const whereClause: any = { kind: CLUB_TYPE, ...scopeByClient(scope) };
 
     if (filters.startDate && filters.endDate) {
         whereClause.createdAt = { gte: filters.startDate, lte: filters.endDate };
@@ -131,14 +145,17 @@ export const getClubs = async (filters: {
     });
 };
 
-export const resolveClub = async (id: number, userId: number) => {
-    // Solo reportes de casa club (no incidencias) y solo una vez, igual que incidencias y mantenimiento.
-    const current = await prismaClient.incident.findFirst({ where: { id, kind: CLUB_TYPE }, select: { status: true } });
+export const resolveClub = async (id: number, userId: number, scope: ClientScope | undefined) => {
+    // Solo reportes de casa club (no incidencias), del cliente del alcance y solo una vez.
+    const current = await prismaClient.incident.findFirst({
+        where: { id, kind: CLUB_TYPE, ...scopeByClient(scope) },
+        select: { status: true },
+    });
     if (!current) throw new AppError("CLUB_NOT_FOUND", "Reporte de casa club no encontrado", 404);
     assertTransition(INCIDENT_TRANSITIONS, current.status, "ATTENDED");
 
     const { count } = await prismaClient.incident.updateMany({
-        where: { id, kind: CLUB_TYPE, status: current.status },
+        where: { id, kind: CLUB_TYPE, status: current.status, ...scopeByClient(scope) },
         data: { status: 'ATTENDED', resolvedAt: new Date(), resolvedById: userId },
     });
     assertStatusUpdated(count);
@@ -154,18 +171,19 @@ export const resolveClub = async (id: number, userId: number) => {
     });
 };
 
-export const getPendingClubsCount = async () => {
+export const getPendingClubsCount = async (scope: ClientScope | undefined) => {
     return prismaClient.incident.count({
         where: {
             status: 'PENDING',
-            kind: CLUB_TYPE
+            kind: CLUB_TYPE,
+            ...scopeByClient(scope)
         }
     });
 };
 
-export const getClubById = async (id: number) => {
+export const getClubById = async (id: number, scope: ClientScope | undefined) => {
     return prismaClient.incident.findFirst({
-        where: { id, kind: CLUB_TYPE },
+        where: { id, kind: CLUB_TYPE, ...scopeByClient(scope) },
         include: { guard: { select: USER_PUBLIC_SELECT } }
     });
 };

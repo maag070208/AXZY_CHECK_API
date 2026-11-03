@@ -4,7 +4,7 @@
  * de backfill se verifican en la migración.
  */
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser } from "../factories";
+import { buildUser, inDefaultClient } from "../factories";
 
 beforeEach(async () => {
   await resetDatabase();
@@ -40,7 +40,7 @@ describe("entrega de turno", () => {
   it("cada entrega tiene una fila por ítem y las marcas siguen a las columnas", async () => {
     const creator = await buildUser("SHIFT");
     const handover = await prisma.shiftHandover.create({
-      data: { shiftType: "MATUTINO", handoverDate: new Date("2026-10-20"), createdById: creator.id, checklistKeys: true },
+      data: { ...(await inDefaultClient()), shiftType: "MATUTINO", handoverDate: new Date("2026-10-20"), createdById: creator.id, checklistKeys: true },
     });
 
     const items = await prisma.shiftHandoverCheck.findMany({

@@ -15,7 +15,7 @@ const userId = (req: Request) => Number(req.user?.id);
 
 export const list = async (req: Request, res: Response) => {
   try {
-    return res.status(200).json(createTResult(await listAnnouncements(req.query as any)));
+    return res.status(200).json(createTResult(await listAnnouncements(req.query as any, req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -23,7 +23,7 @@ export const list = async (req: Request, res: Response) => {
 
 export const create = async (req: Request, res: Response) => {
   try {
-    return res.status(201).json(createTResult(await createAnnouncement(req.body, userId(req))));
+    return res.status(201).json(createTResult(await createAnnouncement(req.body, userId(req), req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -31,7 +31,7 @@ export const create = async (req: Request, res: Response) => {
 
 export const sendNotification = async (req: Request, res: Response) => {
   try {
-    return res.status(202).json(createTResult(await sendDirectNotification(req.body)));
+    return res.status(202).json(createTResult(await sendDirectNotification(req.body, req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }

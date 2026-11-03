@@ -2,8 +2,9 @@ import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { hackerLog } from "../base/logger";
 import { syncLegacyResident } from "@src/modules/residents/legacy-sync";
+import { joinClient } from "@src/core/scope/membership";
 
-export const propertiesSeed = async (prisma: PrismaClient) => {
+export const propertiesSeed = async (prisma: PrismaClient, tenant: { organizationId: number; clientId: number }) => {
   const password = await bcrypt.hash("123123", 10);
   hackerLog.info("PROPERTY", "Initializing Property Catalog");
 
@@ -65,13 +66,13 @@ export const propertiesSeed = async (prisma: PrismaClient) => {
   const kind = await prisma.propertyKind.findUniqueOrThrow({ where: { code: "HOUSE" } });
   const vacant = await prisma.occupancyStatus.findUniqueOrThrow({ where: { code: "VACANT" } });
   for (const prop of propertiesData) {
-    const existing = await prisma.property.findUnique({ where: { identifier: prop.identifier } });
+    const existing = await prisma.property.findFirst({ where: { identifier: prop.identifier, clientId: tenant.clientId } });
     if (existing) {
       properties.push(existing);
       continue;
     }
     const created = await prisma.property.create({
-      data: { ...prop, kindId: kind.id, occupancyStatusId: vacant.id },
+      data: { ...prop, kindId: kind.id, occupancyStatusId: vacant.id, clientId: tenant.clientId },
     });
     await prisma.occupancyPeriod.create({
       data: { propertyId: created.id, statusId: vacant.id, startDate: new Date() },
@@ -100,6 +101,7 @@ export const propertiesSeed = async (prisma: PrismaClient) => {
         password,
         roleId: residentRole.id,
         propertyId: properties[i].id,
+        organizationId: tenant.organizationId,
         residentProfile: {
           create: {
             firstName: resNames[i % resNames.length],
@@ -114,12 +116,16 @@ export const propertiesSeed = async (prisma: PrismaClient) => {
     });
 
     await prisma.$transaction((tx) => syncLegacyResident(tx, user.id));
+    await joinClient(prisma, { id: user.id, roleName: "RESDN" }, tenant);
 
     await prisma.property.update({
       where: { id: properties[i].id },
       data: { statusId: inhabitedStatus.id },
     });
   }
+
+  // Multicliente: propiedades de corridas anteriores sin cliente pasan al cliente por defecto.
+  await prisma.property.updateMany({ where: { id: { in: properties.map((p) => p.id) }, clientId: null }, data: { clientId: tenant.clientId } });
 
   hackerLog.success("PROPERTY", "100 properties ready 🚀");
 };

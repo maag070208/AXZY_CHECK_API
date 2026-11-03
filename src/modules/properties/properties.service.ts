@@ -1,17 +1,21 @@
 import { prismaClient } from "@src/core/config/database";
+import { AppError } from "@src/core/errors/app-error";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { clampLimit, getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 import { resolveKindAndOccupancy, todayDateOnly } from "./occupancy.service";
+import { ClientScope, scopeByClient } from "@src/core/scope/client-scope";
 
-export const getAllProperties = async () => {
+export const getAllProperties = async (scope: ClientScope | undefined) => {
     return prismaClient.property.findMany({
-        where: { softDelete: false },
+        where: { softDelete: false, ...scopeByClient(scope) },
         include: { type: true, status: true },
         orderBy: { id: 'desc' }
     });
 };
 
-export const getDataTableProperties = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
+export const getDataTableProperties = async (params: ITDataTableFetchParams, scope: ClientScope | undefined): Promise<ITDataTableResponse<any>> => {
+  // Sin cliente en el alcance es 403, no una tabla vacía (fuera del try que degrada a vacío).
+  const { clientId } = scopeByClient(scope);
   try {
     const { page, limit, filters } = params;
     const take = clampLimit(limit);
@@ -33,6 +37,7 @@ export const getDataTableProperties = async (params: ITDataTableFetchParams): Pr
                 LEFT JOIN "PropertyType" pt ON p."typeId" = pt.id
                 LEFT JOIN "PropertyStatus" ps ON p."statusId" = ps.id
                 WHERE p."softDelete" = false
+                AND p."clientId" = ${clientId}
                 AND p."typeId" = ${typeId}
                 AND (
                     unaccent(p."identifier") ILIKE unaccent(${search}) OR
@@ -50,6 +55,7 @@ export const getDataTableProperties = async (params: ITDataTableFetchParams): Pr
                 LEFT JOIN "PropertyType" pt ON p."typeId" = pt.id
                 LEFT JOIN "PropertyStatus" ps ON p."statusId" = ps.id
                 WHERE p."softDelete" = false
+                AND p."clientId" = ${clientId}
                 AND (
                     unaccent(p."identifier") ILIKE unaccent(${search}) OR
                     unaccent(p."name") ILIKE unaccent(${search}) OR
@@ -63,6 +69,7 @@ export const getDataTableProperties = async (params: ITDataTableFetchParams): Pr
               ? await prismaClient.$queryRaw`
                 SELECT COUNT(*)::int as count FROM "Property" p
                 WHERE p."softDelete" = false
+                AND p."clientId" = ${clientId}
                 AND p."typeId" = ${typeId}
                 AND (
                     unaccent(p."identifier") ILIKE unaccent(${search}) OR
@@ -73,6 +80,7 @@ export const getDataTableProperties = async (params: ITDataTableFetchParams): Pr
               : await prismaClient.$queryRaw`
                 SELECT COUNT(*)::int as count FROM "Property" p
                 WHERE p."softDelete" = false
+                AND p."clientId" = ${clientId}
                 AND (
                     unaccent(p."identifier") ILIKE unaccent(${search}) OR
                     unaccent(p."name") ILIKE unaccent(${search}) OR
@@ -94,6 +102,7 @@ export const getDataTableProperties = async (params: ITDataTableFetchParams): Pr
             where: {
                 ...prismaParams.where,
                 softDelete: false,
+                clientId,
             },
             include: {
                 users: {
@@ -109,6 +118,7 @@ export const getDataTableProperties = async (params: ITDataTableFetchParams): Pr
             where: {
                 ...prismaParams.where,
                 softDelete: false,
+                clientId,
             }
         })
     ]);
@@ -120,9 +130,9 @@ export const getDataTableProperties = async (params: ITDataTableFetchParams): Pr
   }
 };
 
-export const getPropertyById = async (id: number) => {
+export const getPropertyById = async (id: number, scope: ClientScope | undefined) => {
     return prismaClient.property.findFirst({
-        where: { id, softDelete: false },
+        where: { id, softDelete: false, ...scopeByClient(scope) },
         include: {
             users: {
                 where: { softDelete: false },
@@ -150,7 +160,7 @@ const pickPropertyFields = (data: any) => ({
     vehicleQuota: data.vehicleQuota ?? null,
 });
 
-export const createProperty = async (data: any) => {
+export const createProperty = async (data: any, scope: ClientScope | undefined) => {
     return prismaClient.$transaction(async (tx) => {
         const { kindId, occupancyStatusId } = await resolveKindAndOccupancy(tx, {
             kindId: data.kindId ? Number(data.kindId) : undefined,
@@ -161,6 +171,7 @@ export const createProperty = async (data: any) => {
         const property = await tx.property.create({
             data: {
                 ...pickPropertyFields(data),
+                ...scopeByClient(scope),
                 typeId: Number(data.typeId),
                 statusId: Number(data.statusId),
                 kindId,
@@ -193,7 +204,7 @@ export const createPropertyForImport = async (data: {
     unitNumber: string | null;
     kindId: number;
     occupancyStatusId: number;
-}) => {
+}, scope: ClientScope | undefined) => {
     return prismaClient.$transaction(async (tx) => {
         const kind = await tx.propertyKind.findUniqueOrThrow({ where: { id: data.kindId } });
         const occupancy = await tx.occupancyStatus.findUniqueOrThrow({ where: { id: data.occupancyStatusId } });
@@ -201,6 +212,7 @@ export const createPropertyForImport = async (data: {
         const legacyStatus = await tx.propertyStatus.findUniqueOrThrow({ where: { name: LEGACY_STATUS_FOR_OCCUPANCY[occupancy.code] ?? "VACNT" } });
         const property = await tx.property.create({
             data: {
+                ...scopeByClient(scope),
                 identifier: data.identifier,
                 name: data.name,
                 mainStreet: data.mainStreet,
@@ -219,7 +231,14 @@ export const createPropertyForImport = async (data: {
     });
 };
 
-export const updateProperty = async (id: number, data: any) => {
+/** Propiedad del cliente del alcance; de otro cliente responde 404, igual que si no existiera. */
+const findPropertyInScope = async (id: number, scope: ClientScope | undefined) => {
+    const property = await prismaClient.property.findFirst({ where: { id, softDelete: false, ...scopeByClient(scope) } });
+    if (!property) throw new AppError("PROPERTY_NOT_FOUND", "Propiedad no encontrada", 404);
+    return property;
+};
+
+export const updateProperty = async (id: number, data: any, scope: ClientScope | undefined) => {
     // El tipo y la ocupación no se cambian aquí: la ocupación tiene su propio endpoint (A1).
     // Solo cambia lo que el cliente envió: un campo ausente no se borra.
     const changes: Record<string, unknown> = {};
@@ -228,10 +247,12 @@ export const updateProperty = async (id: number, data: any) => {
         if (data[field] !== undefined) changes[field] = data[field] === "" ? null : data[field];
     }
     if (data.buildingId !== undefined) changes.buildingId = data.buildingId ? Number(data.buildingId) : null;
+    await findPropertyInScope(id, scope);
     return prismaClient.property.update({ where: { id }, data: changes });
 };
 
-export const deleteProperty = async (id: number) => {
+export const deleteProperty = async (id: number, scope: ClientScope | undefined) => {
+    await findPropertyInScope(id, scope);
     return prismaClient.property.update({
         where: { id },
         data: { softDelete: true, active: false }

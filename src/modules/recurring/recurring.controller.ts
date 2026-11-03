@@ -5,7 +5,7 @@ import { respondError } from "@src/core/errors/http-error";
 
 export const getDataTable = async (req: Request, res: Response) => {
     try {
-        const result = await getDataTableRecurring(req.body);
+        const result = await getDataTableRecurring(req.body, req.scope);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return respondError(res, error);
@@ -14,7 +14,7 @@ export const getDataTable = async (req: Request, res: Response) => {
 
 export const getRecurringList = async (req: Request, res: Response) => {
   try {
-    const list = await getAllRecurringConfigurations();
+    const list = await getAllRecurringConfigurations(req.scope);
     return res.status(200).json(createTResult(list));
   } catch (error: any) {
     return respondError(res, error);
@@ -30,7 +30,7 @@ export const createRecurring = async (req: Request, res: Response) => {
         return res.status(400).json(createTResult(null, ["Invalid payload"]));
     }
 
-    const created = await createRecurringConfiguration(title, locations, guardIds);
+    const created = await createRecurringConfiguration(title, locations, guardIds, req.scope);
     return res.status(201).json(createTResult(created));
   } catch (error: any) {
     console.log(error);
@@ -42,7 +42,7 @@ export const toggleRecurring = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { active } = req.body;
-        const updated = await toggleRecurringConfiguration(Number(id), active);
+        const updated = await toggleRecurringConfiguration(Number(id), active, req.scope);
         return res.status(200).json(createTResult(updated));
     } catch (error: any) {
         return respondError(res, error);
@@ -58,7 +58,7 @@ export const updateRecurring = async (req: Request, res: Response) => {
              return res.status(400).json(createTResult(null, ["Invalid payload"]));
         }
 
-        const updated = await updateRecurringConfiguration(Number(id), title, locations, guardIds);
+        const updated = await updateRecurringConfiguration(Number(id), title, locations, guardIds, req.scope);
         return res.status(200).json(createTResult(updated));
     } catch (error: any) {
         return respondError(res, error);
@@ -68,7 +68,7 @@ export const updateRecurring = async (req: Request, res: Response) => {
 export const deleteRecurring = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        await deleteRecurringConfiguration(Number(id));
+        await deleteRecurringConfiguration(Number(id), req.scope);
         return res.status(200).json(createTResult(true));
     } catch (error: any) {
         return respondError(res, error);
@@ -84,7 +84,7 @@ export const assignGuard = async (req: Request, res: Response) => {
              return res.status(400).json(createTResult(null, ["Invalid payload"]));
         }
 
-        const updated = await assignConfigurationToGuards(Number(id), guardIds);
+        const updated = await assignConfigurationToGuards(Number(id), guardIds, req.scope);
         return res.status(200).json(createTResult(updated));
     } catch (error: any) {
         return respondError(res, error);
@@ -94,7 +94,7 @@ export const assignGuard = async (req: Request, res: Response) => {
 export const getMyRecurring = async (req: Request, res: Response) => {
     try {
         const userId = req.user!.id;
-        const list = await getRecurringConfigurationsForUser(userId);
+        const list = await getRecurringConfigurationsForUser(userId, req.scope);
         return res.status(200).json(createTResult(list));
     } catch (error: any) {
         return respondError(res, error);

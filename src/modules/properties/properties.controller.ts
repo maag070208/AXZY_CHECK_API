@@ -5,7 +5,7 @@ import { respondError } from "@src/core/errors/http-error";
 
 export const getProperties = async (req: Request, res: Response) => {
     try {
-        const properties = await getAllProperties();
+        const properties = await getAllProperties(req.scope);
         return res.status(200).json(createTResult(properties));
     } catch (error: any) {
         return respondError(res, error);
@@ -15,7 +15,7 @@ export const getProperties = async (req: Request, res: Response) => {
 export const getProperty = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const property = await getPropertyById(Number(id));
+        const property = await getPropertyById(Number(id), req.scope);
         if (!property) {
             return res.status(404).json(createTResult(null, ["Propiedad no encontrada"]));
         }
@@ -27,7 +27,7 @@ export const getProperty = async (req: Request, res: Response) => {
 
 export const getDataTable = async (req: Request, res: Response) => {
     try {
-        const result = await getDataTableProperties(req.body);
+        const result = await getDataTableProperties(req.body, req.scope);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return respondError(res, error);
@@ -36,7 +36,7 @@ export const getDataTable = async (req: Request, res: Response) => {
 
 export const addProperty = async (req: Request, res: Response) => {
     try {
-        const property = await createProperty(req.body);
+        const property = await createProperty(req.body, req.scope);
         return res.status(201).json(createTResult(property));
     } catch (error: any) {
         if (error.code === 'P2002') {
@@ -49,7 +49,7 @@ export const addProperty = async (req: Request, res: Response) => {
 export const putProperty = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const property = await updateProperty(Number(id), req.body);
+        const property = await updateProperty(Number(id), req.body, req.scope);
         return res.status(200).json(createTResult(property));
     } catch (error: any) {
         if (error.code === 'P2002') {
@@ -62,7 +62,7 @@ export const putProperty = async (req: Request, res: Response) => {
 export const removeProperty = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const property = await deleteProperty(Number(id));
+        const property = await deleteProperty(Number(id), req.scope);
         return res.status(200).json(createTResult(property));
     } catch (error: any) {
         return respondError(res, error);

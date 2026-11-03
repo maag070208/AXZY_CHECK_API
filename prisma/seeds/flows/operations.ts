@@ -9,14 +9,15 @@ export interface OperationsIds {
 
 /**
  * Flujo "operación de turno": una entrega de turno con un guardia puntual, una revisión de
- * uniforme y un mensaje de chat. Idempotente (la entrega es única por turno y fecha).
+ * uniforme y un mensaje de chat. Idempotente (la entrega es única por cliente+turno+fecha).
  */
 export const operationsFlow = async (prisma: PrismaClient, staff: StaffIds): Promise<OperationsIds> => {
   const handoverDate = new Date("2026-01-15T00:00:00.000Z");
   const handover =
-    (await prisma.shiftHandover.findUnique({ where: { shiftType_handoverDate: { shiftType: "MATUTINO", handoverDate } } })) ??
+    (await prisma.shiftHandover.findFirst({ where: { clientId: staff.clientId, shiftType: "MATUTINO", handoverDate } })) ??
     (await prisma.shiftHandover.create({
       data: {
+        clientId: staff.clientId,
         shiftType: "MATUTINO", handoverDate, credentialsCount: 3, tarjetonesCount: 12, novedades: "Sin novedades relevantes",
         checklistPhones: true, checklistTablet: true, checklistRadios: true, checklistKeys: true, checklistLogbook: true, checklistConsignas: true,
         reportedToAdmin: true, createdById: staff.shift,
@@ -36,7 +37,7 @@ export const operationsFlow = async (prisma: PrismaClient, staff: StaffIds): Pro
 
   const chat =
     (await prisma.chatMessage.findFirst({ where: { userId: staff.guard1, message: "Flujo · inicio de turno" } })) ??
-    (await prisma.chatMessage.create({ data: { userId: staff.guard1, message: "Flujo · inicio de turno" } }));
+    (await prisma.chatMessage.create({ data: { userId: staff.guard1, message: "Flujo · inicio de turno", clientId: staff.clientId } }));
 
   return { shiftHandoverId: handover.id, uniformCheckId: uniform.id, chatMessageId: chat.id };
 };

@@ -6,7 +6,7 @@
 import request from "supertest";
 import { app } from "@src/app";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser, tokenFor } from "../factories";
+import { buildUser, tokenFor, inDefaultClient } from "../factories";
 
 beforeEach(async () => {
   await resetDatabase();
@@ -22,7 +22,7 @@ describe("S-03 · assignedBy sale del token, no del body", () => {
     const guard = await buildUser("GUARD");
     const impostor = await buildUser("ADMIN");
     const location = await prisma.location.create({
-      data: { aisle: "A", spot: "1", number: "1", name: `Zona-${Date.now()}` },
+      data: { ...(await inDefaultClient()), aisle: "A", spot: "1", number: "1", name: `Zona-${Date.now()}` },
     });
 
     const res = await request(app)

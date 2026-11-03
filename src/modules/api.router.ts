@@ -45,6 +45,8 @@ import personsRoute from "./persons/persons.routes";
 import authorizationsRoute from "./authorizations/authorizations.routes";
 import syncRoute from "./sync/sync.routes";
 import rbacRoute from "./rbac/rbac.routes";
+import clientsRoute from "./clients/clients.routes";
+import guardAssignmentsRoute from "./guard-assignments/guard-assignments.routes";
 
 
 const apiRouter = Router();
@@ -98,6 +100,9 @@ apiRouter.use("/persons", personsRoute);
 apiRouter.use("/authorizations", authorizationsRoute);
 apiRouter.use("/sync", requireStaff, syncRoute);
 apiRouter.use("/rbac", rbacRoute);
+// Fase 3: administración de la organización (clientes y asignación de guardias).
+apiRouter.use("/clients", clientsRoute);
+apiRouter.use("/guard-assignments", guardAssignmentsRoute);
 
 // Catálogos administrables (T-F0-04): un router generado por cada entrada del registro.
 apiRouter.get("/catalogs", (_req, res) =>

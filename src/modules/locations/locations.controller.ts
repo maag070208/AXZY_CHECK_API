@@ -5,7 +5,7 @@ import { respondError } from "@src/core/errors/http-error";
 
 export const getDataTable = async (req: Request, res: Response) => {
   try {
-    const result = await getDataTableLocations(req.body);
+    const result = await getDataTableLocations(req.body, req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
@@ -14,7 +14,7 @@ export const getDataTable = async (req: Request, res: Response) => {
 
 export const getLocations = async (req: Request, res: Response) => {
   try {
-    const locations = await getAllLocations();
+    const locations = await getAllLocations(req.scope);
     return res.status(200).json(createTResult(locations));
   } catch (error: any) {
     return respondError(res, error);
@@ -32,7 +32,7 @@ export const addLocation = async (req: Request, res: Response) => {
         ? { aisle, spot, number, name: name || `${aisle}-${spot}-${number}` } 
         : { aisle: name, spot: '', number: '', name };
 
-    const location = await createLocation(locationData);
+    const location = await createLocation(locationData, req.scope);
     return res.status(201).json(createTResult(location));
   } catch (error: any) {
     return respondError(res, error);
@@ -43,7 +43,7 @@ export const putLocation = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
         const { aisle, spot, number, name } = req.body;
-        const location = await updateLocation(Number(id), { aisle, spot, number, name });
+        const location = await updateLocation(Number(id), { aisle, spot, number, name }, req.scope);
         return res.status(200).json(createTResult(location));
     } catch (error: any) {
         return respondError(res, error);
@@ -53,7 +53,7 @@ export const putLocation = async (req: Request, res: Response) => {
 export const removeLocation = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const location = await deleteLocation(Number(id));
+        const location = await deleteLocation(Number(id), req.scope);
         return res.status(200).json(createTResult(location));
     } catch (error: any) {
         return respondError(res, error);

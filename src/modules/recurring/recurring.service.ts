@@ -2,13 +2,16 @@ import { prismaClient } from "@src/core/config/database";
 import { AppError } from "@src/core/errors/app-error";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
+import { ClientScope, scopeByClient } from "@src/core/scope/client-scope";
+import { operativeStaffWhere } from "@src/core/scope/membership";
 
 /** Un escaneo está completo con reporte guardado (notas) y al menos una evidencia. */
 export const isCompletedScan = (scan: { notes: string | null; media: unknown }) =>
     !!scan.notes?.trim() && Array.isArray(scan.media) && scan.media.length > 0;
 
-export const getDataTableRecurring = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
+export const getDataTableRecurring = async (params: ITDataTableFetchParams, scope: ClientScope | undefined): Promise<ITDataTableResponse<any>> => {
     const prismaParams = getPrismaPaginationParams(params);
+    prismaParams.where = { ...prismaParams.where, ...scopeByClient(scope) };
 
     const [rows, total] = await Promise.all([
         prismaClient.recurringConfiguration.findMany({
@@ -31,8 +34,9 @@ export const getDataTableRecurring = async (params: ITDataTableFetchParams): Pro
     return { rows, total };
 };
 
-export const getAllRecurringConfigurations = async () => {
+export const getAllRecurringConfigurations = async (scope: ClientScope | undefined) => {
     return prismaClient.recurringConfiguration.findMany({
+        where: scopeByClient(scope),
         orderBy: { updatedAt: 'desc' },
         include: {
             recurringLocations: {
@@ -46,9 +50,9 @@ export const getAllRecurringConfigurations = async () => {
     });
 };
 
-export const getRecurringConfigById = async (id: number) => {
-    return prismaClient.recurringConfiguration.findUnique({
-        where: { id },
+export const getRecurringConfigById = async (id: number, scope: ClientScope | undefined) => {
+    return prismaClient.recurringConfiguration.findFirst({
+        where: { id, ...scopeByClient(scope) },
         include: {
             recurringLocations: {
                 include: {
@@ -60,16 +64,32 @@ export const getRecurringConfigById = async (id: number) => {
     });
 };
 
-/** Una ruta solo se asigna a personal operativo existente y activo (no a residentes ni a ids inventados). */
-const assertOperativeGuards = async (guardIds: number[]) => {
+/** Una ruta solo se asigna a personal operativo existente y activo del cliente (no a residentes, ids inventados ni personal de otro cliente). */
+const assertOperativeGuards = async (guardIds: number[], scope: ClientScope | undefined) => {
     const unique = [...new Set(guardIds)];
     if (unique.length === 0) return;
     const valid = await prismaClient.user.count({
-        where: { id: { in: unique }, softDelete: false, role: { name: { in: ['GUARD', 'SHIFT', 'MAINT'] } } }
+        where: { id: { in: unique }, ...operativeStaffWhere(scope) }
     });
     if (valid !== unique.length) {
         throw new AppError("ROUTE_GUARDS_INVALID", "Algún usuario indicado no existe o no es personal operativo", 400);
     }
+};
+
+/** Los puntos de una ruta son ubicaciones del mismo cliente. */
+const assertLocationsInScope = async (locations: { locationId: number }[], scope: ClientScope | undefined) => {
+    const unique = [...new Set(locations.map((l) => l.locationId))];
+    if (unique.length === 0) return;
+    const valid = await prismaClient.location.count({ where: { id: { in: unique }, ...scopeByClient(scope) } });
+    if (valid !== unique.length) {
+        throw new AppError("ROUTE_LOCATIONS_INVALID", "Alguna ubicación indicada no existe", 400);
+    }
+};
+
+/** Ruta del cliente del alcance; de otro cliente responde 404, igual que si no existiera. */
+const assertConfigInScope = async (id: number, scope: ClientScope | undefined) => {
+    const config = await prismaClient.recurringConfiguration.findFirst({ where: { id, ...scopeByClient(scope) }, select: { id: true } });
+    if (!config) throw new AppError("ROUTE_NOT_FOUND", "Ruta no encontrada", 404);
 };
 
 interface ITaskCreate {
@@ -82,13 +102,14 @@ interface ILocationCreate {
     tasks: ITaskCreate[];
 }
 
-export const createRecurringConfiguration = async (title: string, locations: ILocationCreate[], guardIds?: number[]) => {
+export const createRecurringConfiguration = async (title: string, locations: ILocationCreate[], guardIds: number[] | undefined, scope: ClientScope | undefined) => {
     // If guardIds is provided, use it. Otherwise, fetch all guards (legacy behavior or default) ->
     // Actually, request says "por defecto estaran seleccionados todos", so the UI will send all IDs.
     // If we want to support "select all if empty", we can keep the logic, but better to rely on input.
     
     let guardsToConnect: { id: number }[] = [];
-    await assertOperativeGuards(guardIds ?? []);
+    await assertOperativeGuards(guardIds ?? [], scope);
+    await assertLocationsInScope(locations, scope);
 
     if (guardIds && guardIds.length > 0) {
         guardsToConnect = guardIds.map(id => ({ id }));
@@ -99,7 +120,7 @@ export const createRecurringConfiguration = async (title: string, locations: ILo
         // but if empty array is passed, it means "no guards".
         if (guardIds === undefined) { 
              const allGuards = await prismaClient.user.findMany({
-                where: { active: true, role: { name: { in: ['GUARD', 'SHIFT', 'MAINT'] } } },
+                where: { active: true, ...operativeStaffWhere(scope) },
                 select: { id: true }
             });
             guardsToConnect = allGuards.map(g => ({ id: g.id }));
@@ -108,6 +129,7 @@ export const createRecurringConfiguration = async (title: string, locations: ILo
 
     return prismaClient.recurringConfiguration.create({
         data: {
+            ...scopeByClient(scope),
             title,
             active: true,
             guards: {
@@ -135,16 +157,16 @@ export const createRecurringConfiguration = async (title: string, locations: ILo
     });
 };
 
-export const toggleRecurringConfiguration = async (id: number, active: boolean) => {
+export const toggleRecurringConfiguration = async (id: number, active: boolean, scope: ClientScope | undefined) => {
+    await assertConfigInScope(id, scope);
     return prismaClient.recurringConfiguration.update({
         where: { id },
         data: { active }
     });
 };
 
-export const deleteRecurringConfiguration = async (id: number) => {
-    const config = await prismaClient.recurringConfiguration.findUnique({ where: { id }, select: { id: true } });
-    if (!config) throw new AppError("ROUTE_NOT_FOUND", "Ruta no encontrada", 404);
+export const deleteRecurringConfiguration = async (id: number, scope: ClientScope | undefined) => {
+    await assertConfigInScope(id, scope);
 
     // Las rondas guardan a qué ruta pertenecen: borrarla dejaría el historial huérfano.
     if (await prismaClient.round.count({ where: { recurringConfigurationId: id } }) > 0) {
@@ -159,8 +181,9 @@ export const deleteRecurringConfiguration = async (id: number) => {
     });
 };
 
-export const assignConfigurationToGuards = async (configId: number, guardIds: number[]) => {
-    await assertOperativeGuards(guardIds);
+export const assignConfigurationToGuards = async (configId: number, guardIds: number[], scope: ClientScope | undefined) => {
+    await assertConfigInScope(configId, scope);
+    await assertOperativeGuards(guardIds, scope);
     return prismaClient.recurringConfiguration.update({
         where: { id: configId },
         data: {
@@ -172,8 +195,10 @@ export const assignConfigurationToGuards = async (configId: number, guardIds: nu
     });
 };
 
-export const updateRecurringConfiguration = async (id: number, title: string, locations: ILocationCreate[], guardIds?: number[]) => {
-    await assertOperativeGuards(guardIds ?? []);
+export const updateRecurringConfiguration = async (id: number, title: string, locations: ILocationCreate[], guardIds: number[] | undefined, scope: ClientScope | undefined) => {
+    await assertConfigInScope(id, scope);
+    await assertOperativeGuards(guardIds ?? [], scope);
+    await assertLocationsInScope(locations, scope);
     // Transaction to ensure atomicity
     return prismaClient.$transaction(async (prisma) => {
         // 1. Update basic info
@@ -227,13 +252,15 @@ export const updateRecurringConfiguration = async (id: number, title: string, lo
     });
 };
 
-export const getRecurringConfigurationsForUser = async (userId: number) => {
+export const getRecurringConfigurationsForUser = async (userId: number, scope: ClientScope | undefined) => {
+    const { clientId } = scopeByClient(scope);
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
     const configs = await prismaClient.recurringConfiguration.findMany({
         where: {
             active: true,
+            clientId,
             guards: {
                 some: { id: userId }
             }

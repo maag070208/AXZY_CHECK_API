@@ -5,7 +5,7 @@ import request from "supertest";
 import { app } from "@src/app";
 import { StorageService } from "@src/modules/storage/storage.service";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser, tokenFor } from "../factories";
+import { buildUser, inDefaultClient, tokenFor } from "../factories";
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -33,7 +33,7 @@ const confirmedMedia = async (isPrivate: boolean) => {
   });
 };
 
-const adultPerson = () => prisma.person.create({ data: { firstName: "Ana", birthDate: new Date("1990-01-01") } });
+const adultPerson = async () => prisma.person.create({ data: { ...(await inDefaultClient()), firstName: "Ana", birthDate: new Date("1990-01-01") } });
 
 const dateIn = (days: number) => new Date(Date.now() + days * DAY).toISOString().slice(0, 10);
 
@@ -89,7 +89,7 @@ describe("documentos privados", () => {
   });
 
   it("T-A2-08: una persona menor no tiene documentos", async () => {
-    const minor = await prisma.person.create({ data: { firstName: "Niño", birthDate: new Date(Date.now() - 10 * 365 * DAY) } });
+    const minor = await prisma.person.create({ data: { ...(await inDefaultClient()), firstName: "Niño", birthDate: new Date(Date.now() - 10 * 365 * DAY) } });
     const res = await request(app)
       .post(`/api/v1/persons/${minor.id}/documents`)
       .set("Authorization", await adminToken())

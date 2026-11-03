@@ -6,7 +6,7 @@ import request from "supertest";
 import { app } from "@src/app";
 import { redactSecrets } from "@src/core/middlewares/redact-secrets.middleware";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser, tokenFor } from "../factories";
+import { buildUser, inDefaultClient, tokenFor } from "../factories";
 
 beforeEach(async () => {
   await resetDatabase();
@@ -40,7 +40,7 @@ describe("respuestas del API sin hash de contraseña", () => {
   it("el listado de incidencias no incluye el usuario con su hash", async () => {
     const admin = await buildUser("ADMIN");
     const guard = await buildUser("GUARD");
-    await prisma.incident.create({ data: { guardId: guard.id, title: "Prueba", kind: "INCIDENT" } });
+    await prisma.incident.create({ data: { ...(await inDefaultClient()), guardId: guard.id, title: "Prueba", kind: "INCIDENT" } });
     const res = await request(app).get("/api/v1/incidents").set("Authorization", `Bearer ${tokenFor(admin)}`);
     expect(res.status).toBe(200);
     expect(res.body.data.length).toBeGreaterThan(0);

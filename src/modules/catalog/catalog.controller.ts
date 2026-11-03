@@ -6,7 +6,7 @@ import * as catalogService from './catalog.service';
 export const getCatalog = async (req: Request, res: Response) => {
     try {
         const { key } = req.params;
-        const result = await catalogService.getCatalog(key);
+        const result = await catalogService.getCatalog(key, req.scope);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return respondError(res, error);

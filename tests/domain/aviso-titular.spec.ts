@@ -6,7 +6,7 @@ import request from "supertest";
 import { app } from "@src/app";
 import { createResidentUser } from "@src/modules/residents/residents.service";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser, tokenFor } from "../factories";
+import { buildUser, tokenFor, inDefaultClient, defaultClient } from "../factories";
 
 beforeEach(async () => {
   await resetDatabase();
@@ -26,16 +26,16 @@ const setup = async (withHolderAccount: boolean) => {
   const type = await prisma.propertyType.findUniqueOrThrow({ where: { name: "CASA" } });
   const status = await prisma.propertyStatus.findUniqueOrThrow({ where: { name: "VACNT" } });
   const property = await prisma.property.create({
-    data: { identifier: "AV-1", name: "Casa", mainStreet: "C", typeId: type.id, statusId: status.id, kindId: kind.id, occupancyStatusId: vacant.id },
+    data: { ...(await inDefaultClient()), identifier: "AV-1", name: "Casa", mainStreet: "C", typeId: type.id, statusId: status.id, kindId: kind.id, occupancyStatusId: vacant.id },
   });
   let holderUserId: number | null = null;
   if (withHolderAccount) {
-    holderUserId = (await createResidentUser({ name: "Titular", username: "titular.av", password: "x", propertyId: property.id }, {})).id;
+    holderUserId = (await createResidentUser({ name: "Titular", username: "titular.av", password: "x", propertyId: property.id }, {}, await defaultClient())).id;
   } else {
-    const owner = await prisma.person.create({ data: { firstName: "Sin cuenta" } });
+    const owner = await prisma.person.create({ data: { ...(await inDefaultClient()), firstName: "Sin cuenta" } });
     await prisma.resident.create({ data: { personId: owner.id, propertyId: property.id, kindId: (await prisma.residentKind.findUniqueOrThrow({ where: { code: "OWNER" } })).id, isPrimary: true, startDate: new Date() } });
   }
-  const person = await prisma.person.create({ data: { firstName: "Jardinero" } });
+  const person = await prisma.person.create({ data: { ...(await inDefaultClient()), firstName: "Jardinero" } });
   const otherDay = (new Date().getUTCDay() + 1) % 7;
   await request(app)
     .post(`/api/v1/properties/${property.id}/authorizations`)
@@ -76,8 +76,8 @@ describe("copia al propietario en propiedad rentada", () => {
     const property = await prisma.property.findFirstOrThrow({ where: { identifier: "AV-1" } });
     const rented = await prisma.occupancyStatus.findUniqueOrThrow({ where: { code: "RENTED" } });
     const resdn = await prisma.role.findUniqueOrThrow({ where: { name: "RESDN" } });
-    const ownerUser = await prisma.user.create({ data: { name: "Dueño", username: "dueno.av", password: "x", roleId: resdn.id } });
-    const ownerPerson = await prisma.person.create({ data: { firstName: "Dueño", userId: ownerUser.id } });
+    const ownerUser = await prisma.user.create({ data: { name: "Dueño", username: "dueno.av", password: "x", roleId: resdn.id, organizationId: (await defaultClient()).organizationId } });
+    const ownerPerson = await prisma.person.create({ data: { ...(await inDefaultClient()), firstName: "Dueño", userId: ownerUser.id } });
     await prisma.property.update({ where: { id: property.id }, data: { occupancyStatusId: rented.id, ownerPersonId: ownerPerson.id } });
 
     await request(app).get(check).set("Authorization", guard);
@@ -96,7 +96,7 @@ describe("límite de un aviso por persona cada 15 minutos", () => {
 
     // Otra persona de la misma propiedad, con su propia autorización fuera de horario.
     const property = await prisma.property.findFirstOrThrow({ where: { identifier: "AV-1" } });
-    const other = await prisma.person.create({ data: { firstName: "Plomero" } });
+    const other = await prisma.person.create({ data: { ...(await inDefaultClient()), firstName: "Plomero" } });
     await prisma.propertyAuthorization.create({
       data: { propertyId: property.id, personId: other.id, days: String((new Date().getUTCDay() + 1) % 7), startTime: "00:00", endTime: "23:59", validFrom: new Date("2026-01-01") },
     });

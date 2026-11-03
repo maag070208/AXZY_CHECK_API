@@ -11,9 +11,9 @@ import {
 
 const actorId = (req: Request) => Number((req.user as { id?: number } | undefined)?.id);
 
-export const getCollectionConfigs = async (_req: Request, res: Response) => {
+export const getCollectionConfigs = async (req: Request, res: Response) => {
   try {
-    return res.status(200).json(createTResult(await listCollectionConfigs()));
+    return res.status(200).json(createTResult(await listCollectionConfigs(req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -21,7 +21,7 @@ export const getCollectionConfigs = async (_req: Request, res: Response) => {
 
 export const postCollectionConfig = async (req: Request, res: Response) => {
   try {
-    return res.status(201).json(createTResult(await upsertCollectionConfig(req.body)));
+    return res.status(201).json(createTResult(await upsertCollectionConfig(req.body, req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -29,7 +29,7 @@ export const postCollectionConfig = async (req: Request, res: Response) => {
 
 export const putCollectionConfig = async (req: Request, res: Response) => {
   try {
-    return res.status(200).json(createTResult(await updateCollectionConfig(Number(req.params.id), req.body)));
+    return res.status(200).json(createTResult(await updateCollectionConfig(Number(req.params.id), req.body, req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -37,7 +37,7 @@ export const putCollectionConfig = async (req: Request, res: Response) => {
 
 export const postGenerateCharges = async (req: Request, res: Response) => {
   try {
-    return res.status(200).json(createTResult(await generateCollectionCharges(actorId(req), req.body)));
+    return res.status(200).json(createTResult(await generateCollectionCharges(actorId(req), req.body, req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -45,7 +45,7 @@ export const postGenerateCharges = async (req: Request, res: Response) => {
 
 export const postApplyLateFees = async (req: Request, res: Response) => {
   try {
-    return res.status(200).json(createTResult(await applyLateFees(actorId(req), req.body)));
+    return res.status(200).json(createTResult(await applyLateFees(actorId(req), req.body, req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }

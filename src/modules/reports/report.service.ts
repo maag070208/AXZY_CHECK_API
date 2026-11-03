@@ -2,6 +2,8 @@
 import { prismaClient } from "@src/core/config/database";
 import { logger } from "@src/core/logger/logger";
 import { TResult } from '@src/core/dto/TResult';
+import { ClientScope, scopeByClient } from "@src/core/scope/client-scope";
+import { operativeStaffWhere } from "@src/core/scope/membership";
 
 const prisma = prismaClient;
 
@@ -20,25 +22,35 @@ export interface IGuardReportFilters {
 // Operational role names
 const OPERATIONAL_ROLES = ['GUARD', 'SHIFT', 'MAINT'];
 
-const getGuards = (guardId?: number) => {
+/**
+ * Multicliente: el desempeño del personal es el del cliente del alcance. `operativeStaffWhere` limita a la
+ * organización del alcance y al personal del cliente (guardias/jefes con asignación abierta a ese cliente;
+ * mantenimiento no tiene asignación por cliente). Sin cliente en el alcance responde 403.
+ */
+const getGuards = (scope: ClientScope | undefined, guardId?: number) => {
     return prisma.user.findMany({
         where: {
+            ...operativeStaffWhere(scope),
             role: { name: { in: OPERATIONAL_ROLES } },
-            active: true,
-            softDelete: false,
             ...(guardId ? { id: guardId } : {})
         },
         select: { id: true, name: true, lastName: true, role: true }
     });
 };
 
-export const getGuardGeneralStats = async (filters: IGuardReportFilters): Promise<TResult<any>> => {
+export const getGuardGeneralStats = async (filters: IGuardReportFilters, scope: ClientScope | undefined): Promise<TResult<any>> => {
+    // Fuera del try: sin cliente en el alcance debe responder 403, no un error genérico del reporte.
+    const { clientId } = scopeByClient(scope);
     try {
         const { startDate, endDate, guardId } = filters;
         const start = new Date(startDate);
         start.setHours(0, 0, 0, 0);
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
+
+        // El personal incluye a mantenimiento, que no tiene asignación por cliente (ver `operativeStaffWhere`).
+        const guards = await getGuards(scope, guardId);
+        const guardIds = guards.map(g => g.id);
 
         const [incidentCount, maintenanceCount, scans, rounds] = await Promise.all([
             // "Incidencia" y "Casa Club" comparten la tabla `Incident` — sin
@@ -47,25 +59,31 @@ export const getGuardGeneralStats = async (filters: IGuardReportFilters): Promis
             prisma.incident.count({
                 where: {
                     kind: "INCIDENT",
+                    clientId,
                     ...(guardId ? { guardId } : {}),
                     createdAt: { gte: start, lte: end }
                 }
             }),
+            // `Maintenance.clientId` (fase 5): se cuenta lo del cliente del alcance, lo haya creado un guardia
+            // o ADMIN/MAINT.
             prisma.maintenance.count({
                 where: {
-                    ...(guardId ? { guardId } : {}),
+                    clientId,
+                    guardId: { in: guardIds },
                     createdAt: { gte: start, lte: end }
                 }
             }),
             prisma.kardex.count({
                 where: {
-                    ...(guardId ? { userId: guardId } : {}),
+                    clientId,
+                    userId: { in: guardIds },
                     timestamp: { gte: start, lte: end }
                 }
             }),
             prisma.round.findMany({
                 where: {
-                    ...(guardId ? { guardId } : {}),
+                    clientId,
+                    guardId: { in: guardIds },
                     startTime: { gte: start, lte: end }
                 },
                 include: {
@@ -78,7 +96,8 @@ export const getGuardGeneralStats = async (filters: IGuardReportFilters): Promis
 
         const allKardex = await prisma.kardex.findMany({
             where: {
-                ...(guardId ? { userId: guardId } : {}),
+                clientId,
+                userId: { in: guardIds },
                 timestamp: { gte: start, lte: end }
             },
             select: { userId: true, timestamp: true, locationId: true, media: true }
@@ -125,16 +144,20 @@ export const getGuardGeneralStats = async (filters: IGuardReportFilters): Promis
     }
 };
 
-export const getTopPerformanceGuards = async (filters: IGuardReportFilters): Promise<TResult<any>> => {
+export const getTopPerformanceGuards = async (filters: IGuardReportFilters, scope: ClientScope | undefined): Promise<TResult<any>> => {
+    const { clientId } = scopeByClient(scope);
     try {
         const { startDate, endDate } = filters;
         const start = new Date(startDate);
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
 
+        // `Kardex.clientId` conserva el cliente donde se registró el escaneo, aunque el guardia
+        // ya se haya movido de asignación: el historial se queda con el cliente original.
         const groupData = await prisma.kardex.groupBy({
             by: ['userId'],
             where: {
+                clientId,
                 timestamp: { gte: start, lte: end },
                 user: { role: { name: { in: OPERATIONAL_ROLES } } }
             },
@@ -165,35 +188,36 @@ export const getTopPerformanceGuards = async (filters: IGuardReportFilters): Pro
     }
 };
 
-export const getWorkloadComparison = async (filters: IGuardReportFilters): Promise<TResult<any>> => {
+export const getWorkloadComparison = async (filters: IGuardReportFilters, scope: ClientScope | undefined): Promise<TResult<any>> => {
+    const { clientId } = scopeByClient(scope);
     try {
         const { startDate, endDate } = filters;
         const start = new Date(startDate);
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
 
-        const guards = await getGuards();
+        const guards = await getGuards(scope);
         const guardIds = guards.map(g => g.id);
 
         const [scans, incidents, maintenances, rounds] = await Promise.all([
             prisma.kardex.groupBy({
                 by: ['userId'],
-                where: { userId: { in: guardIds }, timestamp: { gte: start, lte: end } },
+                where: { clientId, userId: { in: guardIds }, timestamp: { gte: start, lte: end } },
                 _count: { _all: true }
             }),
             prisma.incident.groupBy({
                 by: ['guardId'],
-                where: { guardId: { in: guardIds }, kind: "INCIDENT", createdAt: { gte: start, lte: end } },
+                where: { clientId, guardId: { in: guardIds }, kind: "INCIDENT", createdAt: { gte: start, lte: end } },
                 _count: { _all: true }
             }),
             prisma.maintenance.groupBy({
                 by: ['guardId'],
-                where: { guardId: { in: guardIds }, createdAt: { gte: start, lte: end } },
+                where: { clientId, guardId: { in: guardIds }, createdAt: { gte: start, lte: end } },
                 _count: { _all: true }
             }),
             prisma.round.groupBy({
                 by: ['guardId'],
-                where: { guardId: { in: guardIds }, startTime: { gte: start, lte: end } },
+                where: { clientId, guardId: { in: guardIds }, startTime: { gte: start, lte: end } },
                 _count: { _all: true }
             })
         ]);
@@ -223,32 +247,33 @@ export const getWorkloadComparison = async (filters: IGuardReportFilters): Promi
     }
 };
 
-export const getActivityDistribution = async (filters: IGuardReportFilters): Promise<TResult<any>> => {
-    return getGuardGeneralStats(filters);
+export const getActivityDistribution = async (filters: IGuardReportFilters, scope: ClientScope | undefined): Promise<TResult<any>> => {
+    return getGuardGeneralStats(filters, scope);
 };
 
-export const getGuardDetailedReport = async (filters: IGuardReportFilters): Promise<TResult<any>> => {
+export const getGuardDetailedReport = async (filters: IGuardReportFilters, scope: ClientScope | undefined): Promise<TResult<any>> => {
+    const { clientId } = scopeByClient(scope);
     try {
         const { startDate, endDate, guardId } = filters;
         const start = new Date(startDate);
         const end = new Date(endDate);
         end.setHours(23, 59, 59, 999);
 
-        const guards = await getGuards(guardId);
+        const guards = await getGuards(scope, guardId);
         const guardIds = guards.map(g => g.id);
 
         const [scansGroupBy, allRounds, allKardex] = await Promise.all([
             prisma.kardex.groupBy({
                 by: ['userId'],
-                where: { userId: { in: guardIds }, timestamp: { gte: start, lte: end } },
+                where: { clientId, userId: { in: guardIds }, timestamp: { gte: start, lte: end } },
                 _count: { _all: true }
             }),
             prisma.round.findMany({
-                where: { guardId: { in: guardIds }, startTime: { gte: start, lte: end } },
+                where: { clientId, guardId: { in: guardIds }, startTime: { gte: start, lte: end } },
                 include: { recurringConfiguration: { include: { recurringLocations: true } } }
             }),
             prisma.kardex.findMany({
-                where: { userId: { in: guardIds }, timestamp: { gte: start, lte: end } },
+                where: { clientId, userId: { in: guardIds }, timestamp: { gte: start, lte: end } },
                 select: { userId: true, timestamp: true, locationId: true, media: true }
             })
         ]);
@@ -313,7 +338,8 @@ export const getGuardDetailedReport = async (filters: IGuardReportFilters): Prom
     }
 };
 
-export const getGuardDetailBreakdown = async (filters: IGuardReportFilters): Promise<TResult<any>> => {
+export const getGuardDetailBreakdown = async (filters: IGuardReportFilters, scope: ClientScope | undefined): Promise<TResult<any>> => {
+    const { clientId } = scopeByClient(scope);
     try {
         const { startDate, endDate, guardId } = filters;
         if (!guardId) throw new Error("GuardId is required");
@@ -325,11 +351,11 @@ export const getGuardDetailBreakdown = async (filters: IGuardReportFilters): Pro
 
         const [rounds, allKardex] = await Promise.all([
             prisma.round.findMany({
-                where: { guardId, startTime: { gte: start, lte: end } },
+                where: { clientId, guardId, startTime: { gte: start, lte: end } },
                 include: { recurringConfiguration: { include: { recurringLocations: { include: { location: true } } } } }
             }),
             prisma.kardex.findMany({
-                where: { userId: guardId, timestamp: { gte: start, lte: end } },
+                where: { clientId, userId: guardId, timestamp: { gte: start, lte: end } },
                 select: { locationId: true, timestamp: true, media: true }
             })
         ]);

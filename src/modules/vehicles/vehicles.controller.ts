@@ -50,7 +50,7 @@ export const deleteMine = async (req: Request, res: Response) => {
 
 export const list = async (req: Request, res: Response) => {
   try {
-    return res.status(200).json(createTResult(await listVehicles(req.query as any)));
+    return res.status(200).json(createTResult(await listVehicles(req.query as any, req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -58,7 +58,7 @@ export const list = async (req: Request, res: Response) => {
 
 export const approve = async (req: Request, res: Response) => {
   try {
-    return res.status(200).json(createTResult(await approveVehicle(Number(req.params.id), actorId(req), req.body.tagCode)));
+    return res.status(200).json(createTResult(await approveVehicle(Number(req.params.id), actorId(req), req.body.tagCode, req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -66,7 +66,7 @@ export const approve = async (req: Request, res: Response) => {
 
 export const reject = async (req: Request, res: Response) => {
   try {
-    return res.status(200).json(createTResult(await rejectVehicle(Number(req.params.id), req.body.notes)));
+    return res.status(200).json(createTResult(await rejectVehicle(Number(req.params.id), req.body.notes, req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -74,7 +74,7 @@ export const reject = async (req: Request, res: Response) => {
 
 export const deactivate = async (req: Request, res: Response) => {
   try {
-    return res.status(200).json(createTResult(await deactivateVehicle(Number(req.params.id))));
+    return res.status(200).json(createTResult(await deactivateVehicle(Number(req.params.id), req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -82,7 +82,7 @@ export const deactivate = async (req: Request, res: Response) => {
 
 export const lookup = async (req: Request, res: Response) => {
   try {
-    return res.status(200).json(createTResult(await lookupVehicles(String(req.query.q))));
+    return res.status(200).json(createTResult(await lookupVehicles(String(req.query.q), req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -90,7 +90,7 @@ export const lookup = async (req: Request, res: Response) => {
 
 export const access = async (req: Request, res: Response) => {
   try {
-    return res.status(200).json(createTResult(await registerVehicleAccess(Number(req.params.id), req.body.direction, actorId(req))));
+    return res.status(200).json(createTResult(await registerVehicleAccess(Number(req.params.id), req.body.direction, actorId(req), req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }

@@ -2,10 +2,13 @@ import { prismaClient } from "@src/core/config/database"; // Consistent with oth
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { AppError } from "@src/core/errors/app-error";
 import { clampLimit, getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
+import { ClientScope, scopeByClient } from "@src/core/scope/client-scope";
 
 const prisma = prismaClient;
 
-export const getDataTableLocations = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
+export const getDataTableLocations = async (params: ITDataTableFetchParams, scope: ClientScope | undefined): Promise<ITDataTableResponse<any>> => {
+  // Fuera del try: sin cliente es 403, no una tabla vacía.
+  const { clientId } = scopeByClient(scope);
   try {
     const { page, limit, filters } = params;
     const take = clampLimit(limit);
@@ -18,6 +21,7 @@ export const getDataTableLocations = async (params: ITDataTableFetchParams): Pro
             const rows: any = await prisma.$queryRaw`
                 SELECT * FROM "Location"
                 WHERE "softDelete" = false
+                AND "clientId" = ${clientId}
                 AND (
                     unaccent("name") ILIKE unaccent(${search}) OR
                     unaccent("aisle") ILIKE unaccent(${search}) OR
@@ -31,6 +35,7 @@ export const getDataTableLocations = async (params: ITDataTableFetchParams): Pro
             const totalRes: any = await prisma.$queryRaw`
                 SELECT COUNT(*)::int as count FROM "Location"
                 WHERE "softDelete" = false
+                AND "clientId" = ${clientId}
                 AND (
                     unaccent("name") ILIKE unaccent(${search}) OR
                     unaccent("aisle") ILIKE unaccent(${search}) OR
@@ -53,6 +58,7 @@ export const getDataTableLocations = async (params: ITDataTableFetchParams): Pro
         where: {
         ...prismaParams.where,
         softDelete: false,
+        clientId,
       },
       orderBy: prismaParams.orderBy || { id: 'desc' }
     }),
@@ -60,6 +66,7 @@ export const getDataTableLocations = async (params: ITDataTableFetchParams): Pro
       where: {
         ...prismaParams.where,
         softDelete: false,
+        clientId,
       }
     })
   ]);
@@ -71,9 +78,9 @@ export const getDataTableLocations = async (params: ITDataTableFetchParams): Pro
   }
 };
 
-export const getAllLocations = async () => {
+export const getAllLocations = async (scope: ClientScope | undefined) => {
   return await prisma.location.findMany({
-    where: { softDelete: false },
+    where: { softDelete: false, ...scopeByClient(scope) },
     orderBy: { id: "desc" },
   });
 };
@@ -83,10 +90,11 @@ export const createLocation = async (data: {
   spot: string;
   number: string;
   name?: string;
-}) => {
+}, scope: ClientScope | undefined) => {
   const name = data.name || `${data.aisle}-${data.spot}-${data.number}`;
   return await prisma.location.create({
     data: {
+      ...scopeByClient(scope),
       aisle: data.aisle,
       spot: data.spot,
       number: data.number,
@@ -95,19 +103,23 @@ export const createLocation = async (data: {
   });
 };
 
-export const updateLocation = async (id: number, data: { aisle: string; spot: string; number: string; name: string }) => {
+/** Ubicación del cliente del alcance; de otro cliente responde 404, igual que si no existiera. */
+const findLocationInScope = async (id: number, scope: ClientScope | undefined) => {
+    const location = await prisma.location.findFirst({ where: { id, ...scopeByClient(scope) } });
+    if (!location) throw new AppError("LOCATION_NOT_FOUND", "Ubicación no encontrada", 404);
+    return location;
+};
+
+export const updateLocation = async (id: number, data: { aisle: string; spot: string; number: string; name: string }, scope: ClientScope | undefined) => {
+    await findLocationInScope(id, scope);
     return await prisma.location.update({
         where: { id },
         data
     });
 };
 
-export const deleteLocation = async (id: number) => {
-    const location = await prisma.location.findUnique({
-        where: { id },
-    });
-
-    if (!location) throw new AppError("LOCATION_NOT_FOUND", "Ubicación no encontrada", 404);
+export const deleteLocation = async (id: number, scope: ClientScope | undefined) => {
+    await findLocationInScope(id, scope);
 
     // Con historial (bitácora o asignaciones) no se borra: se perdería la evidencia de las rondas.
     const [scans, assignments] = await Promise.all([
@@ -134,11 +146,4 @@ export const deleteLocation = async (id: number) => {
     return await prisma.location.delete({
         where: { id },
     });
-};
-
-export const getAvailableLocation = async () => {
-    // Return all active zones (shared logic)
-  return await prisma.location.findFirst({
-    where: { active: true, softDelete: false },
-  });
 };

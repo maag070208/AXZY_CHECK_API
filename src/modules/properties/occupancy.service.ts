@@ -6,6 +6,8 @@ import { prismaClient } from "@src/core/config/database";
 import { AppError } from "@src/core/errors/app-error";
 import { getSetting } from "@src/core/settings/app-settings.service";
 import { recountResidents } from "./resident-count";
+import { ClientScope, scopeByClient } from "@src/core/scope/client-scope";
+import { assertPersonReference } from "@src/modules/persons/person-scope";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -57,9 +59,9 @@ const assertOccupancyRules = (status: { code: string }, tenantPersonId?: number 
   }
 };
 
-export const getOccupancy = async (propertyId: number) => {
-  const property = await prismaClient.property.findUnique({
-    where: { id: propertyId },
+export const getOccupancy = async (propertyId: number, scope: ClientScope | undefined) => {
+  const property = await prismaClient.property.findFirst({
+    where: { id: propertyId, ...scopeByClient(scope) },
     select: { id: true, softDelete: true, residentCount: true, maxResidents: true, occupancyStatus: true, ownerPersonId: true },
   });
   if (!property || property.softDelete) throw new AppError("PROPERTY_NOT_FOUND", "Propiedad no encontrada", 404);
@@ -100,15 +102,20 @@ export const changeOccupancy = async (
     notes?: string | null;
   },
   actorId: number,
+  scope: ClientScope | undefined,
 ) => {
   const today = await todayDateOnly();
 
   return prismaClient.$transaction(async (tx) => {
-    const property = await tx.property.findUnique({
-      where: { id: propertyId },
+    const property = await tx.property.findFirst({
+      where: { id: propertyId, ...scopeByClient(scope) },
       select: { id: true, softDelete: true, occupancyStatusId: true, residentCount: true },
     });
     if (!property || property.softDelete) throw new AppError("PROPERTY_NOT_FOUND", "Propiedad no encontrada", 404);
+
+    // Referencias de la petición: el inquilino/propietario debe ser del cliente o una persona todavía sin cliente.
+    if (input.tenantPersonId) await assertPersonReference(input.tenantPersonId, scope);
+    if (input.ownerPersonId) await assertPersonReference(input.ownerPersonId, scope);
 
     const current = await tx.occupancyStatus.findUniqueOrThrow({ where: { id: property.occupancyStatusId } });
     const target = await tx.occupancyStatus.findUnique({ where: { code: input.status } });
@@ -173,13 +180,15 @@ export const changeOwnership = async (
   propertyId: number,
   input: { toPersonId: number; notes?: string | null },
   actorId: number,
+  scope: ClientScope | undefined,
 ) =>
   prismaClient.$transaction(async (tx) => {
-    const property = await tx.property.findUnique({
-      where: { id: propertyId },
+    const property = await tx.property.findFirst({
+      where: { id: propertyId, ...scopeByClient(scope) },
       select: { id: true, softDelete: true, ownerPersonId: true },
     });
     if (!property || property.softDelete) throw new AppError("PROPERTY_NOT_FOUND", "Propiedad no encontrada", 404);
+    await assertPersonReference(input.toPersonId, scope);
 
     const change = await tx.ownershipChange.create({
       data: {
@@ -220,21 +229,22 @@ export const listOccupancyStatuses = async () => {
 };
 
 /** Conteo de propiedades por estado y residentes totales/sobreocupación (dashboard de ocupación). */
-export const occupancyStats = async () => {
+export const occupancyStats = async (scope: ClientScope | undefined) => {
+  const { clientId } = scopeByClient(scope);
   const [byStatus, totals, overcrowded] = await Promise.all([
     prismaClient.property.groupBy({
       by: ["occupancyStatusId"],
-      where: { softDelete: false },
+      where: { softDelete: false, clientId },
       _count: { _all: true },
     }),
     prismaClient.property.aggregate({
-      where: { softDelete: false },
+      where: { softDelete: false, clientId },
       _sum: { residentCount: true },
       _count: { _all: true },
     }),
     prismaClient.$queryRaw<{ n: number }[]>`
       SELECT COUNT(*)::int AS n FROM "Property"
-      WHERE "softDelete" = false AND "maxResidents" IS NOT NULL AND "residentCount" > "maxResidents"`,
+      WHERE "softDelete" = false AND "clientId" = ${clientId} AND "maxResidents" IS NOT NULL AND "residentCount" > "maxResidents"`,
   ]);
   const statuses = await prismaClient.occupancyStatus.findMany({ select: { id: true, code: true, name: true } });
   const countById = new Map(byStatus.map((row) => [row.occupancyStatusId, row._count._all]));

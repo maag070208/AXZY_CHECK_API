@@ -16,7 +16,8 @@ export interface RouteIds {
  * asignación puntual pendiente. Idempotente por título de ruta.
  */
 export const routesFlow = async (prisma: PrismaClient, staff: StaffIds): Promise<RouteIds> => {
-  const locationIds = await locationsFlow(prisma);
+  const { clientId } = staff;
+  const locationIds = await locationsFlow(prisma, clientId);
   const [p1, p2, p3, p4] = locationIds;
 
   let config = await prisma.recurringConfiguration.findFirst({ where: { title: FLOW_ROUTE_TITLE } });
@@ -24,6 +25,7 @@ export const routesFlow = async (prisma: PrismaClient, staff: StaffIds): Promise
     config = await prisma.recurringConfiguration.create({
       data: {
         title: FLOW_ROUTE_TITLE,
+        clientId,
         description: "Recorrido de prueba por accesos, alberca y jardín",
         guards: { connect: [{ id: staff.guard1 }, { id: staff.guard2 }] },
         recurringLocations: {
@@ -41,12 +43,13 @@ export const routesFlow = async (prisma: PrismaClient, staff: StaffIds): Promise
     const end = new Date(Date.now() - 2 * 3600_000);
     const start = new Date(end.getTime() - 45 * 60_000);
     round = await prisma.round.create({
-      data: { guardId: staff.guard1, recurringConfigurationId: config.id, status: "COMPLETED", startTime: start, endTime: end },
+      data: { guardId: staff.guard1, recurringConfigurationId: config.id, status: "COMPLETED", startTime: start, endTime: end, clientId },
     });
     await prisma.kardex.createMany({
       data: [p1, p2].map((locationId, i) => ({
         userId: staff.guard1,
         locationId,
+        clientId,
         scanType: "RECURRING" as const,
         notes: "Punto sin novedad",
         media: [{ type: "IMAGE", url: `https://example.test/flujo/ronda-${i + 1}.jpg`, key: `flujo/ronda-${i + 1}.jpg` }],
@@ -62,6 +65,7 @@ export const routesFlow = async (prisma: PrismaClient, staff: StaffIds): Promise
         guardId: staff.guard2,
         locationId: p4,
         assignedBy: staff.shift,
+        clientId,
         notes: "Flujo · revisión puntual",
         tasks: { create: [{ description: "Revisar riego", reqPhoto: true }] },
       },

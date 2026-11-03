@@ -1,33 +1,45 @@
+import { joinClient } from "@src/core/scope/membership";
+import type { ClientScope } from "@src/core/scope/client-scope";
 import { prismaClient } from "@src/core/config/database";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 import { syncLegacyResident } from "@src/modules/residents/legacy-sync";
 import { AppError } from "@src/core/errors/app-error";
 
-export const getUsers = async (search?: string) => {
-  if (!search) {
-    return prismaClient.user.findMany({
-        where: { softDelete: false },
-        orderBy: { name: 'asc' },
-        include: { schedule: true, role: true, assignments: true }
-    });
-  }
+/** Multicliente: los usuarios que se listan son solo de la organización del alcance. */
+const usersInclude = {
+  schedule: true,
+  role: true,
+  assignments: true,
+  guardAssignments: {
+    where: { endsAt: null },
+    select: { id: true, clientId: true, startsAt: true, client: { select: { id: true, name: true, type: true } } },
+    take: 1,
+  },
+} as const;
 
-  return prismaClient.user.findMany({
-    where: {
-      softDelete: false,
-      OR: [
-          { name: { contains: search } }, 
-          { lastName: { contains: search } },
-          { username: { contains: search } }
-      ]
-    },
-    orderBy: { name: 'asc' },
-    include: { schedule: true, role: true, assignments: true }
-  });
+/** Aplana la asignación de cliente abierta en `guardAssignment` (lo que consume la WEB). */
+const withGuardAssignment = (row: any) => {
+  const { guardAssignments, ...rest } = row;
+  return { ...rest, guardAssignment: guardAssignments?.[0] ?? null };
 };
 
-export const getDataTableUsers = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
+export const getUsers = async (search: string | undefined, scope: ClientScope) => {
+  if (scope.organizationId === null) throw new AppError("ORGANIZATION_REQUIRED", "El usuario no tiene organización", 403);
+  const where: any = { softDelete: false, organizationId: scope.organizationId };
+  if (search) {
+    where.OR = [
+      { name: { contains: search } },
+      { lastName: { contains: search } },
+      { username: { contains: search } },
+    ];
+  }
+  const rows = await prismaClient.user.findMany({ where, orderBy: { name: 'asc' }, include: usersInclude });
+  return rows.map(withGuardAssignment);
+};
+
+export const getDataTableUsers = async (params: ITDataTableFetchParams, scope: ClientScope): Promise<ITDataTableResponse<any>> => {
+  if (scope.organizationId === null) throw new AppError("ORGANIZATION_REQUIRED", "El usuario no tiene organización", 403);
   const { pendingTasks, password: _hidden, ...restFilters } = (params.filters ?? {}) as Record<string, unknown>;
   // Ni filtrar ni ordenar por la clave: permitiría adivinar el hash carácter por carácter.
   const sort = params.sort?.key === "password" ? undefined : params.sort;
@@ -36,6 +48,7 @@ export const getDataTableUsers = async (params: ITDataTableFetchParams): Promise
   const where: any = {
     ...prismaParams.where,
     softDelete: false,
+    organizationId: scope.organizationId,
   };
 
   if (pendingTasks === true) {
@@ -48,12 +61,12 @@ export const getDataTableUsers = async (params: ITDataTableFetchParams): Promise
     prismaClient.user.findMany({
       ...prismaParams,
       where,
-      include: { schedule: true, role: true, assignments: true }
+      include: usersInclude
     }),
     prismaClient.user.count({ where })
   ]);
 
-  return { rows, total };
+  return { rows: rows.map(withGuardAssignment), total };
 };
 
 export const getUserByUsername = async (username: string) => {
@@ -70,7 +83,13 @@ export const getUserByUsername = async (username: string) => {
   });
 };
 
-export const addUser = async (data: any) => {
+/**
+ * Multicliente: el usuario nuevo queda en la organización de quien lo da de alta y, si es guardia o jefe de turno,
+ * asignado al cliente con el que trabaja quien lo da de alta (`scope`).
+ */
+export const addUser = async (data: any, scope: ClientScope) => {
+  // Desde la contracción de fase 2, todo usuario pertenece a una organización.
+  if (scope.organizationId === null) throw new AppError("ORGANIZATION_REQUIRED", "El usuario no tiene organización", 403);
   const { role: roleName, ...userData } = data;
   
   let targetRoleId = userData.roleId;
@@ -83,12 +102,20 @@ export const addUser = async (data: any) => {
       throw new AppError("ROLE_NOT_FOUND", "El rol indicado no existe", 400);
   }
 
+  // Rol CLIENT: se crea ligado a un cliente concreto del alcance (el elegido por el administrador).
+  const targetRole = await prismaClient.role.findUnique({ where: { id: Number(targetRoleId) }, select: { name: true } });
+  if (targetRole?.name === "CLIENT") {
+      if (scope.clientId === null) throw new AppError("CLIENT_REQUIRED", "Elige un cliente para crear su administrador", 400);
+      userData.clientId = scope.clientId;
+  }
+
   // Auto-Assign Recurring Configs if Guard/Staff
   if (targetRoleId) {
       const role = await prismaClient.role.findUnique({ where: { id: Number(targetRoleId) } });
       if (role && (role.name === 'GUARD' || role.name === 'SHIFT' || role.name === 'MAINT')) {
-          const allDirectives = await prismaClient.recurringConfiguration.findMany({
-              where: { active: true },
+          // Solo las rutas del cliente actual; sin cliente en el alcance no se conecta ninguna.
+          const allDirectives = scope.clientId === null ? [] : await prismaClient.recurringConfiguration.findMany({
+              where: { active: true, clientId: scope.clientId },
               select: { id: true }
           });
           
@@ -106,14 +133,27 @@ export const addUser = async (data: any) => {
     const created = await tx.user.create({
       data: {
           ...userData,
-          roleId: Number(targetRoleId)
+          roleId: Number(targetRoleId),
+          organizationId: scope.organizationId,
       },
+      include: { role: { select: { name: true } } },
     });
+    await joinClient(tx, { id: created.id, roleName: created.role.name }, scope);
     await syncLegacyResident(tx, created.id);
-    return created;
+    const { role: _role, ...user } = created;
+    return { ...user, organizationId: scope.organizationId ?? user.organizationId };
   });
 };
 
+/** Usuario de la organización del alcance; de otra organización es "no encontrado". */
+const findUserInOrganization = async (id: number, scope: ClientScope) => {
+  if (scope.organizationId === null) throw new AppError("ORGANIZATION_REQUIRED", "El usuario no tiene organización", 403);
+  const user = await prismaClient.user.findFirst({ where: { id, softDelete: false, organizationId: scope.organizationId }, select: { id: true } });
+  if (!user) throw new AppError("USER_NOT_FOUND", "Usuario no encontrado", 404);
+  return user;
+};
+
+/** Actualización interna (login/logout/cambio de contraseña propio): sin validar alcance. */
 export const updateUser = async (id: number, data: any) => {
   const { role: roleName, ...userData } = data;
   
@@ -130,13 +170,42 @@ export const updateUser = async (id: number, data: any) => {
   });
 };
 
-export const getUserById = async (id: number) => {
-  return prismaClient.user.findUnique({
-    where: {
-      id,
-      softDelete: false,
-    },
+/**
+ * Actualización desde la API: el usuario administrado tiene que ser de la organización del alcance.
+ * Si el rol cambia a CLIENT se liga al cliente elegido; al salir de CLIENT se limpia la liga.
+ */
+export const updateUserInScope = async (id: number, data: any, scope: ClientScope) => {
+  await findUserInOrganization(id, scope);
+  const roleId = data.roleId ? Number(data.roleId) : null;
+  if (roleId !== null) {
+    const role = await prismaClient.role.findUnique({ where: { id: roleId }, select: { name: true } });
+    if (role?.name === "CLIENT") {
+      if (scope.clientId === null) throw new AppError("CLIENT_REQUIRED", "Elige un cliente para su administrador", 400);
+      data = { ...data, clientId: scope.clientId };
+    } else {
+      data = { ...data, clientId: null };
+    }
+  }
+  return updateUser(id, data);
+};
+
+export const getUserById = async (id: number, scope: ClientScope) => {
+  if (scope.organizationId === null) throw new AppError("ORGANIZATION_REQUIRED", "El usuario no tiene organización", 403);
+  return prismaClient.user.findFirst({
+    where: { id, softDelete: false, organizationId: scope.organizationId },
   });
+};
+
+/** Detalle para la WEB: el propio perfil, o el de un usuario de la misma organización. */
+export const getUserProfileInScope = async (id: number, scope: ClientScope) => {
+  if (scope.organizationId === null) throw new AppError("ORGANIZATION_REQUIRED", "El usuario no tiene organización", 403);
+  const user = await prismaClient.user.findFirst({
+    where: { id, softDelete: false, organizationId: scope.organizationId },
+    include: { role: true, schedule: true, guardAssignments: { where: { endsAt: null }, select: { id: true, clientId: true, client: { select: { id: true, name: true, type: true } } }, take: 1 } },
+  });
+  if (!user) return null;
+  const { password: _password, photoKey: _photoKey, guardAssignments, ...safeUser } = user;
+  return { ...safeUser, guardAssignment: guardAssignments[0] ?? null };
 };
 
 /**
@@ -173,8 +242,9 @@ export const getLoggedInGuards = async (excludeUserId: number) => {
   });
 };
 
-export const deleteUser = async (id: number) => {
-  const user = await prismaClient.user.findUnique({ where: { id } });
+export const deleteUser = async (id: number, scope: ClientScope) => {
+  if (scope.organizationId === null) throw new AppError("ORGANIZATION_REQUIRED", "El usuario no tiene organización", 403);
+  const user = await prismaClient.user.findFirst({ where: { id, organizationId: scope.organizationId } });
   if (!user) return null;
 
   return prismaClient.$transaction(async (tx) => {

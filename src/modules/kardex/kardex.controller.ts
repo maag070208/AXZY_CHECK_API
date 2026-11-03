@@ -45,7 +45,7 @@ export const createKardexEntry = async (req: Request, res: Response) => {
       clientRef,
       scannedAt,
       ...origin,
-    });
+    }, req.scope);
 
     return res.status(201).json(createTResult(entry));
   } catch (error: any) {
@@ -58,7 +58,7 @@ export const updateKardexEntry = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { notes, media, latitude, longitude } = req.body;
 
-    const existing = await getKardexById(Number(id));
+    const existing = await getKardexById(Number(id), req.scope);
     if (!existing) {
       return res.status(404).json(createTResult(null, ["Registro no encontrado"]));
     }
@@ -88,7 +88,7 @@ export const getKardexEntries = async (req: Request, res: Response) => {
       locationId: locationId ? Number(locationId) : undefined,
       startDate: startDate as string,
       endDate: endDate as string,
-    });
+    }, req.scope);
 
     return res.status(200).json(createTResult(entries));
   } catch (error: any) {
@@ -105,7 +105,7 @@ export const getKardexDetail = async (req: Request, res: Response) => {
         return res.status(400).json(createTResult(null, ["Invalid ID"]));
     }
 
-    const entry = await getKardexById(numericId);
+    const entry = await getKardexById(numericId, req.scope);
 
     if (!entry) {
       return res.status(404).json(createTResult(null, ["Kardex entry not found"]));
@@ -126,7 +126,7 @@ export const getDataTableKardexEntries = async (req: Request, res: Response) => 
       limit: Number(limit) || 10,
       filters: filters || {},
       sort: sort || undefined,
-    });
+    }, req.scope);
 
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
@@ -138,7 +138,7 @@ export const getDataTableKardexEntries = async (req: Request, res: Response) => 
 export const deleteKardexEntry = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const entry = await getKardexById(Number(id));
+    const entry = await getKardexById(Number(id), req.scope);
     
     if (!entry) {
       return res.status(404).json(createTResult(null, ["Registro no encontrado"]));
@@ -165,7 +165,7 @@ export const deleteMedia = async (req: Request, res: Response) => {
       return res.status(400).json(createTResult(null, ["Falta el key del archivo"]));
     }
 
-    const entry = await getKardexById(Number(id));
+    const entry = await getKardexById(Number(id), req.scope);
     if (!entry || !entry.media) {
       return res.status(404).json(createTResult(null, ["Registro o media no encontrada"]));
     }

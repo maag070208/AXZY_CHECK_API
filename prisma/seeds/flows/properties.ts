@@ -16,9 +16,17 @@ export interface PropertyIds {
 
 const today = () => new Date(`${new Date().toISOString().slice(0, 10)}T00:00:00.000Z`);
 
-const ensurePerson = async (prisma: PrismaClient, data: { firstName: string; lastName: string; phone: string; email: string; userId?: number }) => {
+const ensurePerson = async (
+  prisma: PrismaClient,
+  data: { firstName: string; lastName: string; phone: string; email: string; userId?: number },
+  clientId: number,
+) => {
+  // Multicliente: la persona es del cliente del flujo, también antes de tener vínculo con una propiedad.
   const found = await prisma.person.findFirst({ where: { email: data.email } });
-  return found ?? prisma.person.create({ data });
+  if (!found) return prisma.person.create({ data: { ...data, clientId } });
+  // Personas de flujos anteriores a la fase 5: se les asigna el cliente del flujo (idempotente, sin duplicar).
+  if (!found.clientId) return prisma.person.update({ where: { id: found.id }, data: { clientId } });
+  return found;
 };
 
 /**
@@ -44,17 +52,21 @@ export const propertiesFlow = async (prisma: PrismaClient, staff: StaffIds): Pro
 
   const building = await prisma.building.upsert({ where: { name: FLOW_BUILDING }, update: {}, create: { name: FLOW_BUILDING, floors: 4 } });
 
-  const owner = await ensurePerson(prisma, { firstName: "Oscar", lastName: "Propietario", phone: "5550100", email: "oscar.propietario@example.test" });
-  const tenant = await ensurePerson(prisma, { firstName: "Tania", lastName: "Inquilina", phone: "5550101", email: "tania.inquilina@example.test" });
-  const residentPerson = await ensurePerson(prisma, { firstName: "Rosa", lastName: "Residente", phone: "5550102", email: "rosa.residente@example.test", userId: staff.resident });
+  const owner = await ensurePerson(prisma, { firstName: "Oscar", lastName: "Propietario", phone: "5550100", email: "oscar.propietario@example.test" }, staff.clientId);
+  const tenant = await ensurePerson(prisma, { firstName: "Tania", lastName: "Inquilina", phone: "5550101", email: "tania.inquilina@example.test" }, staff.clientId);
+  const residentPerson = await ensurePerson(prisma, { firstName: "Rosa", lastName: "Residente", phone: "5550102", email: "rosa.residente@example.test", userId: staff.resident }, staff.clientId);
 
   const ensureProperty = async (
     def: { identifier: string; name: string; mainStreet: string },
     extra: { kindId: number; typeId: number; statusId: number; occupancyStatusId: number; buildingId?: number; ownerPersonId?: number; unitNumber?: string; floor?: number },
   ) => {
-    const existing = await prisma.property.findUnique({ where: { identifier: def.identifier } });
-    if (existing) return existing;
-    const created = await prisma.property.create({ data: { ...def, maxResidents: 4, ...extra } });
+    const existing = await prisma.property.findFirst({ where: { identifier: def.identifier, clientId: staff.clientId } });
+    if (existing) {
+      // Multicliente: las propiedades de corridas anteriores sin cliente pasan al cliente del flujo.
+      if (!existing.clientId) await prisma.property.update({ where: { id: existing.id }, data: { clientId: staff.clientId } });
+      return existing;
+    }
+    const created = await prisma.property.create({ data: { ...def, maxResidents: 4, clientId: staff.clientId, ...extra } });
     await prisma.occupancyPeriod.create({
       data: {
         propertyId: created.id,

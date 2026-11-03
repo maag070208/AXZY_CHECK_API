@@ -2,6 +2,7 @@ import { ChargeCategory, ChargeStatus, Prisma, ResidentStatus } from "@prisma/cl
 import type { z } from "zod";
 import { prismaClient } from "@src/core/config/database";
 import { AppError } from "@src/core/errors/app-error";
+import { ClientScope, scopeByClient, scopeByProperty } from "@src/core/scope/client-scope";
 import { findResidentPropertyId } from "../residents/resident-property.service";
 import type {
   createChargeBody,
@@ -38,10 +39,22 @@ const nextPaymentFolio = async (tx: Prisma.TransactionClient): Promise<number> =
   return next;
 };
 
+/**
+ * Filtro por el cliente del alcance para las filas que llegan al cliente por su propiedad.
+ * `scope === undefined` solo lo usa el job interno de cobranza (no hay petición ni alcance);
+ * todos los controladores pasan siempre `req.scope`.
+ */
+const byScope = (scope: ClientScope | undefined): { property?: { clientId: number } } =>
+  scope ? scopeByProperty(scope) : {};
+
 /** Asigna folio a un pago viejo que aún no lo tenga (recibos previos a la fase 4). */
-export const ensurePaymentFolio = async (paymentId: number): Promise<number> => {
+export const ensurePaymentFolio = async (paymentId: number, scope: ClientScope | undefined): Promise<number> => {
   return prismaClient.$transaction(async (tx) => {
-    const payment = await tx.payment.findUnique({ where: { id: paymentId }, select: { folio: true } });
+    // Multicliente: un pago de otro cliente responde 404, igual que si no existiera.
+    const payment = await tx.payment.findFirst({
+      where: { id: paymentId, ...byScope(scope) },
+      select: { folio: true },
+    });
     if (!payment) throw new AppError("PAYMENT_NOT_FOUND", "Pago no encontrado", 404);
     if (payment.folio) return payment.folio;
     const folio = await nextPaymentFolio(tx);
@@ -58,12 +71,24 @@ const USER_SELECT = { select: { id: true, name: true, lastName: true } } as cons
 
 export const residentPropertyId = (userId: number): Promise<number | null> => findResidentPropertyId(userId);
 
-const ensureProperty = async (propertyId: number) => {
+/**
+ * Valida la propiedad que referencia un alta (cargo, pago): tiene que ser del cliente del alcance.
+ * De otro cliente (o inexistente) responde 400, sin revelar si existe; sin cliente en el alcance, 403.
+ */
+const ensurePropertyInScope = async (propertyId: number, scope: ClientScope | undefined) => {
+  const clientId = scope ? scopeByClient(scope).clientId : undefined;
   const property = await prismaClient.property.findFirst({
-    where: { id: propertyId, softDelete: false },
+    where: { id: propertyId, softDelete: false, ...(clientId === undefined ? {} : { clientId }) },
     select: { id: true },
   });
-  if (!property) throw new AppError("PROPERTY_NOT_FOUND", "Propiedad no encontrada", 404);
+  if (!property) {
+    throw new AppError(
+      "PROPERTY_NOT_IN_CLIENT",
+      "La propiedad no pertenece al cliente seleccionado",
+      400,
+    );
+  }
+  return property;
 };
 
 /**
@@ -106,9 +131,9 @@ const paidByCharge = async (chargeIds: number[], db: FinanceDb = prismaClient): 
   return new Map(rows.map((row) => [row.chargeId, round2(asNumber(row._sum.amount))]));
 };
 
-const creditForResident = async (residentId: number): Promise<number> => {
+const creditForResident = async (residentId: number, scope: ClientScope | undefined): Promise<number> => {
   const row = await prismaClient.payment.aggregate({
-    where: { residentId, voidedAt: null },
+    where: { residentId, voidedAt: null, ...byScope(scope) },
     _sum: { unallocatedAmount: true },
   });
   return round2(asNumber(row._sum.unallocatedAmount));
@@ -149,8 +174,10 @@ const refreshChargeStatuses = async (tx: Prisma.TransactionClient, chargeIds: nu
   }
 };
 
-export const listCharges = async (actor: FinanceActor, query: ListChargesInput) => {
+export const listCharges = async (actor: FinanceActor, query: ListChargesInput, scope: ClientScope | undefined) => {
   const where: Prisma.ChargeWhereInput = {
+    // Multicliente: solo los cargos cuya propiedad es del cliente del alcance (403 sin cliente).
+    ...scopeByProperty(scope),
     // El residente nunca puede pedir los cargos de otro: su id manda sobre el filtro.
     ...(actor.canManage
       ? query.residentId
@@ -196,8 +223,8 @@ export const listCharges = async (actor: FinanceActor, query: ListChargesInput) 
   return { data: rows.map((row) => withChargeAmounts(row, paid.get(row.id) ?? 0)), total };
 };
 
-export const createCharge = async (actor: FinanceActor, input: CreateChargeInput) => {
-  await ensureProperty(input.propertyId);
+export const createCharge = async (actor: FinanceActor, input: CreateChargeInput, scope: ClientScope | undefined) => {
+  await ensurePropertyInScope(input.propertyId, scope);
   const residentId = await resolveResidentId(input.propertyId, input.residentId);
   const amount = round2(input.amount);
   if (amount <= 0) throw new AppError("INVALID_AMOUNT", "El monto debe ser mayor a 0", 400);
@@ -230,18 +257,37 @@ export const createCharge = async (actor: FinanceActor, input: CreateChargeInput
   }
 };
 
-export const generateMonthlyCharges = async (actor: FinanceActor, input: MonthlyChargesInput) => {
+export const generateMonthlyCharges = async (
+  actor: FinanceActor,
+  input: MonthlyChargesInput,
+  scope: ClientScope | undefined,
+) => {
   const amount = round2(input.amount);
   if (amount <= 0) throw new AppError("INVALID_AMOUNT", "El monto debe ser mayor a 0", 400);
 
+  // Multicliente: la generación solo recorre propiedades del cliente del alcance. Si se pidieron
+  // propiedades concretas y alguna es de otro cliente, es un alta con referencia ajena → 400.
+  const { clientId } = scopeByClient(scope);
   const properties = await prismaClient.property.findMany({
     where: {
       softDelete: false,
+      clientId,
       ...(input.propertyIds?.length ? { id: { in: input.propertyIds } } : {}),
     },
     select: { id: true },
     orderBy: { id: "asc" },
   });
+
+  if (input.propertyIds?.length) {
+    const found = new Set(properties.map((property) => property.id));
+    if (input.propertyIds.some((propertyId) => !found.has(propertyId))) {
+      throw new AppError(
+        "PROPERTY_NOT_IN_CLIENT",
+        "Una o más propiedades no pertenecen al cliente seleccionado",
+        400,
+      );
+    }
+  }
 
   if (properties.length === 0) return { created: 0, skipped: 0, results: [] };
 
@@ -249,7 +295,11 @@ export const generateMonthlyCharges = async (actor: FinanceActor, input: Monthly
 
   // Una sola lectura de titulares y cuotas existentes evita 2-3 consultas por propiedad.
   const residents = await prismaClient.resident.findMany({
-    where: { propertyId: { in: propertyIds }, status: ResidentStatus.ACTIVE, property: { softDelete: false } },
+    where: {
+      propertyId: { in: propertyIds },
+      status: ResidentStatus.ACTIVE,
+      property: { softDelete: false, clientId },
+    },
     orderBy: [{ isPrimary: "desc" }, { id: "asc" }],
     select: { propertyId: true, person: { select: { userId: true } } },
   });
@@ -315,9 +365,10 @@ export const generateMonthlyCharges = async (actor: FinanceActor, input: Monthly
   };
 };
 
-export const cancelCharge = async (id: number, reason: string) => {
-  const charge = await prismaClient.charge.findUnique({
-    where: { id },
+export const cancelCharge = async (id: number, reason: string, scope: ClientScope | undefined) => {
+  // Multicliente: un cargo de otro cliente responde 404, como si no existiera.
+  const charge = await prismaClient.charge.findFirst({
+    where: { id, ...scopeByProperty(scope) },
     select: { id: true, status: true },
   });
   if (!charge) throw new AppError("CHARGE_NOT_FOUND", "Cargo no encontrado", 404);
@@ -349,7 +400,7 @@ export const cancelCharge = async (id: number, reason: string) => {
   return withChargeAmounts(updated, 0);
 };
 
-export const listPayments = async (actor: FinanceActor, query: ListPaymentsInput) => {
+export const listPayments = async (actor: FinanceActor, query: ListPaymentsInput, scope: ClientScope | undefined) => {
   // `OR` de visibilidad y `OR` de búsqueda deben convivir: se combinan con AND.
   const and: Prisma.PaymentWhereInput[] = [];
   if (!actor.canManage) {
@@ -372,6 +423,8 @@ export const listPayments = async (actor: FinanceActor, query: ListPaymentsInput
   }
 
   const where: Prisma.PaymentWhereInput = {
+    // Multicliente: solo los pagos cuya propiedad es del cliente del alcance (403 sin cliente).
+    ...scopeByProperty(scope),
     ...(and.length ? { AND: and } : {}),
     ...(query.propertyId ? { propertyId: query.propertyId } : {}),
     ...(query.residentId ? { residentId: query.residentId } : {}),
@@ -448,12 +501,14 @@ type TargetCharge = {
 
 const resolveTargetCharges = async (
   input: CreatePaymentInput,
+  scope: ClientScope | undefined,
   db: FinanceDb = prismaClient,
 ): Promise<TargetCharge[]> => {
   const chargeIds = input.chargeIds ?? [];
   const charges = await db.charge.findMany({
     where: {
       propertyId: input.propertyId,
+      ...byScope(scope),
       status: { not: ChargeStatus.CANCELLED },
       ...(input.residentId ? { residentId: input.residentId } : {}),
       ...(chargeIds.length ? { id: { in: chargeIds } } : {}),
@@ -493,8 +548,9 @@ const resolveTargetCharges = async (
     .filter((charge) => charge.outstanding > 0);
 };
 
-export const createPayment = async (actor: FinanceActor, input: CreatePaymentInput) => {
-  await ensureProperty(input.propertyId);
+export const createPayment = async (actor: FinanceActor, input: CreatePaymentInput, scope: ClientScope | undefined) => {
+  // Multicliente: la propiedad del pago tiene que ser del cliente del alcance (400 si es ajena).
+  await ensurePropertyInScope(input.propertyId, scope);
   const amount = round2(input.amount);
   if (amount <= 0) throw new AppError("INVALID_AMOUNT", "El monto debe ser mayor a 0", 400);
 
@@ -517,7 +573,7 @@ export const createPayment = async (actor: FinanceActor, input: CreatePaymentInp
     // también la lectura/asignación de cargos, evitando sobrepagos concurrentes.
     const folio = await nextPaymentFolio(tx);
 
-    const targets = await resolveTargetCharges(input, tx);
+    const targets = await resolveTargetCharges(input, scope, tx);
     const totalOutstanding = round2(targets.reduce((sum, charge) => sum + charge.outstanding, 0));
 
     if (totalOutstanding === 0 && !input.allowOverpayment) {
@@ -597,9 +653,10 @@ export const createPayment = async (actor: FinanceActor, input: CreatePaymentInp
   });
 };
 
-export const voidPayment = async (actor: FinanceActor, id: number, reason: string) => {
-  const payment = await prismaClient.payment.findUnique({
-    where: { id },
+export const voidPayment = async (actor: FinanceActor, id: number, reason: string, scope: ClientScope | undefined) => {
+  // Multicliente: un pago de otro cliente responde 404, como si no existiera.
+  const payment = await prismaClient.payment.findFirst({
+    where: { id, ...scopeByProperty(scope) },
     select: {
       id: true,
       voidedAt: true,
@@ -632,11 +689,23 @@ export const voidPayment = async (actor: FinanceActor, id: number, reason: strin
   };
 };
 
-export const getResidentFinance = async (userId: number) => {
+export const getResidentFinance = async (userId: number, scope: ClientScope | undefined) => {
+  // Multicliente: sin cliente en el alcance no se exponen finanzas (403 antes de consultar).
+  const { clientId } = scopeByClient(scope);
   const propertyId = await residentPropertyId(userId);
 
+  // Además del alcance, la propiedad canónica del residente debe ser del cliente elegido: si no,
+  // el residente no pertenece a ese cliente (404, como si no existiera en él).
+  if (propertyId !== null) {
+    const property = await prismaClient.property.findFirst({
+      where: { id: propertyId, softDelete: false, clientId },
+      select: { id: true },
+    });
+    if (!property) throw new AppError("RESIDENT_NOT_FOUND", "Residente no encontrado", 404);
+  }
+
   const charges = await prismaClient.charge.findMany({
-    where: { residentId: userId },
+    where: { residentId: userId, ...scopeByProperty(scope) },
     orderBy: [{ dueDate: "asc" }, { id: "asc" }],
     include: { property: PROPERTY_SELECT },
   });
@@ -644,6 +713,7 @@ export const getResidentFinance = async (userId: number) => {
   const paid = await paidByCharge(charges.map((charge) => charge.id));
   const payments = await prismaClient.payment.findMany({
     where: {
+      ...scopeByProperty(scope),
       OR: [
         { residentId: userId },
         { allocations: { some: { charge: { residentId: userId } } } },
@@ -659,7 +729,7 @@ export const getResidentFinance = async (userId: number) => {
     },
   });
 
-  const credit = await creditForResident(userId);
+  const credit = await creditForResident(userId, scope);
   const activeCharges = charges.filter((charge) => charge.status !== ChargeStatus.CANCELLED);
   const totalCharges = round2(activeCharges.reduce((sum, charge) => sum + asNumber(charge.amount), 0));
   const applied = round2(
@@ -722,15 +792,17 @@ export const getResidentFinance = async (userId: number) => {
   };
 };
 
-export const getFinanceSummary = async () => {
+export const getFinanceSummary = async (scope: ClientScope | undefined) => {
+  // Multicliente: el resumen solo suma el cliente elegido (403 si el alcance no tiene cliente).
+  const { clientId } = scopeByClient(scope);
   const [properties, charges, payments] = await Promise.all([
     prismaClient.property.findMany({
-      where: { softDelete: false },
+      where: { softDelete: false, clientId },
       orderBy: { identifier: "asc" },
       select: { id: true, identifier: true, name: true },
     }),
     prismaClient.charge.findMany({
-      where: { status: { not: ChargeStatus.CANCELLED } },
+      where: { status: { not: ChargeStatus.CANCELLED }, ...byScope(scope) },
       select: {
         propertyId: true,
         residentId: true,
@@ -740,7 +812,7 @@ export const getFinanceSummary = async () => {
       },
     }),
     prismaClient.payment.findMany({
-      where: { voidedAt: null },
+      where: { voidedAt: null, ...byScope(scope) },
       select: { propertyId: true, unallocatedAmount: true },
     }),
   ]);

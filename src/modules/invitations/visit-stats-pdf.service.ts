@@ -2,6 +2,7 @@ import { Response } from "express";
 import PDFDocument from "pdfkit";
 import dayjs from "dayjs";
 import { getVisitStats } from "./invitations.service";
+import { ClientScope } from "@src/core/scope/client-scope";
 
 const formatMinutes = (minutes: number | null) => {
   if (minutes === null) return "Sin datos";
@@ -12,8 +13,9 @@ const formatMinutes = (minutes: number | null) => {
 export const streamVisitStatsPdf = async (
   res: Response,
   params: { from: Date; to: Date; propertyId?: number },
+  scope: ClientScope | undefined,
 ): Promise<void> => {
-  const stats = await getVisitStats(params);
+  const stats = await getVisitStats(params, scope);
   const period = `${dayjs(params.from).format("DD/MM/YYYY")} a ${dayjs(params.to).format("DD/MM/YYYY")}`;
 
   const doc = new PDFDocument({ size: "LETTER", margin: 50 });

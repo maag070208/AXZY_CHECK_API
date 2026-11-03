@@ -2,6 +2,7 @@ import { z } from "zod";
 import { prismaClient } from "@src/core/config/database";
 import { AppError } from "@src/core/errors/app-error";
 import { createPropertyForImport } from "./properties.service";
+import { ClientScope } from "@src/core/scope/client-scope";
 
 /** Máximo de filas por importación: evita transacciones enormes en una sola petición. */
 export const IMPORT_MAX_ROWS = 500;
@@ -24,7 +25,7 @@ const importRow = z.object({
  * Importa filas válidas y reporta las inválidas (T-A1-T7): una fila mala no aborta el lote.
  * Cada fila se crea en su propia transacción.
  */
-export const importProperties = async (rows: unknown[]) => {
+export const importProperties = async (rows: unknown[], scope: ClientScope | undefined) => {
   if (!Array.isArray(rows) || rows.length === 0) throw new AppError("IMPORT_EMPTY", "No hay filas para importar", 400);
   if (rows.length > IMPORT_MAX_ROWS) throw new AppError("IMPORT_TOO_MANY", `Máximo ${IMPORT_MAX_ROWS} filas por importación`, 400);
 
@@ -59,7 +60,7 @@ export const importProperties = async (rows: unknown[]) => {
         unitNumber: row.unitNumber ?? null,
         kindId,
         occupancyStatusId,
-      });
+      }, scope);
       created.push(property.id);
     } catch (error: any) {
       const duplicate = error?.code === "P2002";

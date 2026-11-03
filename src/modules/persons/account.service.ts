@@ -4,6 +4,8 @@ import { hashPassword } from "@src/core/utils/security";
 import { getSetting } from "@src/core/settings/app-settings.service";
 import { todayDateOnly } from "@src/modules/properties/occupancy.service";
 import { syncLegacyResident } from "@src/modules/residents/legacy-sync";
+import { assertPersonInScope } from "./person-scope";
+import { ClientScope, scopeByClient } from "@src/core/scope/client-scope";
 
 const ageOn = (birthDate: Date, on: Date) => {
   let age = on.getUTCFullYear() - birthDate.getUTCFullYear();
@@ -19,9 +21,12 @@ const ageOn = (birthDate: Date, on: Date) => {
  * El usuario es RESDN, queda vinculado a la persona y a la propiedad, y el vínculo marca acceso a la APP.
  * Un menor no puede tener cuenta (T-A2-T5).
  */
-export const createResidentAccount = async (personId: number, input: { username: string; password: string }) => {
-  const person = await prismaClient.person.findUnique({ where: { id: personId } });
-  if (!person) throw new AppError("PERSON_NOT_FOUND", "Persona no encontrada", 404);
+export const createResidentAccount = async (personId: number, input: { username: string; password: string }, scope: ClientScope | undefined) => {
+  const { clientId } = scopeByClient(scope);
+  if (!scope?.organizationId) throw new AppError("ORGANIZATION_REQUIRED", "El usuario no tiene organización", 403);
+  const organizationId = scope.organizationId;
+  // Persona del cliente del alcance; una persona de otro cliente es inexistente aquí (404).
+  const person = await assertPersonInScope(personId, scope);
   if (person.userId) throw new AppError("ACCOUNT_EXISTS", "La persona ya tiene cuenta de APP", 409);
 
   const minAge = Number(await getSetting("resident.minAgeForAccount", "18")) || 18;
@@ -30,7 +35,8 @@ export const createResidentAccount = async (personId: number, input: { username:
   }
 
   const link = await prismaClient.resident.findFirst({
-    where: { personId, status: "ACTIVE" },
+    // Multicliente: el vínculo activo debe ser de una propiedad del cliente del alcance.
+    where: { personId, status: "ACTIVE", property: { clientId } },
     orderBy: { id: "asc" },
   });
   if (!link) throw new AppError("RESIDENT_NOT_ACTIVE", "La persona necesita un vínculo activo con una propiedad", 409);
@@ -50,6 +56,7 @@ export const createResidentAccount = async (personId: number, input: { username:
         password,
         roleId: role.id,
         propertyId: link.propertyId,
+        organizationId,
       },
     });
     await tx.person.update({ where: { id: person.id }, data: { userId: user.id } });

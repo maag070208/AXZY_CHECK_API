@@ -1,8 +1,9 @@
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { hackerLog } from "../base/logger";
+import { joinClient } from "@src/core/scope/membership";
 
-export const securitySeed = async (prisma: PrismaClient) => {
+export const securitySeed = async (prisma: PrismaClient, tenant: { organizationId: number; clientId: number }) => {
   const password = await bcrypt.hash("123456", 10);
   hackerLog.info('SECURITY', 'Initializing Security Layer');
 
@@ -33,6 +34,7 @@ export const securitySeed = async (prisma: PrismaClient) => {
       username: "admin",
       password,
       roleId: adminRole.id,
+      organizationId: tenant.organizationId,
     },
   });
 
@@ -45,6 +47,7 @@ export const securitySeed = async (prisma: PrismaClient) => {
       username: "isabel",
       password,
       roleId: adminRole.id,
+      organizationId: tenant.organizationId,
     },
   });
 
@@ -68,6 +71,7 @@ export const securitySeed = async (prisma: PrismaClient) => {
         password,
         roleId: guardRole.id,
         scheduleId: u.scheduleId,
+        organizationId: tenant.organizationId,
       },
     });
   }
@@ -83,6 +87,7 @@ export const securitySeed = async (prisma: PrismaClient) => {
       password,
       roleId: shiftRole.id,
       scheduleId: vespertino?.id,
+      organizationId: tenant.organizationId,
     },
   });
 
@@ -97,8 +102,16 @@ export const securitySeed = async (prisma: PrismaClient) => {
       username: "mario",
       password,
       roleId: maintRole.id,
+      organizationId: tenant.organizationId,
     },
   });
+
+  // Multicliente: todo el personal de demostración pertenece al cliente por defecto.
+  const staff = await prisma.user.findMany({
+    where: { username: { in: ["admin", "isabel", ...guardUsers.map((u) => u.username), "ricardo", "mario"] } },
+    select: { id: true, role: { select: { name: true } } },
+  });
+  for (const user of staff) await joinClient(prisma, { id: user.id, roleName: user.role.name }, tenant);
 
   hackerLog.success('SECURITY', 'Security layer deployed');
 };

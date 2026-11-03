@@ -6,7 +6,7 @@
 import request from "supertest";
 import { app } from "@src/app";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser, tokenFor } from "../factories";
+import { buildUser, tokenFor, inDefaultClient } from "../factories";
 
 beforeEach(async () => {
   await resetDatabase();
@@ -17,7 +17,7 @@ afterAll(async () => {
 });
 
 const openRound = async (guardId: number) =>
-  prisma.round.create({ data: { guardId, status: "IN_PROGRESS" } });
+  prisma.round.create({ data: { ...(await inDefaultClient()), guardId, status: "IN_PROGRESS" } });
 
 describe("PUT /rounds/:id/end · dueño o supervisor", () => {
   it("un guardia NO puede cerrar la ronda de otro guardia (403) y la ronda queda abierta", async () => {

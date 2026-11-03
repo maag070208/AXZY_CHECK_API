@@ -1,5 +1,7 @@
 import { prismaClient } from "@src/core/config/database";
 import { AppError } from "@src/core/errors/app-error";
+import { ClientScope, scopeByClient } from "@src/core/scope/client-scope";
+import { operativeStaffWhere } from "@src/core/scope/membership";
 
 export enum CatalogKey {
     PROPERTY_TYPE = 'property_type',
@@ -16,7 +18,7 @@ export enum CatalogKey {
     CLUB_TYPE = 'club_type'
 }
 
-export const getCatalog = async (key: string) => {
+export const getCatalog = async (key: string, scope: ClientScope | undefined) => {
     const selectFields = { id: true, name: true, value: true };
     try {
         switch (key) {
@@ -64,19 +66,16 @@ export const getCatalog = async (key: string) => {
             });
         case CatalogKey.PROPERTY: {
             const properties = await prismaClient.property.findMany({ 
-                where: { softDelete: false },
+                where: { softDelete: false, ...scopeByClient(scope) },
                 select: { id: true, identifier: true, name: true },
                 orderBy: { identifier: 'asc' }
             });
             return properties.map(p => ({ id: p.id, name: p.identifier, value: p.name }));
         }
         case CatalogKey.GUARD: {
+            // Personal operativo del cliente del alcance (guardias asignados al cliente y MAINT de la organización).
             const guards = await prismaClient.user.findMany({
-                where: { 
-                    role: { name: 'GUARD' }, 
-                    softDelete: false,
-                    active: true
-                },
+                where: { ...operativeStaffWhere(scope), active: true },
                 select: { id: true, name: true, lastName: true },
                 orderBy: { name: 'asc' }
             });

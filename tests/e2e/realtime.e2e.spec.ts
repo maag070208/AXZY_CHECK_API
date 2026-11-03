@@ -3,6 +3,7 @@
  * el token de los clientes es solo de suscripción, y un fallo del proveedor nunca rompe la API.
  */
 import { api, allSessions, bootFlows, disconnectDatabase, expectFail, expectOk, Session, V1 } from "./support";
+import { FlowsResult } from "../../prisma/seeds/flows";
 
 const publish = jest.fn();
 const createTokenRequest = jest.fn();
@@ -14,6 +15,7 @@ jest.mock("ably", () => ({
 }));
 
 let s: Record<string, Session>;
+let flows: FlowsResult;
 
 beforeAll(() => {
   process.env.ABLY_KEY = "clave.de:pruebas";
@@ -23,7 +25,7 @@ afterAll(async () => {
   await disconnectDatabase();
 });
 beforeEach(async () => {
-  await bootFlows();
+  flows = await bootFlows();
   s = await allSessions();
   publish.mockReset().mockResolvedValue(undefined);
   createTokenRequest.mockReset().mockResolvedValue({ keyName: "clave.de", clientId: "user-x", mac: "firma" });
@@ -32,14 +34,21 @@ beforeEach(async () => {
 afterEach(() => jest.restoreAllMocks());
 
 describe("token de suscripción", () => {
-  it("entrega un token de solo lectura para los tres canales y sin la clave maestra", async () => {
+  it("entrega un token de solo lectura para los canales internos y el chat de su cliente, sin la clave maestra", async () => {
     const res = await api().get(`${V1}/realtime/token`).set("Authorization", s.guard1.auth);
     const data = expectOk(res);
     expect(data).toMatchObject({ keyName: "clave.de" });
     expect(JSON.stringify(res.body)).not.toContain("pruebas");
     const options = createTokenRequest.mock.calls[0][0];
     expect(options.clientId).toBe(`user-${s.guard1.id}`);
-    expect(Object.values(options.capability)).toEqual([["subscribe"], ["subscribe"], ["subscribe"]]);
+    // El guardia tiene un único cliente: alertas, dashboard y el canal de chat de ESE cliente (no el global).
+    const chatChannel = `chat:team:${flows.staff.clientId}`;
+    expect(options.capability).toEqual({
+      "shift-handover:alerts": ["subscribe"],
+      "dashboard:live-ops": ["subscribe"],
+      [chatChannel]: ["subscribe"],
+    });
+    expect(options.capability["chat:team"]).toBeUndefined();
   });
 
   it("si el proveedor falla responde 503 (el cliente cae a sondeo)", async () => {
@@ -49,10 +58,11 @@ describe("token de suscripción", () => {
 });
 
 describe("publicación de eventos", () => {
-  it("un mensaje de chat se publica al canal del equipo", async () => {
+  it("un mensaje de chat se publica al canal del cliente (no al global)", async () => {
     expectOk(await api().post(`${V1}/chat/messages`).set("Authorization", s.guard1.auth).send({ message: "Hola equipo" }), 201);
     await new Promise((r) => setTimeout(r, 50));
-    expect(channelsGet).toHaveBeenCalledWith("chat:team");
+    expect(channelsGet).toHaveBeenCalledWith(`chat:team:${flows.staff.clientId}`);
+    expect(channelsGet).not.toHaveBeenCalledWith("chat:team");
     expect(publish).toHaveBeenCalledWith("new-message", expect.objectContaining({ message: "Hola equipo" }));
   });
 

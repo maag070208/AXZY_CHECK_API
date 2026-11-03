@@ -1,6 +1,6 @@
 import { Request, Response } from "express";
 import { createTResult } from "@src/core/mappers/tresult.mapper";
-import { publishToChannel, ABLY_CHANNELS } from "@src/core/config/ably";
+import { chatTeamChannel, publishToChannel } from "@src/core/config/ably";
 import * as chatService from "./chat.service";
 import { respondError } from "@src/core/errors/http-error";
 
@@ -15,7 +15,7 @@ export const getMessages = async (req: Request, res: Response) => {
     if (cursorId !== undefined && !Number.isInteger(cursorId)) {
       return res.status(400).json(createTResult(null, ["El cursor no es válido"]));
     }
-    const messages = await chatService.getMessages(cursorId, limit ? Number(limit) : undefined);
+    const messages = await chatService.getMessages(req.scope, cursorId, limit ? Number(limit) : undefined);
     return res.status(200).json(createTResult(messages));
   } catch (error: any) {
     return respondError(res, error);
@@ -40,13 +40,15 @@ export const createMessage = async (req: Request, res: Response) => {
       return res.status(400).json(createTResult(null, ["El mensaje no puede estar vacío"]));
     }
 
-    const created = await chatService.createMessage(Number(userId), trimmed);
+    const created = await chatService.createMessage(req.scope, Number(userId), trimmed);
+    const { clientId, ...published } = created;
 
     // Fire-and-forget: a failed realtime push must never fail the request —
     // the message is already persisted and will show up on next poll/refresh.
-    void publishToChannel(ABLY_CHANNELS.CHAT_TEAM, "new-message", created);
+    // El canal es el del cliente del mensaje: el chat en vivo ya no se comparte entre clientes.
+    void publishToChannel(chatTeamChannel(clientId), "new-message", published);
 
-    return res.status(201).json(createTResult(created));
+    return res.status(201).json(createTResult(published));
   } catch (error: any) {
     return respondError(res, error);
   }

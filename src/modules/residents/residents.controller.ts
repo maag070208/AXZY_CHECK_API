@@ -17,7 +17,7 @@ import { respondError } from "@src/core/errors/http-error";
 
 export const getResidents = async (req: Request, res: Response) => {
     try {
-        const result = await getResidentsList();
+        const result = await getResidentsList(req.scope);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return respondError(res, error);
@@ -26,7 +26,7 @@ export const getResidents = async (req: Request, res: Response) => {
 
 export const getDataTable = async (req: Request, res: Response) => {
     try {
-        const result = await getDataTableResidents(req.body);
+        const result = await getDataTableResidents(req.body, req.scope);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return respondError(res, error);
@@ -36,7 +36,7 @@ export const getDataTable = async (req: Request, res: Response) => {
 export const getResident = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const result = await getResidentById(Number(id));
+        const result = await getResidentById(Number(id), req.scope);
         if (!result) {
             return res.status(404).json(createTResult(null, ["Residente no encontrado"]));
         }
@@ -83,7 +83,7 @@ export const addResident = async (req: Request, res: Response) => {
             notes
         };
 
-        const result = await createResidentUser(userData, profileData);
+        const result = await createResidentUser(userData, profileData, req.scope);
         return res.status(201).json(createTResult(result));
     } catch (error: any) {
         return respondError(res, error);
@@ -124,7 +124,7 @@ export const putResident = async (req: Request, res: Response) => {
             notes
         };
 
-        const result = await updateResidentUser(Number(id), userData, profileData);
+        const result = await updateResidentUser(Number(id), userData, profileData, req.scope);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return respondError(res, error);
@@ -133,7 +133,7 @@ export const putResident = async (req: Request, res: Response) => {
 
 export const putOwnProfile = async (req: Request, res: Response) => {
     try {
-        const profile = await updateOwnResidentProfile(Number(req.params.id), req.body);
+        const profile = await updateOwnResidentProfile(Number(req.params.id), req.body, req.scope);
         return res.status(200).json(createTResult(profile));
     } catch (error: any) {
         return respondError(res, error);
@@ -143,7 +143,7 @@ export const putOwnProfile = async (req: Request, res: Response) => {
 export const removeResident = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const result = await deleteResidentUser(Number(id));
+        const result = await deleteResidentUser(Number(id), req.scope);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return respondError(res, error);
@@ -165,11 +165,12 @@ export const getRelationships = async (req: Request, res: Response) => {
  */
 export const getResidentFinanceById = async (req: Request, res: Response) => {
   try {
-    const resident = await getResidentById(Number(req.params.id));
+    // El expediente financiero solo se consulta de residentes del cliente del alcance (404 si es de otro).
+    const resident = await getResidentById(Number(req.params.id), req.scope);
     if (!resident) {
       return res.status(404).json(createTResult(null, ["Residente no encontrado"]));
     }
-    const result = await getResidentFinanceByUser(resident.id);
+    const result = await getResidentFinanceByUser(resident.id, req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);

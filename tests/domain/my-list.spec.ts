@@ -4,7 +4,7 @@
  */
 import { getRecurringConfigurationsForUser } from "@src/modules/recurring/recurring.service";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser } from "../factories";
+import { buildUser, defaultClient, inDefaultClient } from "../factories";
 
 beforeEach(async () => {
   await resetDatabase();
@@ -14,7 +14,7 @@ afterAll(async () => {
   await disconnectDatabase();
 });
 
-const location = (name: string) => prisma.location.create({ data: { aisle: "A", spot: "1", number: name, name } });
+const location = async (name: string) => prisma.location.create({ data: { ...(await inDefaultClient()), aisle: "A", spot: "1", number: name, name } });
 
 describe("getRecurringConfigurationsForUser · sin N+1", () => {
   it("marca puntos completos sin consultar kardex punto por punto", async () => {
@@ -26,6 +26,7 @@ describe("getRecurringConfigurationsForUser · sin N+1", () => {
 
     await prisma.recurringConfiguration.create({
       data: {
+        ...(await inDefaultClient()),
         title: "Ronda A",
         guards: { connect: [{ id: guard.id }] },
         recurringLocations: {
@@ -35,21 +36,22 @@ describe("getRecurringConfigurationsForUser · sin N+1", () => {
     });
     await prisma.recurringConfiguration.create({
       data: {
+        ...(await inDefaultClient()),
         title: "Ronda B",
         guards: { connect: [{ id: guard.id }] },
         recurringLocations: { create: [{ locationId: other.id }] },
       },
     });
 
-    await prisma.kardex.create({ data: { userId: guard.id, locationId: scanned.id, notes: "Sin novedad", media: [{ type: "IMAGE", url: "https://example.test/a.jpg", key: "a.jpg" }] } });
+    await prisma.kardex.create({ data: { ...(await inDefaultClient()), userId: guard.id, locationId: scanned.id, notes: "Sin novedad", media: [{ type: "IMAGE", url: "https://example.test/a.jpg", key: "a.jpg" }] } });
     // Un borrador sin notas no cuenta como completado.
-    await prisma.kardex.create({ data: { userId: guard.id, locationId: emptyNotes.id, notes: "" } });
-    await prisma.kardex.create({ data: { userId: guard.id, locationId: other.id, notes: "OK", media: [{ type: "IMAGE", url: "https://example.test/b.jpg", key: "b.jpg" }] } });
+    await prisma.kardex.create({ data: { ...(await inDefaultClient()), userId: guard.id, locationId: emptyNotes.id, notes: "" } });
+    await prisma.kardex.create({ data: { ...(await inDefaultClient()), userId: guard.id, locationId: other.id, notes: "OK", media: [{ type: "IMAGE", url: "https://example.test/b.jpg", key: "b.jpg" }] } });
 
     const findFirst = jest.spyOn(prisma.kardex, "findFirst");
     const findMany = jest.spyOn(prisma.kardex, "findMany");
 
-    const configs = await getRecurringConfigurationsForUser(guard.id);
+    const configs = await getRecurringConfigurationsForUser(guard.id, await defaultClient());
 
     expect(findFirst).not.toHaveBeenCalled();
     expect(findMany).toHaveBeenCalledTimes(1);

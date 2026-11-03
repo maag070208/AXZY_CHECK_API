@@ -8,6 +8,7 @@ import { StorageService } from "@src/modules/storage/storage.service";
 import { MAX_COMPLAINT_PHOTO_BYTES, MAX_COMPLAINT_VIDEO_BYTES } from "./complaints.schemas";
 import type { createComplaintBody, listComplaintsQuery } from "./complaints.schemas";
 import { findResidentPropertyId } from "../residents/resident-property.service";
+import { ClientScope, scopeByClient, scopeByProperty } from "@src/core/scope/client-scope";
 
 type CreateComplaintInput = z.infer<typeof createComplaintBody>;
 type ListComplaintsInput = z.output<typeof listComplaintsQuery>;
@@ -91,9 +92,13 @@ export const closeExpiredResolvedComplaints = async (): Promise<number> => {
   return closed;
 };
 
-export const createComplaint = async (actor: ComplaintActor, data: CreateComplaintInput) => {
+export const createComplaint = async (actor: ComplaintActor, data: CreateComplaintInput, scope: ClientScope | undefined) => {
   const propertyId = await residentPropertyId(actor.id);
   if (!propertyId) throw new AppError("NO_ACTIVE_RESIDENCE", "Tu cuenta no está ligada a una propiedad activa", 403);
+  // Multicliente: la propiedad del residente debe ser del cliente de su alcance.
+  const { clientId } = scopeByClient(scope);
+  const property = await prismaClient.property.findFirst({ where: { id: propertyId, clientId, softDelete: false }, select: { id: true } });
+  if (!property) throw new AppError("NO_ACTIVE_RESIDENCE", "Tu cuenta no está ligada a una propiedad activa", 403);
   const evidence = await verifyEvidence(actor, (data.media ?? []) as EvidenceItem[]);
 
   const complaint = await prismaClient.$transaction(async (tx) => {
@@ -117,9 +122,11 @@ export const createComplaint = async (actor: ComplaintActor, data: CreateComplai
   return complaint;
 };
 
-export const listComplaints = async (actor: ComplaintActor, query: ListComplaintsInput) => {
+export const listComplaints = async (actor: ComplaintActor, query: ListComplaintsInput, scope: ClientScope | undefined) => {
   await closeExpiredResolvedComplaints();
+  // El personal ve las quejas del cliente elegido; el residente, las suyas (de su propiedad/cliente).
   const where: Prisma.ComplaintWhereInput = {
+    ...scopeByProperty(scope),
     ...(actor.canManage ? {} : { authorId: actor.id }),
     ...(query.status && { status: query.status }),
     ...(query.category && { category: query.category }),
@@ -137,10 +144,11 @@ export const listComplaints = async (actor: ComplaintActor, query: ListComplaint
   return { items, total, page: query.page, pageSize: query.pageSize };
 };
 
-export const getComplaint = async (actor: ComplaintActor, id: number) => {
+export const getComplaint = async (actor: ComplaintActor, id: number, scope: ClientScope | undefined) => {
   await closeExpiredResolvedComplaints();
-  const complaint = await prismaClient.complaint.findUnique({
-    where: { id },
+  // Queja de otro cliente → 404, igual que si no existiera.
+  const complaint = await prismaClient.complaint.findFirst({
+    where: { id, ...scopeByProperty(scope) },
     include: {
       author: AUTHOR_SELECT,
       messages: {
@@ -159,8 +167,9 @@ export const addComplaintMessage = async (
   actor: ComplaintActor,
   id: number,
   data: { body: string; internal: boolean },
+  scope: ClientScope | undefined,
 ) => {
-  const complaint = await prismaClient.complaint.findUnique({ where: { id }, select: { id: true, authorId: true, status: true } });
+  const complaint = await prismaClient.complaint.findFirst({ where: { id, ...scopeByProperty(scope) }, select: { id: true, authorId: true, status: true } });
   if (!complaint || !canSee(actor, complaint)) throw notFound();
   if (data.internal && !actor.canManage) throw new AppError("FORBIDDEN", "No tienes permisos para realizar esta acción", 403);
   if (!actor.canManage && (complaint.status === ComplaintStatus.RESOLVED || complaint.status === ComplaintStatus.CLOSED)) {
@@ -187,8 +196,8 @@ export const addComplaintMessage = async (
   });
 };
 
-export const changeComplaintStatus = async (actor: ComplaintActor, id: number, to: ComplaintStatus) => {
-  const complaint = await prismaClient.complaint.findUnique({ where: { id }, select: { id: true, authorId: true, status: true } });
+export const changeComplaintStatus = async (actor: ComplaintActor, id: number, to: ComplaintStatus, scope: ClientScope | undefined) => {
+  const complaint = await prismaClient.complaint.findFirst({ where: { id, ...scopeByProperty(scope) }, select: { id: true, authorId: true, status: true } });
   if (!complaint || !canSee(actor, complaint)) throw notFound();
 
   // El residente solo puede dar por buena una queja resuelta (RESOLVED → CLOSED).
@@ -221,11 +230,11 @@ export const changeComplaintStatus = async (actor: ComplaintActor, id: number, t
  * los 7 días. Deja el evento RESOLVED → REOPENED y devuelve la queja a revisión
  * (la administración la mueve a IN_REVIEW desde su bandeja).
  */
-export const reopenComplaint = async (actor: ComplaintActor, id: number) => {
+export const reopenComplaint = async (actor: ComplaintActor, id: number, scope: ClientScope | undefined) => {
   await closeExpiredResolvedComplaints();
 
-  const complaint = await prismaClient.complaint.findUnique({
-    where: { id },
+  const complaint = await prismaClient.complaint.findFirst({
+    where: { id, ...scopeByProperty(scope) },
     select: { id: true, authorId: true, status: true, resolvedAt: true },
   });
   if (!complaint || !canSee(actor, complaint)) throw notFound();

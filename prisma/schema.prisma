@@ -53,15 +53,15 @@ model PropertyStatus {
 }
 
 model InvitationType {
-  id          Int          @id @default(autoincrement())
-  name        String       @unique
-  value       String
-  invitations Invitation[]
-  active      Boolean      @default(true)
-  order       Int          @default(0)
-  isSystem    Boolean      @default(false)
+  id               Int          @id @default(autoincrement())
+  name             String       @unique
+  value            String
+  invitations      Invitation[]
+  active           Boolean      @default(true)
+  order            Int          @default(0)
+  isSystem         Boolean      @default(false)
   /// Si false, la caseta registra la visita sin autorización del residente (p. ej. repartidores).
-  requiresApproval Boolean @default(true)
+  requiresApproval Boolean      @default(true)
 }
 
 model User {
@@ -103,6 +103,14 @@ model User {
   scheduleId               Int?
   propertyId               Int?
   roleId                   Int
+  /// Multicliente: organización dueña del usuario (obligatoria desde la migración de contracción).
+  organizationId           Int
+  organization             Organization             @relation(fields: [organizationId], references: [id], onDelete: Restrict)
+  /// Multicliente: cliente del usuario cuando su rol es CLIENT (administrador del cliente). Los guardias
+  /// llegan al cliente por GuardAssignment y los residentes por su propiedad; el resto lo tiene vacío.
+  clientId                 Int?
+  client                   Client?                  @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  guardAssignments         GuardAssignment[]
   assignments              Assignment[]             @relation("GuardAssignments")
   incidents                Incident[]
   resolvedIncidents        Incident[]               @relation("IncidentResolver")
@@ -139,6 +147,78 @@ model User {
   @@index([roleId])
   @@index([propertyId])
   @@index([isLoggedIn])
+  @@index([organizationId])
+  @@index([clientId])
+}
+
+enum OrganizationKind {
+  DIRECT
+  COMPANY
+}
+
+enum ClientType {
+  RESIDENTIAL
+  MAQUILA
+  PLAZA
+}
+
+/// Multicliente: la cuenta que contrata. Producto 1 = DIRECT con un solo cliente; producto 2 = COMPANY con n clientes.
+model Organization {
+  id        Int              @id @default(autoincrement())
+  name      String
+  kind      OrganizationKind
+  active    Boolean          @default(true)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+  clients   Client[]
+  users     User[]
+}
+
+/// Multicliente: sitio donde se presta el servicio. Los datos de operación (ubicaciones, rutas, rondas, incidencias, avisos) cuelgan de aquí.
+model Client {
+  id                      Int                      @id @default(autoincrement())
+  organizationId          Int
+  organization            Organization             @relation(fields: [organizationId], references: [id])
+  name                    String
+  type                    ClientType
+  active                  Boolean                  @default(true)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  guardAssignments        GuardAssignment[]
+  users                   User[]
+  properties              Property[]
+  locations               Location[]
+  recurringConfigurations RecurringConfiguration[]
+  assignments             Assignment[]
+  incidents               Incident[]
+  rounds                  Round[]
+  kardexEntries           Kardex[]
+  announcements           Announcement[]
+  persons                 Person[]
+  maintenances            Maintenance[]
+  accessPins              AccessPin[]
+  vehicles                Vehicle[]
+  chatMessages            ChatMessage[]
+  shiftHandovers          ShiftHandover[]
+
+  @@unique([organizationId, name])
+}
+
+/// Multicliente: guardia asignado a un cliente. Activa mientras `endsAt` sea NULL.
+/// La migración agrega un índice único parcial (un guardia, una sola asignación abierta) y un CHECK de fechas
+/// que Prisma no puede declarar aquí: no quitarlos en migraciones generadas.
+model GuardAssignment {
+  id        Int       @id @default(autoincrement())
+  guardId   Int
+  guard     User      @relation(fields: [guardId], references: [id])
+  clientId  Int
+  client    Client    @relation(fields: [clientId], references: [id])
+  startsAt  DateTime  @default(now())
+  endsAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([guardId])
+  @@index([clientId, endsAt])
 }
 
 model Schedule {
@@ -165,7 +245,7 @@ model Property {
   accessPins       AccessPin[]
   personalQrPasses PersonalQrPass[]
   id               Int               @id @default(autoincrement())
-  identifier       String            @unique
+  identifier       String
   name             String
   mainStreet       String
   betweenStreets   String?
@@ -200,8 +280,13 @@ model Property {
   ownershipChanges  OwnershipChange[]
   residents         Resident[]
   authorizations    PropertyAuthorization[]
+  /// Multicliente: solo residenciales con casas.
+  clientId          Int?
+  client            Client?                 @relation(fields: [clientId], references: [id], onDelete: Restrict)
 
+  @@unique([clientId, identifier])
   @@index([identifier])
+  @@index([clientId])
   @@index([statusId, typeId])
   @@index([softDelete, active])
   @@index([occupancyStatusId])
@@ -278,6 +363,11 @@ model Person {
   documents       PersonDocument[]
   authorizations  PropertyAuthorization[]
   accessEvents    AccessEvent[]           @relation("AccessEventPerson")
+  /// Multicliente: cliente de la persona (obligatorio desde la contracción de fase 5).
+  clientId        Int
+  client          Client                  @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
+  @@index([clientId])
 }
 
 /// Tipo de residente (T-A2-01). `isHouseholdMember` decide si suma al conteo del hogar.
@@ -381,35 +471,35 @@ model ResidentProfile {
 }
 
 model Invitation {
-  id           Int              @id @default(autoincrement())
-  code         String           @unique
-  guestName    String
-  createdById  Int
-  propertyId   Int
-  validFrom    DateTime
-  validUntil   DateTime
-  status       InvitationStatus @default(PENDING)
-  entryTime    DateTime?
-  exitTime     DateTime?
-  notes        String?
+  id            Int              @id @default(autoincrement())
+  code          String           @unique
+  guestName     String
+  createdById   Int
+  propertyId    Int
+  validFrom     DateTime
+  validUntil    DateTime
+  status        InvitationStatus @default(PENDING)
+  entryTime     DateTime?
+  exitTime      DateTime?
+  notes         String?
   revokedReason String?
-  revokedAt    DateTime?
-  revokedById  Int?
+  revokedAt     DateTime?
+  revokedById   Int?
   /// Placa que el residente anticipa (normalizada: A-Z y 0-9). Para cotejar en caseta.
   expectedPlate String?
   /// Visita sin cita creada en caseta.
-  walkIn       Boolean          @default(false)
+  walkIn        Boolean          @default(false)
   /// Quién autorizó una visita sin cita y cuándo.
-  approvedById Int?
-  approvedAt   DateTime?
-  approvedBy   User?            @relation("InvitationApprovedBy", fields: [approvedById], references: [id])
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
-  typeId       Int
-  createdBy    User             @relation("UserInvitations", fields: [createdById], references: [id])
-  property     Property         @relation(fields: [propertyId], references: [id])
-  type         InvitationType   @relation(fields: [typeId], references: [id])
-  accessEvents AccessEvent[]
+  approvedById  Int?
+  approvedAt    DateTime?
+  approvedBy    User?            @relation("InvitationApprovedBy", fields: [approvedById], references: [id])
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  typeId        Int
+  createdBy     User             @relation("UserInvitations", fields: [createdById], references: [id])
+  property      Property         @relation(fields: [propertyId], references: [id])
+  type          InvitationType   @relation(fields: [typeId], references: [id])
+  accessEvents  AccessEvent[]
 
   statusId                Int?
   invitationStatusCatalog InvitationStatusCatalog? @relation(fields: [statusId], references: [id])
@@ -424,7 +514,7 @@ model Location {
   aisle              String
   spot               String
   number             String
-  name               String              @unique
+  name               String
   isOccupied         Boolean             @default(false)
   active             Boolean             @default(true)
   softDelete         Boolean             @default(false)
@@ -433,6 +523,12 @@ model Location {
   assignments        Assignment[]
   kardexEntries      Kardex[]
   recurringLocations RecurringLocation[]
+  /// Multicliente: obligatorio desde la migración de contracción.
+  clientId           Int
+  client             Client              @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
+  @@unique([clientId, name])
+  @@index([clientId])
 }
 
 model Kardex {
@@ -458,6 +554,11 @@ model Kardex {
   scanTypeId      Int?
   scanTypeCatalog ScanTypeCatalog? @relation(fields: [scanTypeId], references: [id])
 
+  /// Multicliente: copia del cliente de la ubicación al registrar; el historial se queda con ese cliente.
+  clientId Int
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
+  @@index([clientId, timestamp(sort: Desc)])
   @@index([userId])
   @@index([locationId])
   @@index([timestamp])
@@ -482,8 +583,12 @@ model Assignment {
   statusId                Int?
   assignmentStatusCatalog AssignmentStatusCatalog? @relation(fields: [statusId], references: [id])
 
+  clientId Int
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
   @@index([guardId])
   @@index([locationId])
+  @@index([clientId])
 }
 
 model AssignmentTask {
@@ -509,6 +614,10 @@ model RecurringConfiguration {
   rounds             Round[]
   users              User[]
   guards             User[]              @relation("RecurringAssignments")
+  clientId           Int
+  client             Client              @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
+  @@index([clientId])
 }
 
 model RecurringLocation {
@@ -594,6 +703,10 @@ model Incident {
   statusId              Int?
   incidentStatusCatalog IncidentStatusCatalog? @relation(fields: [statusId], references: [id])
 
+  clientId Int
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
+  @@index([clientId, createdAt(sort: Desc)])
   @@index([kind, status, createdAt(sort: Desc)])
   @@index([propertyId, createdAt(sort: Desc)])
 }
@@ -832,6 +945,11 @@ model Round {
   statusId           Int?
   roundStatusCatalog RoundStatusCatalog? @relation(fields: [statusId], references: [id])
 
+  /// Multicliente: cliente donde se hizo la ronda (no se deriva del guardia: su asignación cambia).
+  clientId Int
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
+  @@index([clientId, startTime(sort: Desc)])
   @@index([guardId, status])
   @@index([recurringConfigurationId, status])
   @@index([startTime(sort: Desc)])
@@ -970,6 +1088,11 @@ model Maintenance {
   statusId                 Int?
   maintenanceStatusCatalog MaintenanceStatusCatalog? @relation(fields: [statusId], references: [id])
 
+  /// Multicliente: cliente del reporte (obligatorio desde la contracción de fase 5).
+  clientId Int
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
+  @@index([clientId, createdAt(sort: Desc)])
   @@index([status, createdAt(sort: Desc)])
 }
 
@@ -1005,8 +1128,11 @@ model ChatMessage {
   message   String
   createdAt DateTime @default(now())
   user      User     @relation("ChatMessages", fields: [userId], references: [id])
+  /// Multicliente: el chat del equipo es por cliente (obligatorio desde la contracción de fase 5).
+  clientId  Int
+  client    Client  @relation(fields: [clientId], references: [id], onDelete: Restrict)
 
-  @@index([createdAt])
+  @@index([clientId, createdAt(sort: Desc)])
 }
 
 model ShiftHandover {
@@ -1031,8 +1157,12 @@ model ShiftHandover {
 
   checks ShiftHandoverCheck[]
 
-  @@unique([shiftType, handoverDate])
-  @@index([handoverDate])
+  /// Multicliente: la entrega de turno es de un cliente (obligatorio desde la contracción de fase 5).
+  clientId Int
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
+  @@unique([clientId, shiftType, handoverDate])
+  @@index([clientId, handoverDate])
 }
 
 model ShiftHandoverElement {
@@ -1395,8 +1525,11 @@ model Announcement {
   createdBy     User                 @relation("AnnouncementCreator", fields: [createdById], references: [id])
   createdAt     DateTime             @default(now())
   notifications Notification[]
+  clientId      Int
+  client        Client               @relation(fields: [clientId], references: [id], onDelete: Restrict)
 
   @@index([sentAt])
+  @@index([clientId, sentAt(sort: Desc)])
 }
 
 enum VehicleStatus {
@@ -1415,7 +1548,7 @@ model Vehicle {
   owner           User          @relation("VehicleOwner", fields: [ownerId], references: [id])
   plate           String
   plateNormalized String
-  tagCode         String?       @unique
+  tagCode         String?
   kind            String?
   brand           String?
   model           String?
@@ -1430,7 +1563,13 @@ model Vehicle {
   updatedAt       DateTime      @updatedAt
   accessEvents    AccessEvent[]
 
+  /// Multicliente: cliente del vehículo (obligatorio desde la contracción de fase 5).
+  clientId Int
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Restrict)
+
+  @@unique([clientId, tagCode])
   @@unique([propertyId, plateNormalized])
+  @@index([clientId])
   @@index([plateNormalized])
   @@index([propertyId, status])
 }
@@ -1442,7 +1581,7 @@ model AccessPin {
   property    Property  @relation(fields: [propertyId], references: [id])
   userId      Int
   user        User      @relation("AccessPinOwner", fields: [userId], references: [id])
-  pinHash     String    @unique
+  pinHash     String
   active      Boolean   @default(true)
   lastUsedAt  DateTime?
   revokedAt   DateTime?
@@ -1450,7 +1589,12 @@ model AccessPin {
   createdBy   User      @relation("AccessPinCreator", fields: [createdById], references: [id])
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  /// Multicliente: cliente del PIN (obligatorio desde la contracción de fase 5).
+  clientId    Int
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Restrict)
 
+  @@unique([clientId, pinHash])
+  @@index([clientId])
   @@index([propertyId, active])
   @@index([userId, active])
 }
@@ -1477,13 +1621,13 @@ model PersonalQrPass {
 
 /// Token opaco de refresh, guardado solo como hash. Se rota en cada uso.
 model RefreshToken {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   userId    Int
-  tokenHash String   @unique
+  tokenHash String    @unique
   expiresAt DateTime
   revokedAt DateTime?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, revokedAt])
 }

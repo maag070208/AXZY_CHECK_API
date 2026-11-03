@@ -2,6 +2,7 @@ import { AnnouncementAudience, Prisma } from "@prisma/client";
 import { prismaClient } from "@src/core/config/database";
 import { AppError } from "@src/core/errors/app-error";
 import { enqueueOutbox } from "@src/core/outbox/outbox";
+import { ClientScope, scopeByClient } from "@src/core/scope/client-scope";
 
 type CreateInput = {
   title: string;
@@ -30,10 +31,18 @@ const serializeAnnouncement = (announcement: any) => {
   };
 };
 
-const recipientsFor = async (input: CreateInput) => {
+/**
+ * Multicliente: los destinatarios son siempre del cliente del aviso.
+ * - PROPERTY y ALL (residentes): usuarios RESDN con propiedad de ese cliente.
+ * - ROLE: los RESDN por su propiedad; guardias y jefes de turno por su asignación abierta al cliente;
+ *   el personal de organización (ADMIN, MAINT, …) por la organización del alcance.
+ */
+const recipientsFor = async (input: CreateInput, scope: ClientScope | undefined) => {
+  const { clientId } = scopeByClient(scope);
+
   if (input.audience === AnnouncementAudience.PROPERTY) {
     const property = await prismaClient.property.findFirst({
-      where: { id: input.propertyId, softDelete: false },
+      where: { id: input.propertyId, softDelete: false, ...scopeByClient(scope) },
       select: { id: true },
     });
     if (!property) throw new AppError("PROPERTY_NOT_FOUND", "Propiedad no encontrada", 404);
@@ -44,18 +53,45 @@ const recipientsFor = async (input: CreateInput) => {
     if (!role) throw new AppError("ROLE_NOT_FOUND", "Rol no encontrado", 404);
   }
 
-  const where: Prisma.UserWhereInput = {
-    active: true,
-    softDelete: false,
-    role: { name: input.audience === AnnouncementAudience.ROLE ? input.roleName : "RESDN" },
-    ...(input.audience === AnnouncementAudience.PROPERTY ? { propertyId: input.propertyId } : {}),
-  };
+  const roleName = input.audience === AnnouncementAudience.ROLE ? input.roleName ?? null : "RESDN";
+  const base: Prisma.UserWhereInput = { active: true, softDelete: false };
 
-  return prismaClient.user.findMany({ where, select: { id: true } });
+  // Residentes: el residente llega al cliente por la propiedad donde vive.
+  const residentWhere: Prisma.UserWhereInput =
+    input.audience === AnnouncementAudience.PROPERTY
+      ? { ...base, role: { name: "RESDN" }, propertyId: input.propertyId }
+      : { ...base, role: { name: "RESDN" }, property: { clientId } };
+
+  if (roleName === "RESDN") {
+    return prismaClient.user.findMany({ where: residentWhere, select: { id: true } });
+  }
+
+  if (roleName === "GUARD" || roleName === "SHIFT") {
+    return prismaClient.user.findMany({
+      where: {
+        ...base,
+        role: { name: roleName },
+        ...(scope?.organizationId != null ? { organizationId: scope.organizationId } : {}),
+        guardAssignments: { some: { clientId, endsAt: null } },
+      },
+      select: { id: true },
+    });
+  }
+
+  // Personal de organización: no tiene asignación por cliente; el aviso es de la organización.
+  return prismaClient.user.findMany({
+    where: {
+      ...base,
+      role: { name: roleName ?? undefined },
+      ...(scope?.organizationId != null ? { organizationId: scope.organizationId } : {}),
+    },
+    select: { id: true },
+  });
 };
 
-export const createAnnouncement = async (input: CreateInput, actorId: number) => {
-  const recipients = await recipientsFor(input);
+export const createAnnouncement = async (input: CreateInput, actorId: number, scope: ClientScope | undefined) => {
+  const { clientId } = scopeByClient(scope);
+  const recipients = await recipientsFor(input, scope);
   if (recipients.length === 0) {
     throw new AppError("ANNOUNCEMENT_NO_RECIPIENTS", "No hay destinatarios con ese criterio", 400);
   }
@@ -69,6 +105,7 @@ export const createAnnouncement = async (input: CreateInput, actorId: number) =>
         propertyId: input.audience === AnnouncementAudience.PROPERTY ? input.propertyId : null,
         roleName: input.audience === AnnouncementAudience.ROLE ? input.roleName ?? null : null,
         createdById: actorId,
+        clientId,
       },
     });
 
@@ -97,9 +134,11 @@ export const createAnnouncement = async (input: CreateInput, actorId: number) =>
   return serializeAnnouncement(announcement);
 };
 
-export const listAnnouncements = async (query: { page: number; pageSize: number }) => {
+export const listAnnouncements = async (query: { page: number; pageSize: number }, scope: ClientScope | undefined) => {
+  const { clientId } = scopeByClient(scope);
   const [items, total] = await prismaClient.$transaction([
     prismaClient.announcement.findMany({
+      where: { clientId },
       orderBy: { sentAt: "desc" },
       skip: (query.page - 1) * query.pageSize,
       take: query.pageSize,
@@ -109,7 +148,7 @@ export const listAnnouncements = async (query: { page: number; pageSize: number 
         notifications: { select: { readAt: true } },
       },
     }),
-    prismaClient.announcement.count(),
+    prismaClient.announcement.count({ where: { clientId } }),
   ]);
 
   return { items: items.map(serializeAnnouncement), total, page: query.page, pageSize: query.pageSize };
@@ -123,8 +162,14 @@ type SendNotificationInput = {
 };
 
 /** Manda un aviso a usuarios concretos por el outbox (bandeja + push, con reintentos). */
-export const sendDirectNotification = async (input: SendNotificationInput) => {
-  const found = await prismaClient.user.count({ where: { id: { in: input.userIds } } });
+export const sendDirectNotification = async (input: SendNotificationInput, scope: ClientScope | undefined) => {
+  // Solo usuarios de la organización de quien envía: no se notifica a otra cuenta.
+  const found = await prismaClient.user.count({
+    where: {
+      id: { in: input.userIds },
+      ...(scope?.organizationId != null ? { organizationId: scope.organizationId } : {}),
+    },
+  });
   if (found !== input.userIds.length) {
     throw new AppError("NOTIFICATION_USER_NOT_FOUND", "Hay usuarios que no existen", 404);
   }

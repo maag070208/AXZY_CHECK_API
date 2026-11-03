@@ -4,6 +4,7 @@ import { incidentCatalogsSeed } from "../client/incidents";
 import { clubCatalogsSeed } from "../client/club";
 import { maintenanceCatalogsSeed } from "../client/maintenance";
 import { hackerLog } from "../base/logger";
+import { defaultClientSeed } from "../base/organization";
 import { accessFlow, AccessIds } from "./access";
 import { operationsFlow, OperationsIds } from "./operations";
 import { propertiesFlow, PropertyIds } from "./properties";
@@ -50,7 +51,9 @@ export const flowsSeed = async (prisma: PrismaClient): Promise<FlowsResult> => {
   }
   hackerLog.info("FLOWS", "Generating flow data");
   await flowPrerequisites(prisma);
-  const staff = await staffFlow(prisma);
+  // Multicliente: los flujos son de producto 1, sobre el cliente por defecto.
+  const tenant = await defaultClientSeed(prisma);
+  const staff = await staffFlow(prisma, tenant);
   const routes = await routesFlow(prisma, staff);
   const properties = await propertiesFlow(prisma, staff);
   const reports = await reportsFlow(prisma, staff);

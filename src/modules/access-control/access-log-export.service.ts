@@ -2,6 +2,7 @@ import { Response } from "express";
 import ExcelJS from "exceljs";
 import PDFDocument from "pdfkit";
 import { reportTimeZone } from "@src/client/branding";
+import { ClientScope } from "@src/core/scope/client-scope";
 import { ACCESS_EXPORT_HEADER, AccessExportQuery, accessEventExportRows } from "./access-control.service";
 
 const localDateTime = (date: Date) =>
@@ -10,8 +11,8 @@ const localDateTime = (date: Date) =>
 const fileName = (extension: string) => `bitacora-accesos-${new Date().toISOString().slice(0, 10)}.${extension}`;
 
 /** Historial de accesos en Excel, con los filtros de la bitácora. */
-export const streamAccessEventsXlsx = async (res: Response, query: AccessExportQuery): Promise<void> => {
-  const rows = await accessEventExportRows(query);
+export const streamAccessEventsXlsx = async (res: Response, query: AccessExportQuery, scope: ClientScope | undefined): Promise<void> => {
+  const rows = await accessEventExportRows(query, scope);
 
   const book = new ExcelJS.Workbook();
   const sheet = book.addWorksheet("Bitácora");
@@ -32,8 +33,8 @@ export const streamAccessEventsXlsx = async (res: Response, query: AccessExportQ
 const PDF_COLUMNS = [78, 92, 80, 70, 100, 36, 42, 50, 70, 74];
 
 /** Historial de accesos en PDF horizontal, con los filtros de la bitácora. */
-export const streamAccessEventsPdf = async (res: Response, query: AccessExportQuery): Promise<void> => {
-  const rows = await accessEventExportRows(query);
+export const streamAccessEventsPdf = async (res: Response, query: AccessExportQuery, scope: ClientScope | undefined): Promise<void> => {
+  const rows = await accessEventExportRows(query, scope);
 
   const doc = new PDFDocument({ size: "LETTER", layout: "landscape", margin: 40 });
   res.setHeader("Content-Type", "application/pdf");

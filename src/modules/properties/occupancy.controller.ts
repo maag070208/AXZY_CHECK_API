@@ -7,7 +7,7 @@ const actorId = (req: Request): number => (req as any).user.id;
 
 export const getPropertyOccupancy = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    return res.status(200).json(createTResult(await getOccupancy(Number(req.params.id))));
+    return res.status(200).json(createTResult(await getOccupancy(Number(req.params.id), req.scope)));
   } catch (error) {
     return next(error);
   }
@@ -25,6 +25,7 @@ export const postPropertyOccupancy = async (req: Request, res: Response, next: N
         notes: req.body.notes ?? null,
       },
       actorId(req),
+      req.scope,
     );
     return res.status(201).json(createTResult(result));
   } catch (error) {
@@ -38,6 +39,7 @@ export const postPropertyOwnership = async (req: Request, res: Response, next: N
       Number(req.params.id),
       { toPersonId: req.body.toPersonId, notes: req.body.notes ?? null },
       actorId(req),
+      req.scope,
     );
     return res.status(201).json(createTResult(change));
   } catch (error) {

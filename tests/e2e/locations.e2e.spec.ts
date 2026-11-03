@@ -3,6 +3,7 @@
  */
 import { FLOW_LOCATIONS } from "../../prisma/seeds/flows";
 import { api, allSessions, bootFlows, disconnectDatabase, expectFail, expectOk, MISSING_ID, prisma, Session, V1 } from "./support";
+import { inDefaultClient } from "../factories";
 import { FlowsResult } from "../../prisma/seeds/flows";
 
 let flows: FlowsResult;
@@ -38,7 +39,7 @@ describe("ubicaciones", () => {
   });
 
   it("datatable: la búsqueda ignora acentos y mayúsculas", async () => {
-    await prisma.location.create({ data: { aisle: "J", spot: "1", number: "1", name: "Jardín de niños" } });
+    await prisma.location.create({ data: { ...(await inDefaultClient()), aisle: "J", spot: "1", number: "1", name: "Jardín de niños" } });
     const res = expectOk(await api().post(`${L}/datatable`).set("Authorization", s.admin.auth).send({ page: 1, limit: 10, filters: { name: "JARDIN" } }));
     expect(res.rows.map((r: any) => r.name)).toEqual(expect.arrayContaining(["Jardín de niños", "Flujo · Jardín central"]));
     const none = expectOk(await api().post(`${L}/datatable`).set("Authorization", s.admin.auth).send({ page: 1, limit: 10, filters: { name: "zzz-no-existe" } }));

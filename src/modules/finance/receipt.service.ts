@@ -3,6 +3,8 @@ import PDFDocument from "pdfkit";
 import dayjs from "dayjs";
 import { prismaClient } from "@src/core/config/database";
 import { AppError } from "@src/core/errors/app-error";
+import { ClientScope, scopeByProperty } from "@src/core/scope/client-scope";
+import { residentOwnsProperty } from "../residents/resident-property.service";
 import { ensurePaymentFolio } from "./finance.service";
 
 const money = (value: unknown) =>
@@ -15,9 +17,15 @@ const METHOD_LABEL: Record<string, string> = {
   AJUSTE: "Ajuste",
 };
 
-const getPayment = async (paymentId: number, actorId: number, canManage: boolean) => {
-  const payment = await prismaClient.payment.findUnique({
-    where: { id: paymentId },
+const getPayment = async (
+  paymentId: number,
+  actorId: number,
+  canManage: boolean,
+  scope: ClientScope | undefined,
+) => {
+  // Multicliente: un pago de otro cliente responde 404, como si no existiera (403 sin cliente).
+  const payment = await prismaClient.payment.findFirst({
+    where: { id: paymentId, ...scopeByProperty(scope) },
     include: {
       property: { select: { identifier: true, name: true } },
       resident: { select: { name: true, lastName: true } },
@@ -34,6 +42,11 @@ const getPayment = async (paymentId: number, actorId: number, canManage: boolean
       payment.residentId === actorId ||
       payment.allocations.some((allocation) => allocation.charge.residentId === actorId);
     if (!owns) throw new AppError("PAYMENT_NOT_FOUND", "Pago no encontrado", 404);
+    // Además del alcance y de la titularidad del pago: la propiedad del recurso tiene que ser
+    // la propiedad del residente (su vínculo canónico), no solo una propiedad del mismo cliente.
+    if (!(await residentOwnsProperty(actorId, payment.propertyId))) {
+      throw new AppError("PAYMENT_NOT_FOUND", "Pago no encontrado", 404);
+    }
   }
   return payment;
 };
@@ -47,9 +60,10 @@ export const streamPaymentReceipt = async (
   paymentId: number,
   actorId: number,
   canManage: boolean,
+  scope: ClientScope | undefined,
 ): Promise<void> => {
-  const payment = await getPayment(paymentId, actorId, canManage);
-  const folio = payment.folio ?? (await ensurePaymentFolio(payment.id));
+  const payment = await getPayment(paymentId, actorId, canManage, scope);
+  const folio = payment.folio ?? (await ensurePaymentFolio(payment.id, scope));
 
   const doc = new PDFDocument({ size: "A4", margin: 48 });
   res.setHeader("Content-Type", "application/pdf");

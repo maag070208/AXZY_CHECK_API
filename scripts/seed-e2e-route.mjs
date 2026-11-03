@@ -20,14 +20,18 @@ const main = async () => {
     where: { username: USERNAME, softDelete: false },
   });
   if (!guard) throw new Error(`No existe el guardia ${USERNAME}`);
+  // Multicliente: la ruta va al cliente de la asignación activa del guardia.
+  const assignment = await prisma.guardAssignment.findFirst({ where: { guardId: guard.id, endsAt: null } });
+  if (!assignment) throw new Error(`El guardia ${USERNAME} no tiene asignación activa a un cliente`);
+  const { clientId } = assignment;
 
   const locations = [];
   for (let i = 1; i <= 8; i += 1) {
     const n = String(i).padStart(2, '0');
     const name = `E2E-${n}`;
     const location = await prisma.location.upsert({
-      where: { name },
-      update: { active: true, softDelete: false },
+      where: { clientId_name: { clientId, name } },
+      update: { active: true, softDelete: false, clientId },
       create: {
         aisle: 'E2E',
         spot: n,
@@ -35,6 +39,7 @@ const main = async () => {
         name,
         active: true,
         softDelete: false,
+        clientId,
       },
     });
     locations.push(location);
@@ -43,7 +48,7 @@ const main = async () => {
   let route = await prisma.recurringConfiguration.findFirst({ where: { title: ROUTE_TITLE } });
   if (!route) {
     route = await prisma.recurringConfiguration.create({
-      data: { title: ROUTE_TITLE, description: 'Fixture E2E de 8 puntos', active: true },
+      data: { title: ROUTE_TITLE, description: 'Fixture E2E de 8 puntos', active: true, clientId },
     });
   }
 
@@ -51,6 +56,7 @@ const main = async () => {
     where: { id: route.id },
     data: {
       active: true,
+      clientId,
       guards: { connect: [{ id: guard.id }] },
       recurringLocations: {
         deleteMany: {},

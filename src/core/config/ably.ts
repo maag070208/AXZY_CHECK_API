@@ -6,26 +6,40 @@ import Ably from "ably";
  * split publishers/subscribers onto different channels.
  */
 export const ABLY_CHANNELS = {
-  CHAT_TEAM: "chat:team",
   SHIFT_ALERTS: "shift-handover:alerts",
   DASHBOARD_LIVE: "dashboard:live-ops",
 } as const;
+
+/**
+ * @description Canal del chat del equipo de UN cliente. Multicliente: el chat dejó de ser un canal global
+ * (`chat:team`) para que el mensaje completo no se entregue a otros clientes de la organización.
+ */
+export const chatTeamChannel = (clientId: number): string => `chat:team:${clientId}`;
 
 /** Roles del personal: los únicos que pueden escuchar los canales internos (chat, alertas de turno, dashboard). */
 const STAFF_ROLES = ["ADMIN", "SHIFT", "GUARD", "MAINT"];
 
 /**
- * @description Capacidades de tiempo real según el rol (S-18). El personal escucha los canales internos;
- * cualquier otro rol (p. ej. el residente) solo puede escuchar su canal personal `user:<id>`, que hoy
- * no recibe contenido interno.
+ * @description Capacidades de tiempo real según el rol (S-18) y los clientes que el alcance permite escuchar.
+ * El personal escucha `SHIFT_ALERTS` y `DASHBOARD_LIVE` (solo señales de refresco, sin contenido de cliente) y
+ * un canal de chat POR CADA cliente permitido (`chat:team:<id>`), nunca un canal de chat global. Sin clientes
+ * permitidos no hay canal de chat. Cualquier otro rol (p. ej. el residente) solo escucha su canal personal
+ * `user:<id>`, que no recibe contenido interno.
  */
-export const realtimeCapabilityFor = (role: string | undefined, userId: number): Record<string, Array<"subscribe">> => {
+export const realtimeCapabilityFor = (
+  role: string | undefined,
+  userId: number,
+  clientIds: number[] = [],
+): Record<string, Array<"subscribe">> => {
   if (role && STAFF_ROLES.includes(role)) {
-    return {
-      [ABLY_CHANNELS.CHAT_TEAM]: ["subscribe"],
+    const capability: Record<string, Array<"subscribe">> = {
       [ABLY_CHANNELS.SHIFT_ALERTS]: ["subscribe"],
       [ABLY_CHANNELS.DASHBOARD_LIVE]: ["subscribe"],
     };
+    for (const clientId of new Set(clientIds)) {
+      capability[chatTeamChannel(clientId)] = ["subscribe"];
+    }
+    return capability;
   }
   return { [`user:${userId}`]: ["subscribe"] };
 };
@@ -102,12 +116,16 @@ export const publishToChannel = async (
  * the app — publishing always happens server-side, after persisting to
  * Postgres, never directly from a client.
  * @param clientId Stable identifier for the requesting user (e.g. `user-<id>`).
+ * @param role Role del usuario autenticado (decide si es personal).
+ * @param userId Id del usuario autenticado.
+ * @param clientIds Clientes cuyo chat puede escuchar el usuario (los calcula el controlador desde `req.scope`).
  * @returns The signed TokenRequest, or `null` if Ably is not configured/reachable.
  */
 export const createSubscribeTokenRequest = async (
   clientId: string,
   role: string | undefined,
   userId: number,
+  clientIds: number[] = [],
 ): Promise<Ably.TokenRequest | null> => {
   const client = getAblyClient();
   if (!client) return null;
@@ -115,7 +133,7 @@ export const createSubscribeTokenRequest = async (
   try {
     return await client.auth.createTokenRequest({
       clientId,
-      capability: realtimeCapabilityFor(role, userId),
+      capability: realtimeCapabilityFor(role, userId, clientIds),
     });
   } catch (error) {
     console.error("[Ably] Error creando token request:", error);

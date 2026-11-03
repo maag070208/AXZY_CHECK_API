@@ -3,6 +3,7 @@
  * lo capturado sin red no se pierde y queda marcado como offline.
  */
 import { api, allSessions, bootFlows, disconnectDatabase, prisma, Session, V1 } from "./support";
+import { inDefaultClient } from "../factories";
 import { FlowsResult } from "../../prisma/seeds/flows";
 
 /** El estado HTTP de un reintento no importa a la cola: solo que el servidor lo acepte. */
@@ -88,9 +89,10 @@ describe("cola offline del guardia", () => {
   });
 
   describe("asignaciones especiales", () => {
-    const makeAssignment = () =>
+    const makeAssignment = async () =>
       prisma.assignment.create({
         data: {
+          ...(await inDefaultClient()),
           guardId: s.guard1.id,
           locationId: flows.routes.locationIds[2],
           assignedBy: s.admin.id,

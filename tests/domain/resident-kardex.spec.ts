@@ -5,7 +5,7 @@
 import request from "supertest";
 import { app } from "@src/app";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser, tokenFor } from "../factories";
+import { buildUser, tokenFor, inDefaultClient } from "../factories";
 
 beforeEach(async () => {
   await resetDatabase();
@@ -25,7 +25,7 @@ const makeProperty = async (identifier: string) => {
   const type = await prisma.propertyType.findUniqueOrThrow({ where: { name: "CASA" } });
   const status = await prisma.propertyStatus.findUniqueOrThrow({ where: { name: "VACNT" } });
   const property = await prisma.property.create({
-    data: { identifier, name: identifier, mainStreet: "Calle", typeId: type.id, statusId: status.id, kindId: kind.id, occupancyStatusId: vacant.id },
+    data: { ...(await inDefaultClient()), identifier, name: identifier, mainStreet: "Calle", typeId: type.id, statusId: status.id, kindId: kind.id, occupancyStatusId: vacant.id },
   });
   await prisma.occupancyPeriod.create({ data: { propertyId: property.id, statusId: vacant.id, startDate: new Date() } });
   return property;
@@ -34,8 +34,10 @@ const makeProperty = async (identifier: string) => {
 const makeResident = async (propertyId: number | null) => {
   const user = await buildUser("RESDN");
   if (propertyId !== null) {
+    // El alcance del residente sale de la propiedad de su cuenta.
+    await prisma.user.update({ where: { id: user.id }, data: { propertyId } });
     const kind = await prisma.residentKind.findUniqueOrThrow({ where: { code: "OWNER" } });
-    const person = await prisma.person.create({ data: { firstName: user.name, userId: user.id } });
+    const person = await prisma.person.create({ data: { ...(await inDefaultClient()), firstName: user.name, userId: user.id } });
     await prisma.resident.create({ data: { personId: person.id, propertyId, kindId: kind.id, isPrimary: true, startDate: new Date() } });
   }
   return { user, auth: `Bearer ${tokenFor(user)}` };
@@ -59,8 +61,9 @@ const makeInvitation = async (propertyId: number, userId: number, entryTime: Dat
 };
 
 const makeIncident = async (propertyId: number, guardId: number, title: string, createdAt: Date) => {
+  const { clientId } = await inDefaultClient();
   return prisma.incident.create({
-    data: { guardId, propertyId, title, description: "Detalle interno", status: "PENDING", createdAt },
+    data: { clientId, guardId, propertyId, title, description: "Detalle interno", status: "PENDING", createdAt },
   });
 };
 

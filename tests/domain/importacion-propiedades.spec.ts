@@ -49,7 +49,7 @@ describe("importación", () => {
 
     const names = (await prisma.property.findMany({ select: { identifier: true } })).map((p) => p.identifier).sort();
     expect(names).toEqual(["CSV-1", "CSV-5"]);
-    const apt = await prisma.property.findUniqueOrThrow({ where: { identifier: "CSV-5" }, include: { kind: true, occupancyStatus: true } });
+    const apt = await prisma.property.findFirstOrThrow({ where: { identifier: "CSV-5" }, include: { kind: true, occupancyStatus: true } });
     expect(apt).toMatchObject({ floor: 3, unitNumber: "304" });
     expect(apt.kind.code).toBe("APARTMENT");
     expect(apt.occupancyStatus.code).toBe("RENTED");

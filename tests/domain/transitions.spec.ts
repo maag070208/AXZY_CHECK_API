@@ -6,7 +6,7 @@ import request from "supertest";
 import { app } from "@src/app";
 import { assertStatusUpdated, assertTransition, ASSIGNMENT_TRANSITIONS, INCIDENT_TRANSITIONS, INVITATION_TRANSITIONS } from "@src/core/transitions/transitions";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser, tokenFor } from "../factories";
+import { buildUser, inDefaultClient, tokenFor } from "../factories";
 
 beforeEach(async () => {
   await resetDatabase();
@@ -49,7 +49,7 @@ describe("API: resolver incidente", () => {
   it("resolver dos veces responde 409 INVALID_TRANSITION en la segunda", async () => {
     const admin = await buildUser("ADMIN");
     const guard = await buildUser("GUARD");
-    const incident = await prisma.incident.create({ data: { guardId: guard.id, title: "Prueba" } });
+    const incident = await prisma.incident.create({ data: { ...(await inDefaultClient()), guardId: guard.id, title: "Prueba" } });
     const token = `Bearer ${tokenFor(admin)}`;
 
     const first = await request(app).put(`/api/v1/incidents/${incident.id}/resolve`).set("Authorization", token);

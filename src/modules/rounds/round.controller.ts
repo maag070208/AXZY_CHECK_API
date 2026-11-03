@@ -6,7 +6,7 @@ import { getClientRef, getOccurredAt, getOfflineOrigin } from "@src/core/utils/i
 
 export const getDataTable = async (req: Request, res: Response) => {
   try {
-    const result = await roundService.getDataTableRounds(req.body);
+    const result = await roundService.getDataTableRounds(req.body, req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
@@ -30,8 +30,12 @@ export const startRound = async (req: Request, res: Response) => {
 
   const configId = recurringConfigId ? Number(recurringConfigId) : undefined;
 
-  const result = await roundService.startRound(Number(userId), configId, { clientRef, startedAt, ...origin });
-  return res.status(result.success ? 200 : 400).json(result);
+  try {
+    const result = await roundService.startRound(Number(userId), configId, { clientRef, startedAt, ...origin }, req.scope);
+    return res.status(result.success ? 200 : 400).json(result);
+  } catch (error: any) {
+    return respondError(res, error);
+  }
 };
 
 export const endRound = async (req: Request, res: Response) => {
@@ -39,11 +43,15 @@ export const endRound = async (req: Request, res: Response) => {
   const actor = req.user as { id: number; role: string };
   const endedAt = getOccurredAt(req, "endedAt");
   const idempotent = !!getClientRef(req) || !!endedAt;
-  const result = await roundService.endRound(Number(id), actor, endedAt, idempotent);
-  if (!result.success && (result as any).code === "FORBIDDEN") {
-    return res.status(403).json(result);
+  try {
+    const result = await roundService.endRound(Number(id), actor, endedAt, idempotent, req.scope);
+    if (!result.success && (result as any).code === "FORBIDDEN") {
+      return res.status(403).json(result);
+    }
+    return res.status(result.success ? 200 : 400).json(result);
+  } catch (error: any) {
+    return respondError(res, error);
   }
-  return res.status(result.success ? 200 : 400).json(result);
 };
 
 export const getCurrentRound = async (req: Request, res: Response) => {
@@ -51,22 +59,35 @@ export const getCurrentRound = async (req: Request, res: Response) => {
   if (!userId) {
       return res.status(401).json({ success: false, message: 'No autorizado' });
   }
-  const result = await roundService.getCurrentRound(Number(userId));
-  return res.status(result.success ? 200 : 400).json(result);
+  try {
+    const result = await roundService.getCurrentRound(Number(userId), req.scope);
+    return res.status(result.success ? 200 : 400).json(result);
+  } catch (error: any) {
+    return respondError(res, error);
+  }
 };
 
 export const getRounds = async (req: Request, res: Response) => {
     // Optional filters like date, or guardId
     const { date, guardId } = req.query;
-    const result = await roundService.getRounds(
-        date ? String(date) : undefined, 
-        guardId ? Number(guardId) : undefined
-    );
-    return res.status(result.success ? 200 : 500).json(result);
+    try {
+        const result = await roundService.getRounds(
+            date ? String(date) : undefined,
+            guardId ? Number(guardId) : undefined,
+            req.scope,
+        );
+        return res.status(result.success ? 200 : 500).json(result);
+    } catch (error: any) {
+        return respondError(res, error);
+    }
 };
 
 export const getRoundDetail = async (req: Request, res: Response) => {
     const { id } = req.params;
-    const result = await roundService.getRoundDetail(Number(id));
-    return res.status(result.success ? 200 : 404).json(result);
+    try {
+        const result = await roundService.getRoundDetail(Number(id), req.scope);
+        return res.status(result.success ? 200 : 404).json(result);
+    } catch (error: any) {
+        return respondError(res, error);
+    }
 };

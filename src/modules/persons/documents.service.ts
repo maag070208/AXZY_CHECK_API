@@ -3,6 +3,8 @@ import { AppError } from "@src/core/errors/app-error";
 import { getSetting } from "@src/core/settings/app-settings.service";
 import { todayDateOnly } from "@src/modules/properties/occupancy.service";
 import { StorageService } from "@src/modules/storage/storage.service";
+import { assertPersonInScope, personScopeWhere } from "./person-scope";
+import { ClientScope } from "@src/core/scope/client-scope";
 
 const storage = new StorageService();
 const READ_URL_TTL_SECONDS = 900;
@@ -30,7 +32,9 @@ const assertNotMinor = async (personId: number) => {
 export const uploadDocument = async (
   personId: number,
   input: { kindCode: string; mediaFileId: number; expiresAt?: string | null; notes?: string | null },
+  scope: ClientScope | undefined,
 ) => {
+  await assertPersonInScope(personId, scope);
   await assertNotMinor(personId);
   const kind = await prismaClient.documentKind.findUnique({ where: { code: input.kindCode } });
   if (!kind || !kind.active) throw new AppError("DOCUMENT_KIND_INVALID", "Tipo de documento no válido", 400);
@@ -52,15 +56,18 @@ export const uploadDocument = async (
   });
 };
 
-export const listDocuments = (personId: number) =>
-  prismaClient.personDocument.findMany({
+export const listDocuments = async (personId: number, scope: ClientScope | undefined) => {
+  await assertPersonInScope(personId, scope);
+  return prismaClient.personDocument.findMany({
     where: { personId },
     orderBy: { createdAt: "desc" },
     select: { id: true, expiresAt: true, notes: true, createdAt: true, kind: { select: { code: true, name: true } } },
   });
+};
 
 /** URL firmada de lectura (15 min). El archivo nunca tiene URL pública (T-A2-T6). */
-export const documentReadUrl = async (personId: number, documentId: number) => {
+export const documentReadUrl = async (personId: number, documentId: number, scope: ClientScope | undefined) => {
+  await assertPersonInScope(personId, scope);
   const doc = await prismaClient.personDocument.findFirst({
     where: { id: documentId, personId },
     include: { mediaFile: true },
@@ -72,11 +79,12 @@ export const documentReadUrl = async (personId: number, documentId: number) => {
 };
 
 /** Documentos vencidos o que vencen en `days` días (alerta, T-A2-T6). */
-export const expiringDocuments = async (days: number) => {
+export const expiringDocuments = async (days: number, scope: ClientScope | undefined) => {
   const today = await todayDateOnly();
   const limit = new Date(today.getTime() + days * 24 * 60 * 60 * 1000);
   return prismaClient.personDocument.findMany({
-    where: { expiresAt: { lte: limit } },
+    // Multicliente: solo documentos de personas del cliente del alcance.
+    where: { expiresAt: { lte: limit }, person: personScopeWhere(scope) },
     orderBy: { expiresAt: "asc" },
     select: {
       id: true,

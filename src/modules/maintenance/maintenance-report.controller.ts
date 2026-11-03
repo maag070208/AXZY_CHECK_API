@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { maintenancePdfQuerySchema } from "./maintenance-report.dto";
 import { getMaintenancesForReport } from "./maintenance-report.service";
+import { scopeByClient } from "@src/core/scope/client-scope";
 import { PdfDocumentConfig, PdfReportItem, streamModulePdf } from "@src/modules/reports/pdf-report.renderer";
 import { branding } from "@src/client/branding";
 
@@ -39,12 +40,15 @@ export const getMaintenancesPdf = async (req: Request, res: Response): Promise<v
 
     const { startDate, endDate, ids, includeImages, includeLocation } = parsed.data.query;
 
+    // Multicliente: sin cliente en el alcance responde 403 (no un 500 del generador).
+    scopeByClient(req.scope);
+
     try {
         const items = (await getMaintenancesForReport({
             startDate: new Date(startDate),
             endDate: new Date(endDate),
             ids: ids.length > 0 ? ids : undefined,
-        })) as PdfReportItem[];
+        }, req.scope)) as PdfReportItem[];
 
         await streamModulePdf(
             res,

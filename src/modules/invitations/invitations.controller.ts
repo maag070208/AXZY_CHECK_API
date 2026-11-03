@@ -14,7 +14,7 @@ export const datatable = async (req: Request, res: Response) => {
         const params = req.body ?? {};
         // La residente solo ve las suyas: el filtro lo impone el servidor, no el cliente.
         if (isResident(req)) params.filters = { ...(params.filters ?? {}), createdById: req.user!.id };
-        const result = await invitationsService.getDataTableInvitations(params);
+        const result = await invitationsService.getDataTableInvitations(params, req.scope, { residentUserId: isResident(req) ? req.user!.id : undefined });
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return respondError(res, error);
@@ -31,18 +31,22 @@ export const create = async (req: Request, res: Response) => {
         // Quien invita es siempre el usuario autenticado, nunca un valor del body (S-03).
         const createdById = req.user!.id;
 
-        const result = await invitationsService.createInvitation({
-            guestName,
-            propertyId: Number(propertyId),
-            createdById: Number(createdById),
-            validFrom: new Date(validFrom),
-            validUntil: new Date(validUntil),
-            notes,
-            typeId: Number(typeId),
-            expectedPlate,
-            // Solo el personal de caseta crea visitas sin cita; la residente no puede marcarlas.
-            walkIn: !isResident(req) && walkIn === true,
-        });
+        const result = await invitationsService.createInvitation(
+            {
+                guestName,
+                propertyId: Number(propertyId),
+                createdById: Number(createdById),
+                validFrom: new Date(validFrom),
+                validUntil: new Date(validUntil),
+                notes,
+                typeId: Number(typeId),
+                expectedPlate,
+                // Solo el personal de caseta crea visitas sin cita; la residente no puede marcarlas.
+                walkIn: !isResident(req) && walkIn === true,
+            },
+            req.scope,
+            { residentUserId: isResident(req) ? req.user!.id : undefined },
+        );
         
         return res.status(201).json(createTResult(result));
     } catch (error: any) {
@@ -52,7 +56,9 @@ export const create = async (req: Request, res: Response) => {
 
 export const getOne = async (req: Request, res: Response) => {
     try {
-        const result = await invitationsService.getInvitationByIdOrCode(req.params.id);
+        const result = await invitationsService.getInvitationByIdOrCode(req.params.id, req.scope, {
+            residentUserId: isResident(req) ? req.user!.id : undefined,
+        });
         if (!result) return res.status(404).json(createTResult(null, ["Invitación no encontrada"]));
         if (isResident(req) && result.createdById !== req.user!.id) return forbidden(res);
         return res.status(200).json(createTResult(result));
@@ -64,7 +70,7 @@ export const getOne = async (req: Request, res: Response) => {
 /** Lectura de un pase en caseta: si no puede entrar, el intento queda en la bitácora. */
 export const scan = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        return res.status(200).json(createTResult(await invitationsService.scanInvitation(req.body.code, req.user?.id)));
+        return res.status(200).json(createTResult(await invitationsService.scanInvitation(req.body.code, req.user?.id, req.scope)));
     } catch (error: any) {
         return next(error);
     }
@@ -78,7 +84,9 @@ export const updateStatus = async (req: Request, res: Response, next: NextFuncti
             const own = await invitationsService.getInvitationOwner(Number(req.params.id));
             if (own !== null && (own !== req.user!.id || status !== "CANCELLED")) return forbidden(res);
         }
-        const result = await invitationsService.updateInvitationStatus(Number(req.params.id), status, reason, req.user?.id);
+        const result = await invitationsService.updateInvitationStatus(Number(req.params.id), status, reason, req.user?.id, req.scope, {
+            residentUserId: isResident(req) ? req.user!.id : undefined,
+        });
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return next(error);
@@ -88,7 +96,7 @@ export const updateStatus = async (req: Request, res: Response, next: NextFuncti
 /** Visitas sin cita esperando autorización (residente: las de su casa; jefe y admin: todas). */
 export const pendingApprovals = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        const result = await invitationsService.listPendingApprovals({ id: req.user!.id, role: req.user!.role });
+        const result = await invitationsService.listPendingApprovals({ id: req.user!.id, role: req.user!.role }, req.scope);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return next(error);
@@ -104,6 +112,7 @@ export const decideApproval = async (req: Request, res: Response, next: NextFunc
             { id: req.user!.id, role: req.user!.role },
             decision,
             reason,
+            req.scope,
         );
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
@@ -112,9 +121,9 @@ export const decideApproval = async (req: Request, res: Response, next: NextFunc
 };
 
 /** Lo que la caseta necesita para marcar visitas que rebasaron su permanencia. */
-export const casetaStatus = async (_req: Request, res: Response, next: NextFunction) => {
+export const casetaStatus = async (req: Request, res: Response, next: NextFunction) => {
     try {
-        return res.status(200).json(createTResult(await invitationsService.getCasetaStatus()));
+        return res.status(200).json(createTResult(await invitationsService.getCasetaStatus(req.scope)));
     } catch (error: any) {
         return next(error);
     }
@@ -124,11 +133,14 @@ export const casetaStatus = async (_req: Request, res: Response, next: NextFunct
 export const stats = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { from, to, propertyId } = req.query as { from: string; to: string; propertyId?: string };
-        const result = await invitationsService.getVisitStats({
-            from: new Date(from),
-            to: new Date(to),
-            propertyId: propertyId ? Number(propertyId) : undefined,
-        });
+        const result = await invitationsService.getVisitStats(
+            {
+                from: new Date(from),
+                to: new Date(to),
+                propertyId: propertyId ? Number(propertyId) : undefined,
+            },
+            req.scope,
+        );
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return next(error);
@@ -139,11 +151,15 @@ export const stats = async (req: Request, res: Response, next: NextFunction) => 
 export const statsPdf = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { from, to, propertyId } = req.query as { from: string; to: string; propertyId?: string };
-        await streamVisitStatsPdf(res, {
-            from: new Date(from),
-            to: new Date(to),
-            propertyId: propertyId ? Number(propertyId) : undefined,
-        });
+        await streamVisitStatsPdf(
+            res,
+            {
+                from: new Date(from),
+                to: new Date(to),
+                propertyId: propertyId ? Number(propertyId) : undefined,
+            },
+            req.scope,
+        );
     } catch (error: any) {
         return next(error);
     }
@@ -153,11 +169,15 @@ export const statsPdf = async (req: Request, res: Response, next: NextFunction) 
 export const statsXlsx = async (req: Request, res: Response, next: NextFunction) => {
     try {
         const { from, to, propertyId } = req.query as { from: string; to: string; propertyId?: string };
-        await streamVisitStatsXlsx(res, {
-            from: new Date(from),
-            to: new Date(to),
-            propertyId: propertyId ? Number(propertyId) : undefined,
-        });
+        await streamVisitStatsXlsx(
+            res,
+            {
+                from: new Date(from),
+                to: new Date(to),
+                propertyId: propertyId ? Number(propertyId) : undefined,
+            },
+            req.scope,
+        );
     } catch (error: any) {
         return next(error);
     }

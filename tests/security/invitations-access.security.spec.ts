@@ -5,7 +5,7 @@
 import request from "supertest";
 import { app } from "@src/app";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser, RoleName, tokenFor } from "../factories";
+import { buildUser, inDefaultClient, RoleName, tokenFor } from "../factories";
 
 const api = "/api/v1/invitations";
 const HOUR = 3600_000;
@@ -29,14 +29,14 @@ const makeProperty = async (identifier: string) => {
   const type = await prisma.propertyType.findUniqueOrThrow({ where: { name: "CASA" } });
   const status = await prisma.propertyStatus.findUniqueOrThrow({ where: { name: "VACNT" } });
   return prisma.property.create({
-    data: { identifier, name: identifier, mainStreet: "Calle", typeId: type.id, statusId: status.id, kindId: kind.id, occupancyStatusId: occupancy.id },
+    data: { ...(await inDefaultClient()),  identifier, name: identifier, mainStreet: "Calle", typeId: type.id, statusId: status.id, kindId: kind.id, occupancyStatusId: occupancy.id },
   });
 };
 
 const makeResident = async (propertyId: number) => {
   const { user, auth } = await authFor("RESDN");
   const kind = await prisma.residentKind.findUniqueOrThrow({ where: { code: "OWNER" } });
-  const person = await prisma.person.create({ data: { firstName: user.name, userId: user.id } });
+  const person = await prisma.person.create({ data: { ...(await inDefaultClient()), firstName: user.name, userId: user.id } });
   await prisma.resident.create({ data: { personId: person.id, propertyId, kindId: kind.id, isPrimary: true, startDate: new Date() } });
   return { user, auth };
 };

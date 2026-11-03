@@ -4,7 +4,7 @@
 import request from "supertest";
 import { app } from "@src/app";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser, tokenFor } from "../factories";
+import { buildUser, tokenFor, inDefaultClient } from "../factories";
 
 beforeEach(async () => {
   await resetDatabase();
@@ -35,7 +35,7 @@ describe("catálogos de propiedades", () => {
     const type = await prisma.propertyType.findUniqueOrThrow({ where: { name: "CASA" } });
     const status = await prisma.propertyStatus.findUniqueOrThrow({ where: { name: "VACNT" } });
     await prisma.property.create({
-      data: { identifier: "S-1", name: "Casa", mainStreet: "C", typeId: type.id, statusId: status.id, kindId: kind.id, occupancyStatusId: vacant.id, residentCount: 3, maxResidents: 2 },
+      data: { ...(await inDefaultClient()), identifier: "S-1", name: "Casa", mainStreet: "C", typeId: type.id, statusId: status.id, kindId: kind.id, occupancyStatusId: vacant.id, residentCount: 3, maxResidents: 2 },
     });
     const res = await request(app).get("/api/v1/properties/stats/occupancy").set("Authorization", await auth("ADMIN"));
     expect(res.body.data).toMatchObject({ properties: 1, residents: 3, overcrowded: 1 });

@@ -4,6 +4,7 @@ import { prismaClient } from "@src/core/config/database";
 import { AppError } from "@src/core/errors/app-error";
 import { requireResidentPropertyId } from "../residents/resident-property.service";
 import { getPropertyAccessStatus, recordAccessEvent } from "../access-control/access-control.service";
+import { ClientScope, scopeByProperty } from "@src/core/scope/client-scope";
 
 const normalizePlate = (value: string) => value.toUpperCase().replace(/[^A-Z0-9]/g, "");
 const normalizeTag = (value: string) => value.toUpperCase().replace(/[^A-Z0-9-]/g, "");
@@ -38,6 +39,16 @@ const serializeVehicle = (vehicle: any) => ({
 
 const residentPropertyId = async (userId: number) => requireResidentPropertyId(userId);
 
+/**
+ * Cliente de la propiedad del vehículo. Fase 5: todo vehículo se guarda con su cliente, que siempre sale de la
+ * propiedad (una propiedad sin cliente no puede tener vehículos: no habría aislamiento).
+ */
+const propertyClientId = async (propertyId: number): Promise<number> => {
+  const property = await prismaClient.property.findFirst({ where: { id: propertyId, softDelete: false }, select: { clientId: true } });
+  if (!property?.clientId) throw new AppError("CLIENT_SCOPE_REQUIRED", "No hay un cliente asignado o seleccionado", 403);
+  return property.clientId;
+};
+
 const assertQuota = async (propertyId: number, excludeId?: number) => {
   const property = await prismaClient.property.findUnique({ where: { id: propertyId }, select: { vehicleQuota: true } });
   if (!property?.vehicleQuota) return;
@@ -62,10 +73,11 @@ const assertPlateFree = async (propertyId: number, plateNormalized: string, excl
   if (duplicate) throw new AppError("VEHICLE_PLATE_DUPLICATE", "Ya hay un vehículo con esa placa en la propiedad", 409);
 };
 
-const generateTag = async () => {
+/** Tag libre en el cliente: el mismo tag puede existir en otro cliente (único por cliente). */
+const generateTag = async (clientId: number) => {
   for (let attempt = 0; attempt < 8; attempt += 1) {
     const tag = `TAG-${randomBytes(3).toString("hex").toUpperCase()}`;
-    const exists = await prismaClient.vehicle.findUnique({ where: { tagCode: tag }, select: { id: true } });
+    const exists = await prismaClient.vehicle.findFirst({ where: { tagCode: tag, clientId }, select: { id: true } });
     if (!exists) return tag;
   }
   throw new AppError("VEHICLE_TAG_ERROR", "No se pudo generar un tag; intenta de nuevo", 500);
@@ -83,6 +95,7 @@ export const listMyVehicles = async (userId: number) => {
 
 export const createMyVehicle = async (userId: number, input: { plate: string; kind?: string; brand?: string; model?: string; color?: string; notes?: string }) => {
   const propertyId = await residentPropertyId(userId);
+  const clientId = await propertyClientId(propertyId);
   const plateNormalized = normalizePlate(input.plate);
   if (plateNormalized.length < 3) throw new AppError("VEHICLE_PLATE_INVALID", "La placa no es válida", 400);
   await assertQuota(propertyId);
@@ -90,6 +103,7 @@ export const createMyVehicle = async (userId: number, input: { plate: string; ki
   const vehicle = await prismaClient.vehicle.create({
     data: {
       propertyId,
+      clientId,
       ownerId: userId,
       plate: input.plate.trim().toUpperCase(),
       plateNormalized,
@@ -124,6 +138,8 @@ export const updateMyVehicle = async (userId: number, id: number, input: { plate
       notes: trimOrNull(input.notes),
       // Un cambio del residente vuelve a revisión y retira el tag hasta que se apruebe.
       status: VehicleStatus.PENDING,
+      // Fase 5: también al editar se deja etiquetado con el cliente de la propiedad (filas anteriores a la fase).
+      clientId: await propertyClientId(propertyId),
       tagCode: null,
       approvedAt: null,
       approvedById: null,
@@ -140,9 +156,11 @@ export const deleteMyVehicle = async (userId: number, id: number) => {
   return { id };
 };
 
-export const listVehicles = async (query: { page: number; pageSize: number; status?: VehicleStatus; search?: string }) => {
+export const listVehicles = async (query: { page: number; pageSize: number; status?: VehicleStatus; search?: string }, scope: ClientScope | undefined) => {
   const search = query.search ? query.search.trim().toUpperCase() : "";
   const where: Prisma.VehicleWhereInput = {
+    // Multicliente: solo los vehículos del cliente del alcance.
+    ...scopeByProperty(scope),
     active: true,
     ...(query.status ? { status: query.status } : {}),
     ...(search
@@ -170,25 +188,29 @@ export const listVehicles = async (query: { page: number; pageSize: number; stat
   return { items: items.map(serializeVehicle), total, page: query.page, pageSize: query.pageSize };
 };
 
-export const approveVehicle = async (id: number, actorId: number, tagCode?: string) => {
-  const current = await prismaClient.vehicle.findFirst({ where: { id, active: true } });
+export const approveVehicle = async (id: number, actorId: number, tagCode: string | undefined, scope: ClientScope | undefined) => {
+  // Multicliente: vehículo de otro cliente = 404.
+  const current = await prismaClient.vehicle.findFirst({ where: { id, active: true, ...scopeByProperty(scope) } });
   if (!current) throw new AppError("VEHICLE_NOT_FOUND", "Vehículo no encontrado", 404);
+  // Fase 5: el vehículo queda etiquetado con el cliente de su propiedad.
+  const clientId = await propertyClientId(current.propertyId);
   if (current.status !== VehicleStatus.APPROVED) await assertQuota(current.propertyId, id);
-  const normalizedTag = tagCode ? normalizeTag(tagCode) : await generateTag();
+  const normalizedTag = tagCode ? normalizeTag(tagCode) : await generateTag(clientId);
   if (normalizedTag.length < 3) throw new AppError("VEHICLE_TAG_INVALID", "El tag no es válido", 400);
-  const tagOwner = await prismaClient.vehicle.findUnique({ where: { tagCode: normalizedTag }, select: { id: true } });
+  // Tag único POR CLIENTE: el mismo tag en otro cliente no es conflicto.
+  const tagOwner = await prismaClient.vehicle.findFirst({ where: { tagCode: normalizedTag, clientId }, select: { id: true } });
   if (tagOwner && tagOwner.id !== id) throw new AppError("VEHICLE_TAG_DUPLICATE", "Ese tag ya está asignado", 409);
 
   const vehicle = await prismaClient.vehicle.update({
     where: { id },
-    data: { status: VehicleStatus.APPROVED, tagCode: normalizedTag, approvedById: actorId, approvedAt: new Date(), notes: null },
+    data: { status: VehicleStatus.APPROVED, tagCode: normalizedTag, clientId, approvedById: actorId, approvedAt: new Date(), notes: null },
     include: vehicleInclude,
   });
   return serializeVehicle(vehicle);
 };
 
-export const rejectVehicle = async (id: number, notes?: string) => {
-  const current = await prismaClient.vehicle.findFirst({ where: { id, active: true } });
+export const rejectVehicle = async (id: number, notes: string | undefined, scope: ClientScope | undefined) => {
+  const current = await prismaClient.vehicle.findFirst({ where: { id, active: true, ...scopeByProperty(scope) } });
   if (!current) throw new AppError("VEHICLE_NOT_FOUND", "Vehículo no encontrado", 404);
   const vehicle = await prismaClient.vehicle.update({
     where: { id },
@@ -198,17 +220,19 @@ export const rejectVehicle = async (id: number, notes?: string) => {
   return serializeVehicle(vehicle);
 };
 
-export const deactivateVehicle = async (id: number) => {
-  const vehicle = await prismaClient.vehicle.findFirst({ where: { id, active: true } });
+export const deactivateVehicle = async (id: number, scope: ClientScope | undefined) => {
+  const vehicle = await prismaClient.vehicle.findFirst({ where: { id, active: true, ...scopeByProperty(scope) } });
   if (!vehicle) throw new AppError("VEHICLE_NOT_FOUND", "Vehículo no encontrado", 404);
   await prismaClient.vehicle.update({ where: { id }, data: { active: false, status: VehicleStatus.INACTIVE, tagCode: null } });
   return { id };
 };
 
-export const lookupVehicles = async (query: string) => {
+export const lookupVehicles = async (query: string, scope: ClientScope | undefined) => {
   const normalized = normalizePlate(query);
   const vehicles = await prismaClient.vehicle.findMany({
     where: {
+      // Multicliente: la caseta solo encuentra vehículos de su cliente.
+      ...scopeByProperty(scope),
       active: true,
       status: VehicleStatus.APPROVED,
       OR: [{ plateNormalized: { contains: normalized } }, { tagCode: { contains: normalizeTag(query) } }],
@@ -219,8 +243,12 @@ export const lookupVehicles = async (query: string) => {
   return vehicles.map(serializeVehicle);
 };
 
-export const registerVehicleAccess = async (id: number, direction: "ENTRY" | "EXIT", guardId: number) => {
-  const vehicle = await prismaClient.vehicle.findFirst({ where: { id, active: true, status: VehicleStatus.APPROVED }, include: vehicleInclude });
+export const registerVehicleAccess = async (id: number, direction: "ENTRY" | "EXIT", guardId: number, scope: ClientScope | undefined) => {
+  // Multicliente: un vehículo de otro cliente responde 404, igual que uno inexistente o no aprobado.
+  const vehicle = await prismaClient.vehicle.findFirst({
+    where: { id, active: true, status: VehicleStatus.APPROVED, ...scopeByProperty(scope) },
+    include: vehicleInclude,
+  });
   if (!vehicle) throw new AppError("VEHICLE_NOT_AVAILABLE", "El vehículo no está aprobado o está inactivo", 404);
 
   if (direction === "ENTRY") {

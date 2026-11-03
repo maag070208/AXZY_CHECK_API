@@ -7,7 +7,7 @@ import { respondError } from "@src/core/errors/http-error";
 
 export const getDataTable = async (req: Request, res: Response) => {
   try {
-    const result = await assignmentService.getDataTableAssignments(req.body);
+    const result = await assignmentService.getDataTableAssignments(req.body, req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
@@ -25,7 +25,7 @@ export const createAssignment = async (req: Request, res: Response) => {
       assignedBy: Number(assignedBy),
       notes,
       tasks,
-    });
+    }, req.scope);
 
     return res.status(201).json(createTResult(result));
   } catch (error: any) {
@@ -41,7 +41,7 @@ export const getMyAssignments = async (req: Request, res: Response) => {
     
     if (!guardId) return res.status(401).json(createTResult(null, ["Unauthorized"]));
 
-    const result = await assignmentService.getAssignmentsByGuard(Number(guardId));
+    const result = await assignmentService.getAssignmentsByGuard(Number(guardId), req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
@@ -55,7 +55,7 @@ export const getAllAssignments = async (req: Request, res: Response) => {
             id: id ? Number(id) : undefined,
             guardId: guardId ? Number(guardId) : undefined,
             status: status as AssignmentStatus
-        });
+        }, req.scope);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return respondError(res, error);
@@ -66,7 +66,7 @@ export const updateStatus = async (req: Request, res: Response, next: NextFuncti
     try {
         const { id } = req.params;
         const { status } = req.body;
-        const result = await assignmentService.updateAssignmentStatus(Number(id), status);
+        const result = await assignmentService.updateAssignmentStatus(Number(id), status, req.scope);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return next(error);
@@ -76,7 +76,7 @@ export const updateStatus = async (req: Request, res: Response, next: NextFuncti
 export const toggleTask = async (req: Request, res: Response) => {
     try {
         const { taskId } = req.params;
-        const result = await assignmentService.toggleAssignmentTask(Number(taskId), req.user as { id: number; role: string }, req.body?.completed);
+        const result = await assignmentService.toggleAssignmentTask(Number(taskId), req.user as { id: number; role: string }, req.body?.completed, req.scope);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return respondError(res, error);

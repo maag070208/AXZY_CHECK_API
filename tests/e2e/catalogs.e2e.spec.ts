@@ -2,6 +2,7 @@
  * Flujos: catálogos de lectura (/catalog/:key), catálogos administrables (/catalogs/*)
  * y administración de categorías/tipos de incidencia (/catalog-admin/*).
  */
+import { defaultClient } from "../factories";
 import { api, allSessions, bootFlows, disconnectDatabase, expectFail, expectOk, MISSING_ID, prisma, Session, V1 } from "./support";
 
 let s: Record<string, Session>;
@@ -25,7 +26,7 @@ describe("catálogos de lectura /catalog/:key", () => {
 
   it("el catálogo de guardias solo trae guardias activos y arma el nombre sin 'null'", async () => {
     await prisma.user.update({ where: { id: s.guard2.id }, data: { lastName: null } });
-    const inactive = await prisma.user.create({ data: { name: "Baja", username: "guardia_baja", password: "x", active: false, roleId: (await prisma.role.findUniqueOrThrow({ where: { name: "GUARD" } })).id } });
+    const inactive = await prisma.user.create({ data: { name: "Baja", username: "guardia_baja", password: "x", active: false, roleId: (await prisma.role.findUniqueOrThrow({ where: { name: "GUARD" } })).id, organizationId: (await defaultClient()).organizationId } });
     const rows = expectOk(await api().get(`${V1}/catalog/guard`).set("Authorization", s.admin.auth));
     expect(rows.map((r: any) => r.id)).not.toContain(inactive.id);
     expect(rows.find((r: any) => r.id === s.guard2.id).value).toBe("Gonzalo");

@@ -6,6 +6,8 @@ import { USER_PUBLIC_SELECT } from "@src/core/constants/user-select";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 import { ABLY_CHANNELS, publishToChannel } from "@src/core/config/ably";
+import { ClientScope, scopeByClient } from "@src/core/scope/client-scope";
+import { sendIncidentEmail } from "@src/core/utils/emailSender";
 
 /**
  * "Incidencia" y "Casa Club" comparten la misma tabla `Incident`,
@@ -17,11 +19,16 @@ import { ABLY_CHANNELS, publishToChannel } from "@src/core/config/ably";
  */
 const INCIDENT_KIND = "INCIDENT";
 
-export const getDataTableIncidents = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
+export const getDataTableIncidents = async (params: ITDataTableFetchParams, scope: ClientScope | undefined): Promise<ITDataTableResponse<any>> => {
+    // Sin cliente en el alcance es 403, no una tabla vacía.
+    const { clientId } = scopeByClient(scope);
     const prismaParams = getPrismaPaginationParams(params);
 
     delete prismaParams.where.kind;
     prismaParams.where.kind = INCIDENT_KIND;
+    // El filtro del cliente sale del alcance, nunca del cuerpo de la petición.
+    delete prismaParams.where.clientId;
+    prismaParams.where.clientId = clientId;
 
     // Handle combined search (if any)
     const searchVal = String(params.filters?.search || "").trim();
@@ -61,7 +68,6 @@ export const getDataTableIncidents = async (params: ITDataTableFetchParams): Pro
 
     return { rows, total };
 };
-import { sendIncidentEmail } from "@src/core/utils/emailSender";
 
 export const createIncident = async (data: {
     guardId: number;
@@ -77,17 +83,34 @@ export const createIncident = async (data: {
     createdAt?: Date;
     createdOffline?: boolean;
     syncedAt?: Date;
-}) => {
+}, scope: ClientScope | undefined) => {
+    const { clientId } = scopeByClient(scope);
     if (data.clientRef) {
         const existing = await prismaClient.incident.findUnique({
             where: { clientRef: data.clientRef },
         });
-        if (existing) return existing;
+        if (existing) {
+            // Reintento offline de otro cliente: no se devuelve ni se reubica.
+            if (existing.clientId !== clientId) {
+                throw new AppError("CLIENT_REF_CONFLICT", "La clave de sincronización pertenece a otro registro.", 409);
+            }
+            return existing;
+        }
+    }
+
+    // La propiedad que se menciona tiene que ser del cliente donde trabaja quien reporta.
+    if (data.propertyId) {
+        const property = await prismaClient.property.findFirst({
+            where: { id: data.propertyId, clientId, softDelete: false },
+            select: { id: true },
+        });
+        if (!property) throw new AppError("PROPERTY_NOT_FOUND", "Propiedad no encontrada", 400);
     }
 
     const incident = await prismaClient.incident.create({
         data: {
             kind: INCIDENT_KIND,
+            clientId,
             guardId: data.guardId,
             propertyId: data.propertyId,
             title: data.title,
@@ -130,9 +153,9 @@ export const createIncident = async (data: {
     return incident;
 };
 
-export const getIncidentsByGuard = async (guardId: number) => {
+export const getIncidentsByGuard = async (guardId: number, scope: ClientScope | undefined) => {
     return prismaClient.incident.findMany({
-        where: { guardId, kind: INCIDENT_KIND },
+        where: { guardId, kind: INCIDENT_KIND, ...scopeByClient(scope) },
         orderBy: { createdAt: 'desc' }
     });
 };
@@ -143,8 +166,8 @@ export const getIncidents = async (filters: {
     guardId?: number;
     category?: string;
     title?: string;
-}) => {
-    const whereClause: any = { kind: INCIDENT_KIND };
+}, scope: ClientScope | undefined) => {
+    const whereClause: any = { kind: INCIDENT_KIND, ...scopeByClient(scope) };
 
     if (filters.startDate && filters.endDate) {
         whereClause.createdAt = {
@@ -170,13 +193,17 @@ export const getIncidents = async (filters: {
     });
 };
 
-export const resolveIncident = async (id: number, userId: number) => {
-    const current = await prismaClient.incident.findUnique({ where: { id }, select: { status: true } });
+export const resolveIncident = async (id: number, userId: number, scope: ClientScope | undefined) => {
+    // De otro cliente es "no encontrada".
+    const current = await prismaClient.incident.findFirst({
+        where: { id, kind: INCIDENT_KIND, ...scopeByClient(scope) },
+        select: { status: true },
+    });
     if (!current) throw new AppError("INCIDENT_NOT_FOUND", "Incidente no encontrado", 404);
     assertTransition(INCIDENT_TRANSITIONS, current.status, "ATTENDED");
 
     const { count } = await prismaClient.incident.updateMany({
-        where: { id, status: current.status },
+        where: { id, kind: INCIDENT_KIND, status: current.status, ...scopeByClient(scope) },
         data: { status: 'ATTENDED', resolvedAt: new Date(), resolvedById: userId },
     });
     assertStatusUpdated(count);
@@ -190,18 +217,19 @@ export const resolveIncident = async (id: number, userId: number) => {
     });
 };
 
-export const getPendingIncidentsCount = async () => {
+export const getPendingIncidentsCount = async (scope: ClientScope | undefined) => {
     return prismaClient.incident.count({
         where: {
             status: 'PENDING',
-            kind: INCIDENT_KIND
+            kind: INCIDENT_KIND,
+            ...scopeByClient(scope)
         }
     });
 };
 
-export const getIncidentById = async (id: number) => {
+export const getIncidentById = async (id: number, scope: ClientScope | undefined) => {
     return prismaClient.incident.findFirst({
-        where: { id, kind: INCIDENT_KIND },
+        where: { id, kind: INCIDENT_KIND, ...scopeByClient(scope) },
         include: { guard: { select: USER_PUBLIC_SELECT } }
     });
 };

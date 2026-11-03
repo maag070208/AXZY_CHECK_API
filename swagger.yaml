@@ -2,7 +2,7 @@ openapi: 3.0.3
 info:
   title: CheckApp API
   description: 'API de CheckApp para la operación de seguridad de BARCELONA Residencial: usuarios, ubicaciones, rondas, kardex, incidencias, mantenimiento, casa club, propiedades, residentes, invitaciones, reportes y comunicación del equipo.'
-  version: 1.1.0
+  version: 1.5.0
 servers:
 - url: http://localhost:4444/api/v1
   description: Local
@@ -51,11 +51,173 @@ tags:
   description: Entrega de turno
 - name: uniform
   description: Revisión de uniforme y presentación
+- name: clients
+  description: Clientes de la organización (residenciales, plazas y maquilas)
+- name: guard-assignments
+  description: Asignación de guardias a clientes
 - name: dashboard
   description: Dashboard operativo en vivo
 - name: reports
   description: Reportes de guardias y PDFs ejecutivos
 paths:
+  /clients:
+    get:
+      tags:
+      - clients
+      summary: Listar los clientes de la organización del usuario
+      description: 'Roles ADMIN/MAINT (permiso client.view). El alcance sale del token: nunca de query ni body.'
+      parameters:
+      - $ref: '#/components/parameters/XClientId'
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDataTable'
+        '403':
+          description: Sin permiso o sin organización
+    post:
+      tags:
+      - clients
+      summary: Crear un cliente de la organización
+      description: 'Permiso client.manage. El nombre es único por organización (409 si ya existe).'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - name
+              - type
+              properties:
+                name:
+                  type: string
+                  example: Residencial Bosques
+                type:
+                  type: string
+                  enum:
+                  - RESIDENTIAL
+                  - MAQUILA
+                  - PLAZA
+      responses:
+        '201':
+          description: Cliente creado
+        '409':
+          description: Nombre repetido en la organización
+  /clients/{id}:
+    patch:
+      tags:
+      - clients
+      summary: Editar o desactivar un cliente de la organización
+      description: 'Permiso client.manage. Un cliente de otra organización responde 404.'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                type:
+                  type: string
+                  enum:
+                  - RESIDENTIAL
+                  - MAQUILA
+                  - PLAZA
+                active:
+                  type: boolean
+      responses:
+        '200':
+          description: Cliente actualizado
+        '404':
+          description: No existe en la organización del usuario
+  /guard-assignments:
+    get:
+      tags:
+      - guard-assignments
+      summary: Listar asignaciones de guardias a clientes
+      description: 'Permiso guard.assign. Filtros opcionales: clientId, guardId, active=true|false.'
+      parameters:
+      - $ref: '#/components/parameters/XClientId'
+      - name: clientId
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: guardId
+        in: query
+        required: false
+        schema:
+          type: integer
+      - name: active
+        in: query
+        required: false
+        schema:
+          type: boolean
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultDataTable'
+    post:
+      tags:
+      - guard-assignments
+      summary: Asignar un guardia a un cliente
+      description: 'Permiso guard.assign. Cierra en la misma transacción la asignación abierta anterior del guardia y refresca su alcance (invalidateSession). Cliente o guardia de otra organización: 400; misma asignación abierta al mismo cliente: 409.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - guardId
+              - clientId
+              properties:
+                guardId:
+                  type: integer
+                clientId:
+                  type: integer
+                startsAt:
+                  type: string
+                  format: date-time
+      responses:
+        '201':
+          description: Asignación creada
+        '400':
+          description: Cliente o guardia inválido para la organización
+        '409':
+          description: El guardia ya está asignado a ese cliente
+  /guard-assignments/{id}/end:
+    post:
+      tags:
+      - guard-assignments
+      summary: Terminar una asignación de guardia
+      description: 'Permiso guard.assign. Refresca el alcance del guardia (invalidateSession). De otra organización: 404; ya terminada: 400.'
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: integer
+      responses:
+        '200':
+          description: Asignación terminada
+        '400':
+          description: La asignación ya está terminada
+        '404':
+          description: No existe en la organización del usuario
   /users:
     get:
       tags:
@@ -134,6 +296,21 @@ paths:
         '401':
           description: Invalid credentials
       security: []
+  /users/me:
+    get:
+      tags:
+      - users
+      summary: Sesión actual (usuario, rol y alcance multicliente)
+      responses:
+        '200':
+          description: >-
+            OK. `data` incluye `id`, `name`, `lastName`, `username`, `role`, `photoUrl`, `clientId` y
+            `organizationId`. `clientId`/`organizationId` son el alcance de la sesión (salen del token, no de la
+            petición); la WEB los usa para suscribirse al canal de tiempo real del cliente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TResultGeneric'
   /locations:
     get:
       tags:
@@ -919,12 +1096,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/TResultGeneric'
-      description: Requiere ADMIN, GUARD, SHIFT o MAINT. Publica new-message en chat:team.
+      description: Requiere ADMIN, GUARD, SHIFT o MAINT. Publica new-message en el canal del cliente del mensaje (`chat:team:<clientId>`); el canal global `chat:team` ya no existe.
   /realtime/token:
     get:
       tags:
       - realtime
       summary: Emite un TokenRequest de Ably (solo-suscripción) para el usuario autenticado
+      description: >-
+        Capacidad según el alcance: el personal recibe `shift-handover:alerts`, `dashboard:live-ops` y el canal de
+        chat de cada cliente permitido (`chat:team:<clientId>`); ADMIN/MAINT reciben todos los clientes activos de su
+        organización y los roles con cliente fijo, el suyo. Nunca se emite el canal global `chat:team`. Los roles no
+        operativos solo reciben su canal personal `user:<id>`.
       responses:
         '200':
           description: OK
@@ -4190,6 +4372,14 @@ components:
           type: array
           items:
             type: string
+  parameters:
+    XClientId:
+      name: X-Client-Id
+      in: header
+      required: false
+      description: 'Multicliente: cliente elegido por ADMIN/MAINT (validado contra su organización; ajeno = 403, mal formado = 400). GUARD/SHIFT/RESDN/CLIENT lo tienen fijo en el token y un valor distinto es 403.'
+      schema:
+        type: integer
   securitySchemes:
     bearerAuth:
       type: http

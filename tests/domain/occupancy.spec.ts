@@ -8,7 +8,7 @@ import { app } from "@src/app";
 import { createResidentUser } from "@src/modules/residents/residents.service";
 import { findResidentCountDrift } from "@src/modules/properties/resident-count";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser, tokenFor } from "../factories";
+import { buildUser, inDefaultClient, tokenFor, defaultClient } from "../factories";
 
 const API = "/api/v1/properties";
 
@@ -36,7 +36,7 @@ const createProperty = async (token: string) => {
   return res.body.data as { id: number };
 };
 
-const person = (firstName: string) => prisma.person.create({ data: { firstName } });
+const person = async (firstName: string) => prisma.person.create({ data: { ...(await inDefaultClient()), firstName } });
 
 const currentStatus = async (propertyId: number) =>
   (await prisma.property.findUniqueOrThrow({ where: { id: propertyId }, include: { occupancyStatus: true } })).occupancyStatus.code;
@@ -112,8 +112,8 @@ describe("cambio de ocupación", () => {
     const property = await createProperty(admin);
     await request(app).post(`${API}/${property.id}/occupancy`).set("Authorization", admin).send({ status: "OWNER_OCCUPIED" });
 
-    await createResidentUser({ name: "Ana", username: "ana_occ", password: "x", propertyId: property.id }, {});
-    await createResidentUser({ name: "Beto", username: "beto_occ", password: "x", propertyId: property.id }, {});
+    await createResidentUser({ name: "Ana", username: "ana_occ", password: "x", propertyId: property.id }, {}, await defaultClient());
+    await createResidentUser({ name: "Beto", username: "beto_occ", password: "x", propertyId: property.id }, {}, await defaultClient());
     expect((await prisma.property.findUniqueOrThrow({ where: { id: property.id } })).residentCount).toBe(2);
 
     const sinConfirmar = await request(app).post(`${API}/${property.id}/occupancy`).set("Authorization", admin).send({ status: "VACANT" });

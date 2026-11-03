@@ -5,11 +5,13 @@ import { getSetting } from "@src/core/settings/app-settings.service";
 import { recountResidents } from "@src/modules/properties/resident-count";
 import { todayDateOnly } from "@src/modules/properties/occupancy.service";
 import { syncLegacyResident } from "./legacy-sync";
+import { ClientScope, scopeByClient, scopeByProperty } from "@src/core/scope/client-scope";
+import { assertPersonReference, personScopeWhere } from "@src/modules/persons/person-scope";
 
 type Tx = Prisma.TransactionClient;
 
 /** Personas que coinciden por teléfono, correo o nombre (T-A2-05). Advierte antes de crear otra. */
-export const findDuplicates = (tx: Tx, input: { firstName: string; lastName?: string | null; phone?: string | null; email?: string | null }) => {
+export const findDuplicates = (tx: Tx, input: { firstName: string; lastName?: string | null; phone?: string | null; email?: string | null }, scope: ClientScope | undefined) => {
   const or: Prisma.PersonWhereInput[] = [];
   if (input.phone) or.push({ phone: input.phone });
   if (input.email) or.push({ email: { equals: input.email, mode: "insensitive" } });
@@ -20,7 +22,12 @@ export const findDuplicates = (tx: Tx, input: { firstName: string; lastName?: st
     });
   }
   if (or.length === 0) return Promise.resolve([]);
-  return tx.person.findMany({ where: { OR: or }, take: 5, select: { id: true, firstName: true, lastName: true, phone: true, email: true } });
+  // Multicliente: solo se avisa de duplicados del cliente del alcance (no se revelan personas de otro cliente).
+  return tx.person.findMany({
+    where: { AND: [{ OR: or }, personScopeWhere(scope)] },
+    take: 5,
+    select: { id: true, firstName: true, lastName: true, phone: true, email: true },
+  });
 };
 
 /** Edad en años cumplidos a la fecha dada. */
@@ -33,8 +40,19 @@ const ageOn = (birthDate: Date, on: Date) => {
   return age;
 };
 
-export const listHousehold = (propertyId: number) =>
-  prismaClient.resident.findMany({
+/** Propiedad del cliente del alcance; de otro cliente responde 404, igual que si no existiera. */
+const assertPropertyInScope = async (propertyId: number, scope: ClientScope | undefined) => {
+  const property = await prismaClient.property.findFirst({
+    where: { id: propertyId, softDelete: false, ...scopeByClient(scope) },
+    select: { id: true },
+  });
+  if (!property) throw new AppError("PROPERTY_NOT_FOUND", "Propiedad no encontrada", 404);
+  return property;
+};
+
+export const listHousehold = async (propertyId: number, scope: ClientScope | undefined) => {
+  await assertPropertyInScope(propertyId, scope);
+  return prismaClient.resident.findMany({
     where: { propertyId, status: "ACTIVE" },
     orderBy: [{ isPrimary: "desc" }, { id: "asc" }],
     include: {
@@ -42,6 +60,7 @@ export const listHousehold = (propertyId: number) =>
       kind: true,
     },
   });
+};
 
 export const addHouseholdResident = async (
   propertyId: number,
@@ -58,12 +77,16 @@ export const addHouseholdResident = async (
     hasAppAccess?: boolean;
     confirmNewPerson?: boolean;
   },
+  scope: ClientScope | undefined,
 ) => {
   const today = await todayDateOnly();
   const minAge = Number(await getSetting("resident.minAgeForAccount", "18")) || 18;
 
   return prismaClient.$transaction(async (tx) => {
-    const property = await tx.property.findUnique({ where: { id: propertyId }, select: { id: true, softDelete: true } });
+    const property = await tx.property.findFirst({
+      where: { id: propertyId, ...scopeByClient(scope) },
+      select: { id: true, softDelete: true, clientId: true },
+    });
     if (!property || property.softDelete) throw new AppError("PROPERTY_NOT_FOUND", "Propiedad no encontrada", 404);
 
     const kind = await tx.residentKind.findUnique({ where: { code: input.kindCode } });
@@ -71,8 +94,10 @@ export const addHouseholdResident = async (
 
     let person;
     if (input.personId) {
+      // Referencia de la petición: inexistente → 404; de otro cliente → 400 (no se puede vincular).
       person = await tx.person.findUnique({ where: { id: input.personId } });
       if (!person) throw new AppError("PERSON_NOT_FOUND", "Persona no encontrada", 404);
+      await assertPersonReference(input.personId, scope);
     } else {
       if (!input.firstName) throw new AppError("PERSON_REQUIRED", "Indica la persona o su nombre", 400);
       const duplicates = await findDuplicates(tx, {
@@ -80,12 +105,16 @@ export const addHouseholdResident = async (
         lastName: input.lastName,
         phone: input.phone,
         email: input.email,
-      });
+      }, scope);
       if (duplicates.length > 0 && !input.confirmNewPerson) {
         throw new AppError("DUPLICATE_PERSON", "Ya existe una persona con estos datos; confirma para crear otra", 409);
       }
+      // La propiedad ya está validada contra el alcance; su cliente es el del alcance.
+      const { clientId: propertyClientId } = scopeByClient(scope);
       person = await tx.person.create({
         data: {
+          // Multicliente: la persona nace en el cliente de la propiedad (validada contra el alcance arriba).
+          clientId: propertyClientId,
           firstName: input.firstName,
           lastName: input.lastName ?? null,
           phone: input.phone ?? null,
@@ -128,10 +157,10 @@ export const addHouseholdResident = async (
   });
 };
 
-/** Titular único por propiedad, en transacción (T-A2-02). */
-export const setPrimary = async (residentId: number) =>
+/** Titular único por propiedad, en transacción (T-A2-02). Residente de otro cliente → 404. */
+export const setPrimary = async (residentId: number, scope: ClientScope | undefined) =>
   prismaClient.$transaction(async (tx) => {
-    const target = await tx.resident.findUnique({ where: { id: residentId }, include: { kind: true } });
+    const target = await tx.resident.findFirst({ where: { id: residentId, ...scopeByProperty(scope) }, include: { kind: true } });
     if (!target || target.status !== "ACTIVE") throw new AppError("RESIDENT_NOT_ACTIVE", "El residente no está activo", 409);
     if (!target.kind.isHouseholdMember) throw new AppError("RESIDENT_NOT_HOUSEHOLD", "Solo un miembro del hogar puede ser titular", 400);
 
@@ -147,10 +176,10 @@ export const setPrimary = async (residentId: number) =>
  * `replacementPrimaryId` se designa otro; si no, la respuesta trae la advertencia
  * PROPERTY_WITHOUT_PRIMARY. Si la persona tiene cuenta, se quita la propiedad al usuario.
  */
-export const moveOut = async (residentId: number, input: { replacementPrimaryId?: number | null }) => {
+export const moveOut = async (residentId: number, input: { replacementPrimaryId?: number | null }, scope: ClientScope | undefined) => {
   const today = await todayDateOnly();
   return prismaClient.$transaction(async (tx) => {
-    const resident = await tx.resident.findUnique({ where: { id: residentId }, include: { person: true } });
+    const resident = await tx.resident.findFirst({ where: { id: residentId, ...scopeByProperty(scope) }, include: { person: true } });
     if (!resident || resident.status !== "ACTIVE") throw new AppError("RESIDENT_NOT_ACTIVE", "El residente no está activo", 409);
 
     await tx.resident.update({
@@ -166,7 +195,7 @@ export const moveOut = async (residentId: number, input: { replacementPrimaryId?
     let warning: string | null = null;
     if (resident.isPrimary) {
       if (input.replacementPrimaryId) {
-        const replacement = await tx.resident.findUnique({ where: { id: input.replacementPrimaryId } });
+        const replacement = await tx.resident.findFirst({ where: { id: input.replacementPrimaryId, ...scopeByProperty(scope) } });
         if (!replacement || replacement.status !== "ACTIVE" || replacement.propertyId !== resident.propertyId) {
           throw new AppError("REPLACEMENT_INVALID", "El nuevo titular debe ser residente activo de la propiedad", 400);
         }

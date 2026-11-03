@@ -4,6 +4,7 @@
  */
 import { clearSettingsCache } from "@src/core/settings/app-settings.service";
 import { api, allSessions, bootFlows, disconnectDatabase, expectFail, expectOk, MISSING_ID, prisma, Session, V1 } from "./support";
+import { inDefaultClient } from "../factories";
 import { FlowsResult } from "../../prisma/seeds/flows";
 
 let flows: FlowsResult;
@@ -163,8 +164,8 @@ describe("dashboard en vivo", () => {
   it("foto de la operación: rondas en curso con avance, guardias de turno, alertas y rutas sin cubrir", async () => {
     await prisma.round.updateMany({ data: { status: "COMPLETED" } });
     await prisma.user.update({ where: { id: s.guard1.id }, data: { isLoggedIn: true } });
-    const round = await prisma.round.create({ data: { guardId: s.guard1.id, status: "IN_PROGRESS", recurringConfigurationId: flows.routes.configurationId, startTime: new Date(Date.now() - 60 * 60_000) } });
-    await prisma.kardex.create({ data: { userId: s.guard1.id, locationId: flows.routes.locationIds[0], notes: "ok", media: [{ type: "IMAGE", url: "https://example.test/x.jpg" }], latitude: 32.5, longitude: -117, timestamp: new Date(Date.now() - 5 * 60_000) } });
+    const round = await prisma.round.create({ data: { ...(await inDefaultClient()), guardId: s.guard1.id, status: "IN_PROGRESS", recurringConfigurationId: flows.routes.configurationId, startTime: new Date(Date.now() - 60 * 60_000) } });
+    await prisma.kardex.create({ data: { ...(await inDefaultClient()), userId: s.guard1.id, locationId: flows.routes.locationIds[0], notes: "ok", media: [{ type: "IMAGE", url: "https://example.test/x.jpg" }], latitude: 32.5, longitude: -117, timestamp: new Date(Date.now() - 5 * 60_000) } });
 
     const live = expectOk(await api().get(D).set("Authorization", s.shift.auth));
     expect(live.kpis).toMatchObject({ activeRoundsCount: 1, guardsOnShiftCount: 1, openIncidentsCount: 1, routesTotal: 1, routesCovered: 1 });
@@ -179,7 +180,7 @@ describe("dashboard en vivo", () => {
   it("una ronda sin escaneos recientes genera alerta ROUND_STALLED; sin rondas hay rutas sin cubrir", async () => {
     await prisma.round.updateMany({ data: { status: "COMPLETED" } });
     expect(expectOk(await api().get(D).set("Authorization", s.admin.auth)).uncoveredRoutes).toHaveLength(1);
-    await prisma.round.create({ data: { guardId: s.guard2.id, status: "IN_PROGRESS", startTime: new Date(Date.now() - 3 * 3600_000) } });
+    await prisma.round.create({ data: { ...(await inDefaultClient()), guardId: s.guard2.id, status: "IN_PROGRESS", startTime: new Date(Date.now() - 3 * 3600_000) } });
     const live = expectOk(await api().get(D).set("Authorization", s.admin.auth));
     expect(live.activeRounds[0].stale).toBe(true);
     expect(live.alerts.find((a: any) => a.type === "ROUND_STALLED")).toMatchObject({ severity: "high" });

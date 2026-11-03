@@ -3,6 +3,7 @@ import { catalogsSeed } from "./seeds/base/catalogs";
 import { relationshipsSeed } from "./seeds/base/relationships";
 import { assertSafeDatabase } from "./seeds/base/db-guard";
 import { systemSettingsSeed } from "./seeds/base/system-settings";
+import { defaultClientSeed } from "./seeds/base/organization";
 import { hackerLog } from "./seeds/base/logger";
 import { incidentCatalogsSeed } from "./seeds/client/incidents";
 import { maintenanceCatalogsSeed } from "./seeds/client/maintenance";
@@ -32,17 +33,19 @@ async function main() {
   await catalogsSeed(prisma);
   await relationshipsSeed(prisma);
   await systemSettingsSeed(prisma);
+  // Multicliente: producto 1 trabaja sobre la organización y el cliente por defecto.
+  const tenant = await defaultClientSeed(prisma);
 
   await incidentCatalogsSeed(prisma);
   await clubCatalogsSeed(prisma);
   await maintenanceCatalogsSeed(prisma);
   await schedulesSeed(prisma);
-  await locationsSeed(prisma);
+  await locationsSeed(prisma, tenant.clientId);
   await clientSettingsSeed(prisma);
 
   if (process.env.SEED_DEMO === "true") {
-    await securitySeed(prisma);
-    await propertiesSeed(prisma);
+    await securitySeed(prisma, tenant);
+    await propertiesSeed(prisma, tenant);
     await invitationsSeed(prisma);
   } else {
     hackerLog.info('DEMO', 'Datos de demostración omitidos (SEED_DEMO no es "true")');

@@ -7,7 +7,7 @@ import { app } from "@src/app";
 import { createResidentUser, updateResidentUser } from "@src/modules/residents/residents.service";
 import { findResidentCountDrift } from "@src/modules/properties/resident-count";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser, tokenFor } from "../factories";
+import { buildUser, tokenFor, inDefaultClient, defaultClient } from "../factories";
 
 beforeEach(async () => {
   await resetDatabase();
@@ -25,7 +25,7 @@ const makeProperty = async (identifier: string) => {
   const type = await prisma.propertyType.findUniqueOrThrow({ where: { name: "CASA" } });
   const status = await prisma.propertyStatus.findUniqueOrThrow({ where: { name: "VACNT" } });
   const property = await prisma.property.create({
-    data: { identifier, name: identifier, mainStreet: "Calle", typeId: type.id, statusId: status.id, kindId: kind.id, occupancyStatusId: vacant.id },
+    data: { ...(await inDefaultClient()), identifier, name: identifier, mainStreet: "Calle", typeId: type.id, statusId: status.id, kindId: kind.id, occupancyStatusId: vacant.id },
   });
   await prisma.occupancyPeriod.create({ data: { propertyId: property.id, statusId: vacant.id, startDate: new Date() } });
   return property;
@@ -38,8 +38,8 @@ describe("titular y tipos", () => {
   it("T1: un solo titular activo por propiedad (índice de base de datos)", async () => {
     const property = await makeProperty("TIT-1");
     const kind = await prisma.residentKind.findUniqueOrThrow({ where: { code: "OWNER" } });
-    const a = await prisma.person.create({ data: { firstName: "A" } });
-    const b = await prisma.person.create({ data: { firstName: "B" } });
+    const a = await prisma.person.create({ data: { ...(await inDefaultClient()), firstName: "A" } });
+    const b = await prisma.person.create({ data: { ...(await inDefaultClient()), firstName: "B" } });
     await prisma.resident.create({ data: { personId: a.id, propertyId: property.id, kindId: kind.id, isPrimary: true, startDate: new Date() } });
     await expect(
       prisma.resident.create({ data: { personId: b.id, propertyId: property.id, kindId: kind.id, isPrimary: true, startDate: new Date() } }),
@@ -128,7 +128,7 @@ describe("menores y duplicados", () => {
   it("T8: mismo teléfono advierte (409 DUPLICATE_PERSON); confirmar crea la persona", async () => {
     const property = await makeProperty("DUP-1");
     const token = await adminAuth();
-    await prisma.person.create({ data: { firstName: "Ana", phone: "6640000000" } });
+    await prisma.person.create({ data: { ...(await inDefaultClient()), firstName: "Ana", phone: "6640000000" } });
     const dup = await request(app).post(`/api/v1/properties/${property.id}/residents`).set("Authorization", token).send({ firstName: "Otra", phone: "6640000000", kindCode: "FAMILY" });
     expect(dup.status).toBe(409);
     expect(dup.body.code).toBe("DUPLICATE_PERSON");
@@ -144,12 +144,12 @@ describe("puente con la API anterior", () => {
   it("crear, mover y dar de baja un residente por las rutas anteriores mantiene la tabla Resident", async () => {
     const p1 = await makeProperty("PUE-1");
     const p2 = await makeProperty("PUE-2");
-    const user = await createResidentUser({ name: "Mario", username: "mario_puente", password: "x", propertyId: p1.id }, {});
+    const user = await createResidentUser({ name: "Mario", username: "mario_puente", password: "x", propertyId: p1.id }, {}, await defaultClient());
     expect(await count(p1.id)).toBe(1);
     const link = await prisma.resident.findFirstOrThrow({ where: { person: { userId: user.id }, status: "ACTIVE" } });
     expect(link.propertyId).toBe(p1.id);
 
-    await updateResidentUser(user.id, { propertyId: p2.id }, {});
+    await updateResidentUser(user.id, { propertyId: p2.id }, {}, await defaultClient());
     expect(await count(p1.id)).toBe(0);
     expect(await count(p2.id)).toBe(1);
 

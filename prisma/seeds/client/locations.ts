@@ -1,6 +1,6 @@
 import { PrismaClient } from "@prisma/client";
 
-export const locationsSeed = async (prisma: PrismaClient) => {
+export const locationsSeed = async (prisma: PrismaClient, clientId: number) => {
   const locations = [
     // 🏠 ACCESOS / GENERALES
     { name: "Acceso Principal", aisle: "GENERAL", spot: "ENTRADA", number: "1" },
@@ -75,7 +75,7 @@ export const locationsSeed = async (prisma: PrismaClient) => {
 
   for (const location of locations) {
     const exists = await prisma.location.findFirst({
-      where: { name: location.name },
+      where: { name: location.name, clientId },
     });
 
     if (!exists) {
@@ -83,6 +83,7 @@ export const locationsSeed = async (prisma: PrismaClient) => {
         data: {
           ...location,
           isOccupied: false,
+          clientId,
         },
       });
     }

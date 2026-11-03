@@ -1,6 +1,8 @@
 import { prismaClient } from "@src/core/config/database";
 import { getPendingShiftHandover } from "@src/modules/shift-handover/shift-handover.service";
 import { getSetting } from "@src/core/settings/app-settings.service";
+import { ClientScope, scopeByClient } from "@src/core/scope/client-scope";
+import { operativeStaffWhere } from "@src/core/scope/membership";
 
 /**
  * "Dashboard administrativo en vivo" — reemplaza el Home de WEB para
@@ -77,7 +79,9 @@ const average = (values: number[]) =>
  * categoría y por hora, y una línea de tiempo de la actividad reciente.
  * Todo se calcula en memoria sobre dos consultas acotadas a 7 días.
  */
-export const getLiveInsights = async (now: Date) => {
+export const getLiveInsights = async (now: Date, scope: ClientScope | undefined) => {
+  // Multicliente: cada consulta filtra por el cliente del alcance (403 si no hay cliente).
+  const { clientId } = scopeByClient(scope);
   const todayStart = new Date(now);
   todayStart.setHours(0, 0, 0, 0);
   const since = new Date(todayStart);
@@ -85,7 +89,7 @@ export const getLiveInsights = async (now: Date) => {
 
   const [rounds, incidents] = await Promise.all([
     prismaClient.round.findMany({
-      where: { startTime: { gte: since } },
+      where: { startTime: { gte: since }, clientId },
       select: {
         id: true,
         startTime: true,
@@ -96,7 +100,7 @@ export const getLiveInsights = async (now: Date) => {
       },
     }),
     prismaClient.incident.findMany({
-      where: { kind: "INCIDENT", createdAt: { gte: since } },
+      where: { kind: "INCIDENT", createdAt: { gte: since }, clientId },
       select: {
         id: true,
         title: true,
@@ -185,14 +189,16 @@ export const getLiveInsights = async (now: Date) => {
   };
 };
 
-export const getLiveDashboard = async () => {
+export const getLiveDashboard = async (scope: ClientScope | undefined) => {
   const now = new Date();
+  // Multicliente: todo lo que se agrega abajo es del cliente del alcance; sin cliente responde 403.
+  const { clientId } = scopeByClient(scope);
   const staleMinutes = Number(await getSetting("DASHBOARD_STALE_MINUTES", "20")) || 20;
 
   const [activeRoundsRaw, onShiftUsers, openIncidents, openIncidentsCount, activeRoutes, pendingHandover, insights] =
     await Promise.all([
       prismaClient.round.findMany({
-        where: { status: "IN_PROGRESS" },
+        where: { status: "IN_PROGRESS", clientId },
         include: {
           guard: { select: { id: true, name: true, lastName: true, photoUrl: true, role: { select: { name: true } } } },
           recurringConfiguration: {
@@ -207,6 +213,8 @@ export const getLiveDashboard = async () => {
           softDelete: false,
           isLoggedIn: true,
           role: { name: { in: ["GUARD", "SHIFT"] } },
+          // Solo el personal del cliente del alcance (guardias/jefes con asignación abierta a ese cliente).
+          ...operativeStaffWhere(scope),
         },
         select: { id: true, name: true, lastName: true, role: { select: { name: true } } },
       }),
@@ -216,18 +224,18 @@ export const getLiveDashboard = async () => {
       // incident.service.ts) — sin este filtro, un reporte de Casa Club
       // pendiente se contaba/alertaba aquí como si fuera una incidencia.
       prismaClient.incident.findMany({
-        where: { status: "PENDING", kind: "INCIDENT" },
+        where: { status: "PENDING", kind: "INCIDENT", clientId },
         select: { id: true, title: true, createdAt: true, guardId: true },
         orderBy: { createdAt: "desc" },
         take: 10,
       }),
-      prismaClient.incident.count({ where: { status: "PENDING", kind: "INCIDENT" } }),
+      prismaClient.incident.count({ where: { status: "PENDING", kind: "INCIDENT", clientId } }),
       prismaClient.recurringConfiguration.findMany({
-        where: { active: true },
+        where: { active: true, clientId },
         select: { id: true, title: true },
       }),
-      getPendingShiftHandover(),
-      getLiveInsights(now),
+      getPendingShiftHandover(scope),
+      getLiveInsights(now, scope),
     ]);
 
   const guardIds = Array.from(
@@ -367,7 +375,9 @@ export const getLiveDashboard = async () => {
     };
   });
 
-  if (pendingHandover.pending) {
+  if (pendingHandover.pending && pendingHandover.shiftType) {
+    // La entrega de turno ya es del cliente (`ShiftHandover.clientId`): `getPendingShiftHandover(scope)` mira si
+    // existe la fila de este cliente, así que la alerta solo aparece donde falta entregarla.
     alerts.push({
       type: "SHIFT_HANDOVER_OVERDUE",
       severity: "high",

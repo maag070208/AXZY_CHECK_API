@@ -1,6 +1,7 @@
 import { AccessDecision, AccessDirection, AccessMethod, AccessSource, ChargeStatus, Prisma } from "@prisma/client";
 import { prismaClient } from "@src/core/config/database";
 import { AppError } from "@src/core/errors/app-error";
+import { ClientScope, scopeByClient, scopeByProperty } from "@src/core/scope/client-scope";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const round2 = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
@@ -11,6 +12,40 @@ const today = () => {
   return value;
 };
 const dateOnly = (value: string) => new Date(`${value.slice(0, 10)}T00:00:00.000Z`);
+
+/**
+ * Multicliente: propiedad del cliente del alcance. Una propiedad de otro cliente responde 404 igual que una
+ * inexistente, para no revelar que existe en otro cliente (lecturas, ediciones y validaciones en caseta).
+ */
+export const propertyInScope = async (
+  propertyId: number,
+  scope: ClientScope | undefined,
+  code = "PROPERTY_NOT_FOUND",
+  message = "Propiedad no encontrada",
+) => {
+  const property = await prismaClient.property.findFirst({
+    where: { id: propertyId, softDelete: false, ...scopeByClient(scope) },
+    select: { id: true, identifier: true, name: true },
+  });
+  if (!property) throw new AppError(code, message, 404);
+  return property;
+};
+
+/**
+ * Multicliente: propiedad referenciada en un alta. Inexistente o borrada = 404; existente pero de otro
+ * cliente = 400 (referencia ajena, no es un recurso que el alcance pueda tocar).
+ */
+export const propertyReferenceInScope = async (propertyId: number, scope: ClientScope | undefined) => {
+  const property = await prismaClient.property.findFirst({
+    where: { id: propertyId, softDelete: false },
+    select: { id: true, clientId: true },
+  });
+  if (!property) throw new AppError("PROPERTY_NOT_FOUND", "Propiedad no encontrada", 404);
+  if (property.clientId !== scopeByClient(scope).clientId) {
+    throw new AppError("PROPERTY_OUT_OF_CLIENT", "La propiedad no pertenece al cliente seleccionado", 400);
+  }
+  return property;
+};
 
 const serializeRule = (rule: {
   id: number;
@@ -140,8 +175,9 @@ export const getPropertyAccessStatus = async (propertyId: number): Promise<Prope
   return { propertyId, blocked: false, reason: "CLEAR", debtStatus: "CLEAR", overdueDays: 0, overdueAmount: 0, blockVisitors: rule.blockVisitors, exceptionUntil: null };
 };
 
-/** Payload para caseta: sin montos ni datos financieros sensibles. */
-export const getGuardAccessStatus = async (propertyId: number) => {
+/** Payload para caseta: sin montos ni datos financieros sensibles. Solo de propiedades del cliente del alcance. */
+export const getGuardAccessStatus = async (propertyId: number, scope: ClientScope | undefined) => {
+  await propertyInScope(propertyId, scope);
   const status = await getPropertyAccessStatus(propertyId);
   return {
     propertyId: status.propertyId,
@@ -205,7 +241,7 @@ export const recordAccessEvent = async (input: {
   });
 };
 
-export const listAccessEvents = async (query: {
+export type AccessEventsQuery = {
   page: number;
   pageSize: number;
   propertyId?: number;
@@ -216,9 +252,12 @@ export const listAccessEvents = async (query: {
   q?: string;
   from?: string;
   to?: string;
-}) => {
+};
+
+/** `where` de la bitácora con los filtros de la consulta (el cliente se agrega aparte, nunca desde el cliente). */
+const accessEventWhere = (query: Omit<AccessEventsQuery, "page" | "pageSize">): Prisma.AccessEventWhereInput => {
   const q = query.q?.trim();
-  const where: Prisma.AccessEventWhereInput = {
+  return {
     ...(query.propertyId ? { propertyId: query.propertyId } : {}),
     ...(query.personId ? { personId: query.personId } : {}),
     ...(query.method ? { method: query.method } : {}),
@@ -245,13 +284,15 @@ export const listAccessEvents = async (query: {
       },
     }),
   };
+};
 
+const runAccessEventQuery = async (where: Prisma.AccessEventWhereInput, page: number, pageSize: number) => {
   const [items, total] = await prismaClient.$transaction([
     prismaClient.accessEvent.findMany({
       where,
       orderBy: { occurredAt: "desc" },
-      skip: (query.page - 1) * query.pageSize,
-      take: query.pageSize,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
       include: {
         property: { select: { id: true, identifier: true, name: true } },
         person: { select: { id: true, firstName: true, lastName: true } },
@@ -263,15 +304,27 @@ export const listAccessEvents = async (query: {
     prismaClient.accessEvent.count({ where }),
   ]);
 
-  return { items, total, page: query.page, pageSize: query.pageSize };
+  return { items, total, page, pageSize };
 };
+
+/** Bitácora del cliente del alcance. Sin cliente responde 403, nunca "todos los eventos". */
+export const listAccessEvents = async (query: AccessEventsQuery, scope: ClientScope | undefined) =>
+  runAccessEventQuery({ ...accessEventWhere(query), ...scopeByProperty(scope) }, query.page, query.pageSize);
+
+/**
+ * Bitácora de una sola propiedad, para el autoservicio del residente. El alcance es la propiedad de su
+ * vínculo (ya resuelta por el controlador), así que no depende del cliente del token.
+ */
+export const listAccessEventsOfProperty = (query: AccessEventsQuery, propertyId: number) =>
+  runAccessEventQuery(accessEventWhere({ ...query, propertyId }), query.page, query.pageSize);
 
 export const createAccessException = async (
   actorId: number,
   input: { propertyId: number; reason: string; validUntil: string },
+  scope: ClientScope | undefined,
 ) => {
-  const property = await prismaClient.property.findFirst({ where: { id: input.propertyId, softDelete: false }, select: { id: true } });
-  if (!property) throw new AppError("PROPERTY_NOT_FOUND", "Propiedad no encontrada", 404);
+  // Alta: la propiedad de otro cliente es una referencia ajena (400); inexistente, 404.
+  await propertyReferenceInScope(input.propertyId, scope);
   const validUntil = dateOnly(input.validUntil);
   if (validUntil.getTime() <= today().getTime()) {
     throw new AppError("INVALID_EXCEPTION_DATE", "La excepción debe vencer en una fecha futura", 400);
@@ -282,16 +335,17 @@ export const createAccessException = async (
   });
 };
 
-export const listAccessExceptions = async (propertyId?: number) => {
+export const listAccessExceptions = async (propertyId: number | undefined, scope: ClientScope | undefined) => {
   return prismaClient.accessException.findMany({
-    where: { ...(propertyId ? { propertyId } : {}), revokedAt: null },
+    where: { ...(propertyId ? { propertyId } : {}), revokedAt: null, ...scopeByProperty(scope) },
     orderBy: { validUntil: "desc" },
     include: { property: { select: { id: true, identifier: true, name: true } }, createdBy: { select: { id: true, name: true, lastName: true } } },
   });
 };
 
-export const revokeAccessException = async (id: number) => {
-  const exception = await prismaClient.accessException.findUnique({ where: { id } });
+export const revokeAccessException = async (id: number, scope: ClientScope | undefined) => {
+  // De otro cliente responde 404, igual que una excepción inexistente.
+  const exception = await prismaClient.accessException.findFirst({ where: { id, ...scopeByProperty(scope) } });
   if (!exception) throw new AppError("ACCESS_EXCEPTION_NOT_FOUND", "Excepción no encontrada", 404);
   return prismaClient.accessException.update({ where: { id }, data: { revokedAt: new Date() } });
 };
@@ -304,11 +358,11 @@ const csvCell = (value: unknown) => {
 
 export const ACCESS_EXPORT_HEADER = ["Fecha", "Propiedad", "Persona", "Vehículo", "Invitado", "Método", "Sentido", "Decisión", "Guardia", "Motivo"];
 
-export type AccessExportQuery = Omit<Parameters<typeof listAccessEvents>[0], "page" | "pageSize">;
+export type AccessExportQuery = Omit<AccessEventsQuery, "page" | "pageSize">;
 
 /** Filas del historial para CSV, Excel y PDF, con tope de 5,000 registros por archivo. */
-export const accessEventExportRows = async (query: AccessExportQuery) => {
-  const result = await listAccessEvents({ ...query, page: 1, pageSize: 5000 });
+export const accessEventExportRows = async (query: AccessExportQuery, scope: ClientScope | undefined) => {
+  const result = await listAccessEvents({ ...query, page: 1, pageSize: 5000 }, scope);
   return result.items.map((event: any) => ({
     occurredAt: event.occurredAt as Date,
     cells: [
@@ -325,7 +379,7 @@ export const accessEventExportRows = async (query: AccessExportQuery) => {
   }));
 };
 
-export const exportAccessEventsCsv = async (query: AccessExportQuery) => {
-  const rows = (await accessEventExportRows(query)).map((row) => [row.occurredAt.toISOString(), ...row.cells]);
+export const exportAccessEventsCsv = async (query: AccessExportQuery, scope: ClientScope | undefined) => {
+  const rows = (await accessEventExportRows(query, scope)).map((row) => [row.occurredAt.toISOString(), ...row.cells]);
   return `\uFEFF${[ACCESS_EXPORT_HEADER, ...rows].map((row) => row.map(csvCell).join(",")).join("\r\n")}`;
 };

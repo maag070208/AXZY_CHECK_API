@@ -3,6 +3,7 @@ import { findResidentPropertyId } from "./resident-property.service";
 import { prismaClient } from "@src/core/config/database";
 import { AppError } from "@src/core/errors/app-error";
 import type { ResidentKardexQuery } from "./kardex.schemas";
+import { ClientScope, scopeByClient } from "@src/core/scope/client-scope";
 
 export type ResidentKardexType = "ACCESS_ENTRY" | "ACCESS_EXIT" | "INCIDENT" | "CHARGE" | "PAYMENT";
 
@@ -45,11 +46,18 @@ const residentPropertyId = (userId: number): Promise<number | null> => findResid
  * propiedad, cargos y pagos propios. Solo lectura; el filtro por propiedad y
  * residente se hace en el servidor.
  */
-export const getResidentKardex = async (userId: number, query: ResidentKardexQuery) => {
+export const getResidentKardex = async (userId: number, query: ResidentKardexQuery, scope: ClientScope | undefined) => {
   const propertyId = await residentPropertyId(userId);
   if (!propertyId) {
     throw new AppError("NO_ACTIVE_RESIDENCE", "Tu cuenta no está ligada a una propiedad activa", 403);
   }
+  // Multicliente: el kardex se arma solo con la propiedad del cliente del alcance (la del residente).
+  const { clientId } = scopeByClient(scope);
+  const property = await prismaClient.property.findFirst({
+    where: { id: propertyId, clientId, softDelete: false },
+    select: { id: true },
+  });
+  if (!property) throw new AppError("NO_ACTIVE_RESIDENCE", "Tu cuenta no está ligada a una propiedad activa", 403);
 
   const from = query.from ? startOfDay(query.from) : defaultFrom();
   // Incluye todo el día de hoy: los pagos con fecha sin hora se guardan al mediodía UTC.

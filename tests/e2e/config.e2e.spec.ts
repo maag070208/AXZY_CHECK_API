@@ -138,7 +138,7 @@ describe("chat del equipo", () => {
       const res = await api().get(`${C}?${q}`).set("Authorization", s.admin.auth);
       expect(res.status).toBeLessThan(500);
     }
-    for (let i = 0; i < 3; i++) await prisma.chatMessage.create({ data: { userId: s.admin.id, message: `m${i}` } });
+    for (let i = 0; i < 3; i++) await prisma.chatMessage.create({ data: { userId: s.admin.id, message: `m${i}`, clientId: flows.staff.clientId } });
     const huge = await api().get(`${C}?limit=100000`).set("Authorization", s.admin.auth);
     expect(huge.status).toBe(200);
     expect(huge.body.data.length).toBeLessThanOrEqual(200);

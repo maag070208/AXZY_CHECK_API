@@ -34,9 +34,15 @@ export const accessFlow = async (prisma: PrismaClient, staff: StaffIds, props: P
     invitationIds[status] = row.id;
   }
 
+  // Multicliente: la persona autorizada es del cliente del flujo. Si ya existe de un flujo anterior a la
+  // fase 5 (sin `clientId`), se le asigna el del flujo en vez de duplicarla.
+  const existingDomestic = await prisma.person.findFirst({ where: { email: "dora.domestica@example.test" } });
   const domestic =
-    (await prisma.person.findFirst({ where: { email: "dora.domestica@example.test" } })) ??
-    (await prisma.person.create({ data: { firstName: "Dora", lastName: "Doméstica", phone: "5550103", email: "dora.domestica@example.test" } }));
+    existingDomestic ??
+    (await prisma.person.create({ data: { clientId: staff.clientId, firstName: "Dora", lastName: "Doméstica", phone: "5550103", email: "dora.domestica@example.test" } }));
+  if (!domestic.clientId || domestic.clientId !== staff.clientId) {
+    await prisma.person.update({ where: { id: domestic.id }, data: { clientId: staff.clientId } });
+  }
   const authorization =
     (await prisma.propertyAuthorization.findFirst({ where: { propertyId: props.houseId, personId: domestic.id } })) ??
     (await prisma.propertyAuthorization.create({

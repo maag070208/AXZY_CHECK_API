@@ -3,7 +3,13 @@ import { AppError } from "@src/core/errors/app-error";
 import { assertStatusUpdated, assertTransition, INVITATION_TRANSITIONS } from "@src/core/transitions/transitions";
 import { USER_PUBLIC_SELECT } from "@src/core/constants/user-select";
 import { AccessDecision, AccessDirection, AccessMethod, Invitation, InvitationStatus, Prisma, ResidentStatus } from "@prisma/client";
-import { ACCESS_REASON_LABEL, getPropertyAccessStatus, recordAccessEvent } from "../access-control/access-control.service";
+import {
+    ACCESS_REASON_LABEL,
+    getPropertyAccessStatus,
+    propertyInScope,
+    propertyReferenceInScope,
+    recordAccessEvent,
+} from "../access-control/access-control.service";
 import { ABLY_CHANNELS, publishToChannel } from "@src/core/config/ably";
 import { reportTimeZone } from "@src/client/branding";
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
@@ -14,6 +20,7 @@ import {
     findResidentOrLegacyPropertyId,
     residentOwnsProperty as residentOwnsPropertyShared,
 } from "../residents/resident-property.service";
+import { ClientScope, scopeByProperty } from "@src/core/scope/client-scope";
 
 /** Vigencia de una visita sin cita: desde que llega hasta esta cantidad de horas. */
 const WALK_IN_HOURS = 4;
@@ -38,9 +45,19 @@ const residentUserIdsOfProperty = async (propertyId: number): Promise<number[]> 
     return [...new Set(ids)];
 };
 
-export const getDataTableInvitations = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
+export const getDataTableInvitations = async (
+    params: ITDataTableFetchParams,
+    scope: ClientScope | undefined,
+    options: { residentUserId?: number } = {},
+): Promise<ITDataTableResponse<any>> => {
     const prismaParams = getPrismaPaginationParams(params);
     const filters = params.filters || {};
+    // Multicliente: el personal solo ve invitaciones de su cliente; el residente, además, solo las suyas.
+    // El residente sin cliente en el token queda acotado por `createdById`, que ya impone el servidor.
+    const scopeWhere = options.residentUserId !== undefined
+        ? (scope?.clientId ? scopeByProperty(scope) : {})
+        : scopeByProperty(scope);
+    prismaParams.where = { ...prismaParams.where, ...scopeWhere };
 
     // 1. Overwrite Enum / Exact match fields (must NOT use 'contains')
     if (filters.status) {
@@ -115,9 +132,20 @@ type CreateInvitationInput = {
     walkIn?: boolean;
 };
 
-export const createInvitation = async (data: CreateInvitationInput) => {
-    const property = await prismaClient.property.findFirst({ where: { id: data.propertyId, softDelete: false }, select: { id: true } });
-    if (!property) throw new AppError("PROPERTY_NOT_FOUND", "Propiedad no encontrada", 404);
+export const createInvitation = async (
+    data: CreateInvitationInput,
+    scope: ClientScope | undefined,
+    options: { residentUserId?: number } = {},
+) => {
+    // Alta: el personal solo puede invitar para propiedades de su cliente (referencia ajena = 400). El residente
+    // ya pasó la validación de "solo su propiedad" en el controlador; si el token trae cliente, también se exige.
+    if (options.residentUserId !== undefined) {
+        const property = await prismaClient.property.findFirst({ where: { id: data.propertyId, softDelete: false }, select: { id: true } });
+        if (!property) throw new AppError("PROPERTY_NOT_FOUND", "Propiedad no encontrada", 404);
+        if (scope?.clientId) await propertyInScope(data.propertyId, scope);
+    } else {
+        await propertyReferenceInScope(data.propertyId, scope);
+    }
     const type = await prismaClient.invitationType.findFirst({
         where: { id: data.typeId, active: true },
         select: { id: true, requiresApproval: true },
@@ -211,24 +239,34 @@ const recordDeniedEntry = (pass: { id: number; propertyId: number; code: string 
         metadata: { code: pass.code },
     });
 
-/** Lectura de un pase en caseta: devuelve el pase y deja en la bitácora el intento si no puede entrar. */
-export const scanInvitation = async (code: string, guardId?: number) => {
-    const invitation = await getInvitationByIdOrCode(code);
+/** Lectura de un pase en caseta: devuelve el pase del cliente del guardia y deja en la bitácora el intento si no puede entrar. */
+export const scanInvitation = async (code: string, guardId: number | undefined, scope: ClientScope | undefined) => {
+    const invitation = await getInvitationByIdOrCode(code, scope);
     if (!invitation) throw new AppError("INVITATION_NOT_FOUND", "Invitación no encontrada", 404);
     const denial = entryDenialReason(invitation);
     if (denial) await recordDeniedEntry(invitation, denial, guardId);
     return invitation;
 };
 
-export const getInvitationByIdOrCode = async (identifier: string) => {
+export const getInvitationByIdOrCode = async (
+    identifier: string,
+    scope: ClientScope | undefined,
+    options: { residentUserId?: number } = {},
+) => {
     // Try as ID first, fallback to code
     let whereClause: any = { code: identifier };
     if (!isNaN(Number(identifier))) {
         whereClause = { id: Number(identifier) };
     }
 
+    // Del personal se exige el cliente del alcance (otro cliente = 404). El residente sin cliente en el token
+    // queda acotado por la comprobación de propiedad del controlador.
+    const scopeWhere = options.residentUserId !== undefined
+        ? (scope?.clientId ? scopeByProperty(scope) : {})
+        : scopeByProperty(scope);
+
     return prismaClient.invitation.findFirst({
-        where: whereClause,
+        where: { ...whereClause, ...scopeWhere },
         include: {
             property: true,
             createdBy: { select: USER_PUBLIC_SELECT }
@@ -278,9 +316,16 @@ export const updateInvitationStatus = async (
     status: 'ENTERED' | 'EXITED' | 'CANCELLED',
     reason?: string,
     actorId?: number,
+    scope?: ClientScope,
+    options: { residentUserId?: number } = {},
 ) => {
-    const current = await prismaClient.invitation.findUnique({
-        where: { id },
+    // Del personal, la invitación de otro cliente es 404 (no se revela que existe). El residente ya pasó la
+    // comprobación de propiedad del controlador; si el token trae cliente, el filtro también aplica.
+    const scopeWhere = options.residentUserId !== undefined
+        ? (scope?.clientId ? scopeByProperty(scope) : {})
+        : scopeByProperty(scope);
+    const current = await prismaClient.invitation.findFirst({
+        where: { id, ...scopeWhere },
         select: { status: true, notes: true, validFrom: true, validUntil: true, propertyId: true, code: true, guestName: true, revokedReason: true, revokedAt: true },
     });
     if (!current) throw new AppError("INVITATION_NOT_FOUND", "Invitación no encontrada", 404);
@@ -381,9 +426,13 @@ export const decideVisitApproval = async (
     actor: { id: number; role: string },
     decision: "APPROVE" | "REJECT",
     reason?: string,
+    scope?: ClientScope,
 ) => {
-    const current = await prismaClient.invitation.findUnique({
-        where: { id },
+    const scopeWhere = actor.role === "RESDN"
+        ? (scope?.clientId ? scopeByProperty(scope) : {})
+        : scopeByProperty(scope);
+    const current = await prismaClient.invitation.findFirst({
+        where: { id, ...scopeWhere },
         select: { status: true, propertyId: true, validUntil: true },
     });
     if (!current) throw new AppError("INVITATION_NOT_FOUND", "Invitación no encontrada", 404);
@@ -409,15 +458,18 @@ export const decideVisitApproval = async (
     return prismaClient.invitation.findUniqueOrThrow({ where: { id } });
 };
 
-/** Visitas sin cita esperando decisión. El residente ve las de su casa; jefe y admin, todas. */
-export const listPendingApprovals = async (actor: { id: number; role: string }) => {
+/** Visitas sin cita esperando decisión. El residente ve las de su casa; jefe y admin, las de su cliente. */
+export const listPendingApprovals = async (actor: { id: number; role: string }, scope: ClientScope | undefined) => {
     let propertyId: number | null = null;
     if (actor.role === "RESDN") {
         propertyId = await findResidentOrLegacyPropertyId(actor.id);
         if (propertyId === null) return [];
     }
+    const scopeWhere = actor.role === "RESDN"
+        ? (scope?.clientId ? scopeByProperty(scope) : {})
+        : scopeByProperty(scope);
     return prismaClient.invitation.findMany({
-        where: { status: "PENDING_APPROVAL", ...(propertyId !== null ? { propertyId } : {}) },
+        where: { status: "PENDING_APPROVAL", ...(propertyId !== null ? { propertyId } : {}), ...scopeWhere },
         include: {
             property: { select: { id: true, name: true, identifier: true } },
             type: true,
@@ -442,9 +494,9 @@ export const setVisitAlerts = async (userId: number, enabled: boolean) => {
 export const getMaxStayHours = async (): Promise<number> => Number(await getSetting("visit.maxStayHours", "12"));
 
 /** Visitas dentro que ya rebasaron la permanencia máxima o el horario de su pase. */
-const overstayedInvitationIds = async (now: Date, maxStayHours: number, propertyId?: number): Promise<number[]> => {
+const overstayedInvitationIds = async (now: Date, maxStayHours: number, where: Prisma.InvitationWhereInput = {}): Promise<number[]> => {
     const inside = await prismaClient.invitation.findMany({
-        where: { status: "ENTERED", ...(propertyId ? { propertyId } : {}) },
+        where: { status: "ENTERED", ...where },
         select: { id: true, entryTime: true, validUntil: true },
     });
     const limitMs = maxStayHours * 3600_000;
@@ -454,9 +506,9 @@ const overstayedInvitationIds = async (now: Date, maxStayHours: number, property
 };
 
 /** Estado de la caseta que no es de reportes: límite de permanencia y visitas que lo rebasan ahora. */
-export const getCasetaStatus = async () => {
+export const getCasetaStatus = async (scope: ClientScope | undefined) => {
     const maxStayHours = await getMaxStayHours();
-    const overstayedIds = await overstayedInvitationIds(new Date(), maxStayHours);
+    const overstayedIds = await overstayedInvitationIds(new Date(), maxStayHours, scopeByProperty(scope));
     return { maxStayHours, overstayedIds };
 };
 
@@ -500,15 +552,18 @@ const average = (values: number[]) => (values.length ? Math.round(values.reduce(
  * (general y por casa), rechazos por motivo, visitas que rebasaron su tiempo y visitas sin salida. Se agrega en
  * memoria: el volumen por residencial es de cientos de visitas al mes.
  */
-export const getVisitStats = async (params: { from: Date; to: Date; propertyId?: number }) => {
+export const getVisitStats = async (params: { from: Date; to: Date; propertyId?: number }, scope: ClientScope | undefined) => {
     const { from, to, propertyId } = params;
-    const scope = propertyId ? { propertyId } : {};
+    // Multicliente: los indicadores solo agregan datos del cliente del alcance; el filtro por propiedad se suma
+    // (una propiedad de otro cliente no devuelve datos, tampoco revela que existe).
+    const where: Prisma.InvitationWhereInput = { ...scopeByProperty(scope), ...(propertyId ? { propertyId } : {}) };
+    const eventWhere: Prisma.AccessEventWhereInput = { ...scopeByProperty(scope), ...(propertyId ? { propertyId } : {}) };
     const now = new Date();
     const maxStayHours = await getMaxStayHours();
 
     const [entered, created, denied, overstayedIds] = await Promise.all([
         prismaClient.invitation.findMany({
-            where: { ...scope, entryTime: { gte: from, lte: to } },
+            where: { ...where, entryTime: { gte: from, lte: to } },
             select: {
                 propertyId: true,
                 entryTime: true,
@@ -520,14 +575,14 @@ export const getVisitStats = async (params: { from: Date; to: Date; propertyId?:
         }),
         prismaClient.invitation.groupBy({
             by: ["status"],
-            where: { ...scope, validFrom: { gte: from, lte: to } },
+            where: { ...where, validFrom: { gte: from, lte: to } },
             _count: { _all: true },
         }),
         prismaClient.accessEvent.findMany({
-            where: { ...scope, decision: AccessDecision.DENIED, occurredAt: { gte: from, lte: to } },
+            where: { ...eventWhere, decision: AccessDecision.DENIED, occurredAt: { gte: from, lte: to } },
             select: { reason: true },
         }),
-        overstayedInvitationIds(now, maxStayHours, propertyId),
+        overstayedInvitationIds(now, maxStayHours, where),
     ]);
 
     const stays = (rows: typeof entered) =>

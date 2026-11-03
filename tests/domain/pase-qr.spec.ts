@@ -6,7 +6,7 @@ import { createHash } from "crypto";
 import request from "supertest";
 import { app } from "@src/app";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser, tokenFor } from "../factories";
+import { buildUser, inDefaultClient, tokenFor } from "../factories";
 
 beforeEach(async () => {
   await resetDatabase();
@@ -24,9 +24,9 @@ const setup = async () => {
   const type = await prisma.propertyType.findUniqueOrThrow({ where: { name: "CASA" } });
   const status = await prisma.propertyStatus.findUniqueOrThrow({ where: { name: "VACNT" } });
   const property = await prisma.property.create({
-    data: { identifier: "PASE-1", name: "Casa", mainStreet: "C", typeId: type.id, statusId: status.id, kindId: kind.id, occupancyStatusId: vacant.id },
+    data: { ...(await inDefaultClient()),  identifier: "PASE-1", name: "Casa", mainStreet: "C", typeId: type.id, statusId: status.id, kindId: kind.id, occupancyStatusId: vacant.id },
   });
-  const person = await prisma.person.create({ data: { firstName: "Mario" } });
+  const person = await prisma.person.create({ data: { ...(await inDefaultClient()), firstName: "Mario" } });
   const created = await request(app)
     .post(`/api/v1/properties/${property.id}/authorizations`)
     .set("Authorization", admin)

@@ -1,4 +1,7 @@
+import { Prisma } from "@prisma/client";
 import { prismaClient } from "@src/core/config/database";
+import { ClientScope, scopeByClient } from "@src/core/scope/client-scope";
+import { maintenanceScopeWhere } from "./maintenance.service";
 
 /**
  * @description Servicio para construir el dataset que alimenta el reporte PDF
@@ -9,18 +12,18 @@ export const getMaintenancesForReport = async (params: {
     startDate: Date;
     endDate: Date;
     ids?: number[];
-}) => {
+}, scope: ClientScope | undefined) => {
     const { startDate, endDate, ids } = params;
+    // Multicliente: el reporte solo incluye los mantenimientos del cliente del alcance.
+    scopeByClient(scope);
 
     const rangeStart = new Date(startDate);
     rangeStart.setHours(0, 0, 0, 0);
     const rangeEnd = new Date(endDate);
     rangeEnd.setHours(23, 59, 59, 999);
 
-    const whereClause: {
-        createdAt: { gte: Date; lte: Date };
-        id?: { in: number[] };
-    } = {
+    const whereClause: Prisma.MaintenanceWhereInput = {
+        ...maintenanceScopeWhere(scope),
         createdAt: { gte: rangeStart, lte: rangeEnd },
     };
 

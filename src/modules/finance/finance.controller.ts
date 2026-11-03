@@ -22,7 +22,7 @@ const actorOf = (req: Request): FinanceActor => ({
 
 export const getCharges = async (req: Request, res: Response) => {
   try {
-    const result = await listCharges(actorOf(req), req.query as any);
+    const result = await listCharges(actorOf(req), req.query as any, req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
@@ -31,7 +31,7 @@ export const getCharges = async (req: Request, res: Response) => {
 
 export const postCharge = async (req: Request, res: Response) => {
   try {
-    const result = await createCharge(actorOf(req), req.body);
+    const result = await createCharge(actorOf(req), req.body, req.scope);
     return res.status(201).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
@@ -40,7 +40,7 @@ export const postCharge = async (req: Request, res: Response) => {
 
 export const postMonthlyCharges = async (req: Request, res: Response) => {
   try {
-    const result = await generateMonthlyCharges(actorOf(req), req.body);
+    const result = await generateMonthlyCharges(actorOf(req), req.body, req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
@@ -49,7 +49,7 @@ export const postMonthlyCharges = async (req: Request, res: Response) => {
 
 export const patchCancelCharge = async (req: Request, res: Response) => {
   try {
-    const result = await cancelCharge(Number(req.params.id), req.body.reason);
+    const result = await cancelCharge(Number(req.params.id), req.body.reason, req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
@@ -58,7 +58,7 @@ export const patchCancelCharge = async (req: Request, res: Response) => {
 
 export const getPayments = async (req: Request, res: Response) => {
   try {
-    const result = await listPayments(actorOf(req), req.query as any);
+    const result = await listPayments(actorOf(req), req.query as any, req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
@@ -67,7 +67,7 @@ export const getPayments = async (req: Request, res: Response) => {
 
 export const postPayment = async (req: Request, res: Response) => {
   try {
-    const result = await createPayment(actorOf(req), req.body);
+    const result = await createPayment(actorOf(req), req.body, req.scope);
     return res.status(201).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
@@ -76,16 +76,16 @@ export const postPayment = async (req: Request, res: Response) => {
 
 export const postVoidPayment = async (req: Request, res: Response) => {
   try {
-    const result = await voidPayment(actorOf(req), Number(req.params.id), req.body.reason);
+    const result = await voidPayment(actorOf(req), Number(req.params.id), req.body.reason, req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
   }
 };
 
-export const getSummary = async (_req: Request, res: Response) => {
+export const getSummary = async (req: Request, res: Response) => {
   try {
-    const result = await getFinanceSummary();
+    const result = await getFinanceSummary(req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
@@ -94,7 +94,7 @@ export const getSummary = async (_req: Request, res: Response) => {
 
 export const getMyFinance = async (req: Request, res: Response) => {
   try {
-    const result = await getResidentFinance(Number((req.user as { id?: number } | undefined)?.id));
+    const result = await getResidentFinance(Number((req.user as { id?: number } | undefined)?.id), req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
@@ -103,7 +103,7 @@ export const getMyFinance = async (req: Request, res: Response) => {
 
 export const getMyBalance = async (req: Request, res: Response) => {
   try {
-    const result = await getResidentFinance(Number((req.user as { id?: number } | undefined)?.id));
+    const result = await getResidentFinance(Number((req.user as { id?: number } | undefined)?.id), req.scope);
     return res.status(200).json(createTResult(result.summary));
   } catch (error: any) {
     return respondError(res, error);
@@ -113,7 +113,7 @@ export const getMyBalance = async (req: Request, res: Response) => {
 export const getReceipt = async (req: Request, res: Response) => {
   try {
     const actor = actorOf(req);
-    await streamPaymentReceipt(res, Number(req.params.id), actor.id, true);
+    await streamPaymentReceipt(res, Number(req.params.id), actor.id, true, req.scope);
   } catch (error: any) {
     if (!res.headersSent) return respondError(res, error);
     res.end();
@@ -123,7 +123,7 @@ export const getReceipt = async (req: Request, res: Response) => {
 export const getMyReceipt = async (req: Request, res: Response) => {
   try {
     const actor = actorOf(req);
-    await streamPaymentReceipt(res, Number(req.params.id), actor.id, false);
+    await streamPaymentReceipt(res, Number(req.params.id), actor.id, false, req.scope);
   } catch (error: any) {
     if (!res.headersSent) return respondError(res, error);
     res.end();

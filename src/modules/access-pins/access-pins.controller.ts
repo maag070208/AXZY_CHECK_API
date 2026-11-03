@@ -15,7 +15,7 @@ export const mine = async (req: Request, res: Response) => {
 
 export const generate = async (req: Request, res: Response) => {
   try {
-    return res.status(201).json(createTResult(await generateMyAccessPin(actorId(req), req.body.pin)));
+    return res.status(201).json(createTResult(await generateMyAccessPin(actorId(req), req.body.pin, req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -31,7 +31,7 @@ export const revoke = async (req: Request, res: Response) => {
 
 export const validate = async (req: Request, res: Response) => {
   try {
-    return res.status(200).json(createTResult(await validateAccessPin(req.body.pin, actorId(req))));
+    return res.status(200).json(createTResult(await validateAccessPin(req.body.pin, actorId(req), req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -47,7 +47,7 @@ export const qrStatus = async (req: Request, res: Response) => {
 
 export const qrToken = async (req: Request, res: Response) => {
   try {
-    return res.status(200).json(createTResult(await issueMyQrPass(actorId(req))));
+    return res.status(200).json(createTResult(await issueMyQrPass(actorId(req), req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }
@@ -63,7 +63,7 @@ export const qrRevoke = async (req: Request, res: Response) => {
 
 export const qrValidate = async (req: Request, res: Response) => {
   try {
-    return res.status(200).json(createTResult(await validatePersonalQrPass(req.body.token, actorId(req))));
+    return res.status(200).json(createTResult(await validatePersonalQrPass(req.body.token, actorId(req), req.scope)));
   } catch (error: unknown) {
     return respondError(res, error);
   }

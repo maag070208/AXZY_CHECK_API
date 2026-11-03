@@ -12,7 +12,7 @@ import request from "supertest";
 import { AccessDecision, AccessDirection, AccessMethod, AccessSource, VehicleStatus } from "@prisma/client";
 import { app } from "@src/app";
 import { prisma, resetDatabase } from "../tests/setup/db";
-import { tokenFor } from "../tests/factories";
+import { defaultClient, tokenFor } from "../tests/factories";
 
 const USERS = 500;
 const EVENTS = 10_000;
@@ -51,8 +51,9 @@ const main = async () => {
   ]);
 
   const password = bcrypt.hashSync(PASSWORD, 10);
+  const tenant = await defaultClient();
   const admin = await prisma.user.create({
-    data: { name: "Capacity", lastName: "Admin", username: "capacity_admin", password, roleId: roleAdmin.id },
+    data: { name: "Capacity", lastName: "Admin", username: "capacity_admin", password, roleId: roleAdmin.id, organizationId: tenant.organizationId },
     include: { role: true },
   });
 
@@ -66,6 +67,7 @@ const main = async () => {
       kindId: kind.id,
       occupancyStatusId: occupancy.id,
       vehicleQuota: 2,
+      clientId: tenant.clientId,
     })),
   });
   const properties = await prisma.property.findMany({ where: { identifier: { startsWith: "CAP-" } }, select: { id: true }, orderBy: { id: "asc" } });
@@ -78,6 +80,7 @@ const main = async () => {
       password,
       roleId: roleResident.id,
       propertyId: property.id,
+      organizationId: tenant.organizationId,
     })),
   });
   const residents = await prisma.user.findMany({
@@ -87,7 +90,7 @@ const main = async () => {
   });
 
   await prisma.person.createMany({
-    data: residents.map((resident) => ({ firstName: resident.name, lastName: resident.lastName, userId: resident.id })),
+    data: residents.map((resident) => ({ firstName: resident.name, lastName: resident.lastName, userId: resident.id, clientId: tenant.clientId })),
   });
   const persons = await prisma.person.findMany({ where: { userId: { in: residents.map((r) => r.id) } }, select: { id: true, userId: true } });
   const personByUser = new Map(persons.map((person) => [person.userId, person.id]));
@@ -109,6 +112,7 @@ const main = async () => {
       plate: `CAP-${String(i + 1).padStart(4, "0")}`,
       plateNormalized: `CAP${String(i + 1).padStart(4, "0")}`,
       tagCode: `TAG-CAP-${String(i + 1).padStart(4, "0")}`,
+      clientId: tenant.clientId,
       brand: "Toyota",
       model: "Corolla",
       color: "Blanco",

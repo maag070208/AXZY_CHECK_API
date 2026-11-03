@@ -2,6 +2,7 @@
  * Flujo de patrullaje: rutas recurrentes, rondas, bitácora (kardex) y asignaciones puntuales.
  */
 import { api, allSessions, bootFlows, disconnectDatabase, expectFail, expectOk, MISSING_ID, prisma, Session, V1 } from "./support";
+import { inDefaultClient } from "../factories";
 import { FlowsResult } from "../../prisma/seeds/flows";
 
 let flows: FlowsResult;
@@ -191,7 +192,7 @@ describe("rondas", () => {
     expect(auto.recurringConfigurationId).toBe(flows.routes.configurationId);
     await prisma.round.updateMany({ data: { status: "COMPLETED" } });
 
-    const second = await prisma.recurringConfiguration.create({ data: { title: "Otra ruta", guards: { connect: [{ id: s.guard1.id }] } } });
+    const second = await prisma.recurringConfiguration.create({ data: { ...(await inDefaultClient()), title: "Otra ruta", guards: { connect: [{ id: s.guard1.id }] } } });
     const ambiguous = await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ confirmed: true });
     expectFail(ambiguous, 400);
     expect(ambiguous.body.messages.join(" ")).toMatch(/qué ruta/);
@@ -202,7 +203,7 @@ describe("rondas", () => {
   });
 
   it("reglas de inicio: ruta ajena, ruta ocupada por otro guardia y ronda activa de la misma ruta", async () => {
-    const mine = await prisma.recurringConfiguration.create({ data: { title: "Solo guardia 2", guards: { connect: [{ id: s.guard2.id }] } } });
+    const mine = await prisma.recurringConfiguration.create({ data: { ...(await inDefaultClient()), title: "Solo guardia 2", guards: { connect: [{ id: s.guard2.id }] } } });
     const notMine = await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ recurringConfigId: mine.id, confirmed: true });
     expectFail(notMine, 400);
     expect(notMine.body.messages.join(" ")).toMatch(/No tienes asignada/);
@@ -218,13 +219,13 @@ describe("rondas", () => {
   });
 
   it("al iniciar otra ruta se cierra la anterior; una ronda de más de 14 h se cierra sola", async () => {
-    const second = await prisma.recurringConfiguration.create({ data: { title: "Otra", guards: { connect: [{ id: s.guard1.id }] } } });
+    const second = await prisma.recurringConfiguration.create({ data: { ...(await inDefaultClient()), title: "Otra", guards: { connect: [{ id: s.guard1.id }] } } });
     const first = expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ recurringConfigId: flows.routes.configurationId, confirmed: true }));
     expectOk(await api().post(`${RD}/start`).set("Authorization", s.guard1.auth).send({ recurringConfigId: second.id, confirmed: true }));
     expect((await prisma.round.findUniqueOrThrow({ where: { id: first.id } })).status).toBe("COMPLETED");
 
     await prisma.round.deleteMany();
-    await prisma.round.create({ data: { guardId: s.guard1.id, status: "IN_PROGRESS", startTime: new Date(Date.now() - 15 * 3600_000) } });
+    await prisma.round.create({ data: { ...(await inDefaultClient()), guardId: s.guard1.id, status: "IN_PROGRESS", startTime: new Date(Date.now() - 15 * 3600_000) } });
     expect(expectOk(await api().get(`${RD}/current`).set("Authorization", s.guard1.auth))).toBeNull();
     expect(await prisma.round.count({ where: { guardId: s.guard1.id, status: "IN_PROGRESS" } })).toBe(0);
   });
@@ -267,8 +268,11 @@ describe("rondas", () => {
     expect(byRoute.total).toBe(1);
     const search = expectOk(await api().post(`${RD}/datatable`).set("Authorization", s.admin.auth).send({ page: 1, limit: 10, filters: { search: "gabriela" } }));
     expect(search.total).toBe(1);
-    const today = new Date().toISOString().slice(0, 10);
-    const dated = expectOk(await api().post(`${RD}/datatable`).set("Authorization", s.admin.auth).send({ page: 1, limit: 10, filters: { date: [`${today}T00:00:00.000Z`, `${today}T23:59:59.999Z`] } }));
+    // El rango sale de la propia ronda sembrada (hace ~2 h): "hoy" en UTC falla cerca de medianoche.
+    const seeded = await prisma.round.findUniqueOrThrow({ where: { id: flows.routes.completedRoundId }, select: { startTime: true } });
+    const from = new Date(seeded.startTime.getTime() - 3_600_000).toISOString();
+    const to = new Date(seeded.startTime.getTime() + 3_600_000).toISOString();
+    const dated = expectOk(await api().post(`${RD}/datatable`).set("Authorization", s.admin.auth).send({ page: 1, limit: 10, filters: { date: [from, to] } }));
     expect(dated.total).toBe(1);
     for (const body of [{}, { filters: { campoRaro: "x" } }, { page: 1, limit: 10, filters: { guard: "abc" } }]) {
       expect((await api().post(`${RD}/datatable`).set("Authorization", s.admin.auth).send(body)).status).toBeLessThan(500);
@@ -321,7 +325,7 @@ describe("bitácora (kardex)", () => {
     expect(withAssignment).toMatchObject({ scanType: "ASSIGNMENT", assignmentId: flows.routes.assignmentId });
     expect((await prisma.assignment.findUniqueOrThrow({ where: { id: flows.routes.assignmentId } })).status).toBe("CHECKING");
 
-    const loose = await prisma.location.create({ data: { aisle: "X", spot: "1", number: "1", name: "Suelta" } });
+    const loose = await prisma.location.create({ data: { ...(await inDefaultClient()), aisle: "X", spot: "1", number: "1", name: "Suelta" } });
     expect(expectOk(await api().post(K).set("Authorization", s.guard1.auth).send({ userId: s.guard1.id, locationId: loose.id }), 201).scanType).toBe("FREE");
   });
 
@@ -370,7 +374,7 @@ describe("bitácora (kardex)", () => {
   it("evidencia: falta el key → 400; registro sin media o inexistente → 404", async () => {
     expectFail(await api().delete(`${K}/${flows.reports.kardexId}/media`).set("Authorization", s.admin.auth), 400);
     expectFail(await api().delete(`${K}/${MISSING_ID}/media?key=x`).set("Authorization", s.admin.auth), 404);
-    const bare = await prisma.kardex.create({ data: { userId: s.guard1.id, locationId: flows.routes.locationIds[0] } });
+    const bare = await prisma.kardex.create({ data: { ...(await inDefaultClient()), userId: s.guard1.id, locationId: flows.routes.locationIds[0] } });
     expectFail(await api().delete(`${K}/${bare.id}/media?key=x`).set("Authorization", s.admin.auth), 404);
   });
 

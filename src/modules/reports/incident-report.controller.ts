@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { incidentPdfQuerySchema } from "./incident-report.dto";
 import { getIncidentsForReport } from "./incident-report.service";
+import { scopeByClient } from "@src/core/scope/client-scope";
 import { PdfDocumentConfig, PdfReportItem, streamModulePdf } from "./pdf-report.renderer";
 
 const INCIDENT_PDF_CONFIG: PdfDocumentConfig = {
@@ -55,11 +56,15 @@ export const getIncidentsPdf = async (req: Request, res: Response): Promise<void
 
     const { startDate, endDate, ids, includeImages, includeLocation } = parsed.data.query;
 
+    // Multicliente: sin cliente en el alcance responde 403 (no un 500 del generador).
+    scopeByClient(req.scope);
+
     try {
         const items = (await getIncidentsForReport({
             startDate: new Date(startDate),
             endDate: new Date(endDate),
             ids: ids.length > 0 ? ids : undefined,
+            scope: req.scope,
         })) as PdfReportItem[];
 
         await streamModulePdf(
@@ -103,12 +108,16 @@ export const getClubPdf = async (req: Request, res: Response): Promise<void> => 
 
     const { startDate, endDate, ids, includeImages, includeLocation } = parsed.data.query;
 
+    // Multicliente: sin cliente en el alcance responde 403 (no un 500 del generador).
+    scopeByClient(req.scope);
+
     try {
         const items = (await getIncidentsForReport({
             startDate: new Date(startDate),
             endDate: new Date(endDate),
             ids: ids.length > 0 ? ids : undefined,
             kind: 'CASA_CLUB',
+            scope: req.scope,
         })) as PdfReportItem[];
 
         await streamModulePdf(

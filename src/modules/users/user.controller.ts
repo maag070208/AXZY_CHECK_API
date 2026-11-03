@@ -6,11 +6,11 @@ import { issueRefreshToken, revokeAllRefreshTokens, revokeRefreshToken, rotateRe
 import { createTResult } from "@src/core/mappers/tresult.mapper";
 import { getSetting } from "@src/core/settings/app-settings.service";
 import { getPermissionsForRole } from "@src/core/permissions/permissions.service";
-import { addUser, deleteUser as deleteUserService, getDataTableUsers, getUserById, getUserProfile, getUserByUsername, getUsers, updateUser } from "./user.service";
+import { addUser, deleteUser as deleteUserService, getDataTableUsers, getUserById, getUserProfile, getUserProfileInScope, getUserByUsername, getUsers, updateUser, updateUserInScope } from "./user.service";
 
 export const getDataTable = async (req: Request, res: Response) => {
   try {
-    const result = await getDataTableUsers(req.body);
+    const result = await getDataTableUsers(req.body, req.scope ?? { organizationId: null, clientId: null });
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
@@ -154,7 +154,7 @@ export const logout = async (req: Request, res: Response) => {
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
     const { q } = req.query;
-    const users = await getUsers(q as string);
+    const users = await getUsers(q as string, req.scope ?? { organizationId: null, clientId: null });
 
     return res.status(200).json(createTResult(users));
   } catch (error: any) {
@@ -187,7 +187,7 @@ export const createUser = async (req: Request, res: Response) => {
       shiftStart,
       shiftEnd,
       scheduleId: scheduleId ? Number(scheduleId) : undefined
-    });
+    }, req.scope ?? { organizationId: null, clientId: null });
 
     // Nunca devolver el hash de la contraseña (S-09).
     const { password: _omit, ...safeUser } = user as typeof user & { password?: string };
@@ -210,6 +210,10 @@ export const me = async (req: Request, res: Response) => {
       username: user.username,
       role: user.role?.name ?? null,
       photoUrl: user.photoUrl ?? null,
+      // Multicliente: alcance de la sesión (sale del token, no de la petición). La WEB lo usa para suscribirse
+      // al canal de tiempo real del cliente sin volver a pedir el token.
+      clientId: req.scope?.clientId ?? null,
+      organizationId: req.scope?.organizationId ?? null,
     }));
   } catch (error: any) {
     return respondError(res, error);
@@ -244,7 +248,7 @@ export const refresh = async (req: Request, res: Response) => {
 
 export const getUser = async (req: Request, res: Response) => {
   try {
-    const user = await getUserProfile(Number(req.params.id));
+    const user = await getUserProfileInScope(Number(req.params.id), req.scope ?? { organizationId: null, clientId: null });
     if (!user) {
       return res.status(404).json(createTResult(null, ["Usuario no encontrado"]));
     }
@@ -275,7 +279,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
       }
     }
 
-    const updated = await updateUser(Number(id), {
+    const updated = await updateUserInScope(Number(id), {
       name,
       lastName,
       username,
@@ -284,7 +288,7 @@ export const updateUserProfile = async (req: Request, res: Response) => {
       photoUrl,
       photoKey,
       ...adminOnly,
-    });
+    }, req.scope ?? { organizationId: null, clientId: null });
 
     const { password: _omit, ...safeUser } = updated as typeof updated & { password?: string };
     return res.status(200).json(createTResult(safeUser));
@@ -301,7 +305,7 @@ export const changePassword = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { oldPassword, newPassword } = req.body;
 
-    const user = await getUserById(Number(id));
+    const user = await getUserById(Number(id), req.scope ?? { organizationId: null, clientId: null });
     if (!user) {
       return res.status(404).json(createTResult(null, ["User not found"]));
     }
@@ -347,7 +351,7 @@ export const resetPassword = async (req: Request, res: Response) => {
     // Assuming this endpoint is protected/admin-only.
 
     const hashed = await hashPassword(newPassword);
-    await updateUser(Number(id), { password: hashed });
+    await updateUserInScope(Number(id), { password: hashed }, req.scope ?? { organizationId: null, clientId: null });
     await resetLoginAttempts(Number(id));
     await bumpTokenVersion(Number(id));
     invalidateSession(Number(id));
@@ -362,7 +366,7 @@ export const resetPassword = async (req: Request, res: Response) => {
 export const deleteUser = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const deleted = await deleteUserService(Number(id));
+    const deleted = await deleteUserService(Number(id), req.scope ?? { organizationId: null, clientId: null });
     if (!deleted) {
       return res.status(404).json(createTResult(null, ["Usuario no encontrado"]));
     }

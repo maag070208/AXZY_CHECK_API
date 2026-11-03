@@ -61,7 +61,7 @@ export const createShiftHandover = async (req: Request, res: Response) => {
             observations: el.observations,
           }))
         : [],
-    });
+    }, req.scope);
 
     return res.status(201).json(createTResult(created));
   } catch (error: any) {
@@ -78,7 +78,7 @@ export const createShiftHandover = async (req: Request, res: Response) => {
 /** @description GET /shift-handover/datatable — for the WEB `ITDataTable`. */
 export const getDataTable = async (req: Request, res: Response) => {
   try {
-    const result = await shiftHandoverService.getDataTableShiftHandovers(req.body);
+    const result = await shiftHandoverService.getDataTableShiftHandovers(req.body, req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
@@ -88,7 +88,7 @@ export const getDataTable = async (req: Request, res: Response) => {
 /** @description GET /shift-handover/pending — used by the APP alert banner. */
 export const getPending = async (req: Request, res: Response) => {
   try {
-    const result = await shiftHandoverService.getPendingShiftHandover();
+    const result = await shiftHandoverService.getPendingShiftHandover(req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
@@ -99,7 +99,7 @@ export const getPending = async (req: Request, res: Response) => {
 export const getById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await shiftHandoverService.getShiftHandoverById(Number(id));
+    const result = await shiftHandoverService.getShiftHandoverById(Number(id), req.scope);
     if (!result) {
       return res.status(404).json(createTResult(null, ["Reporte no encontrado"]));
     }

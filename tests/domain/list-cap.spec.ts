@@ -5,7 +5,7 @@ import request from "supertest";
 import { app } from "@src/app";
 import { LIST_MAX_ROWS } from "@src/core/constants/limits";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser, tokenFor } from "../factories";
+import { buildUser, tokenFor, inDefaultClient } from "../factories";
 
 beforeEach(async () => {
   await resetDatabase();
@@ -20,8 +20,9 @@ describe("tope de filas en listados", () => {
     const admin = await buildUser("ADMIN");
     const guard = await buildUser("GUARD");
     const total = LIST_MAX_ROWS + 5;
+    const { clientId } = await inDefaultClient();
     await prisma.incident.createMany({
-      data: Array.from({ length: total }, (_, i) => ({ guardId: guard.id, title: `R-${i}`, kind: "INCIDENT" })),
+      data: Array.from({ length: total }, (_, i) => ({ clientId, guardId: guard.id, title: `R-${i}`, kind: "INCIDENT" })),
     });
     const res = await request(app).get("/api/v1/incidents").set("Authorization", `Bearer ${tokenFor(admin)}`);
     expect(res.status).toBe(200);
@@ -31,10 +32,11 @@ describe("tope de filas en listados", () => {
   it("GET /kardex devuelve como máximo LIST_MAX_ROWS", async () => {
     const admin = await buildUser("ADMIN");
     const guard = await buildUser("GUARD");
-    const location = await prisma.location.create({ data: { aisle: "A", spot: "1", number: "1", name: `K-${Date.now()}` } });
+    const location = await prisma.location.create({ data: { ...(await inDefaultClient()), aisle: "A", spot: "1", number: "1", name: `K-${Date.now()}` } });
     const total = LIST_MAX_ROWS + 5;
+    const { clientId } = await inDefaultClient();
     await prisma.kardex.createMany({
-      data: Array.from({ length: total }, () => ({ userId: guard.id, locationId: location.id, notes: "ok" })),
+      data: Array.from({ length: total }, () => ({ clientId, userId: guard.id, locationId: location.id, notes: "ok" })),
     });
     const res = await request(app).get("/api/v1/kardex").set("Authorization", `Bearer ${tokenFor(admin)}`);
     expect(res.status).toBe(200);

@@ -22,10 +22,10 @@ export const reportsFlow = async (prisma: PrismaClient, staff: StaffIds): Promis
   const robbery = await prisma.incidentType.findUniqueOrThrow({ where: { name: "ROBO" } });
   const clubCategory = await prisma.incidentCategory.findUniqueOrThrow({ where: { name: "CASA_CLUB" } });
   const clubType = await prisma.incidentType.findUniqueOrThrow({ where: { name: "ACCESO_PERMITIDO" } });
-  const [pointId] = await locationsFlow(prisma);
+  const [pointId] = await locationsFlow(prisma, staff.clientId);
 
   const ensureIncident = async (title: string, data: Record<string, unknown>) =>
-    (await prisma.incident.findFirst({ where: { title } })) ?? prisma.incident.create({ data: { title, guardId: staff.guard1, ...data } as any });
+    (await prisma.incident.findFirst({ where: { title } })) ?? prisma.incident.create({ data: { title, guardId: staff.guard1, clientId: staff.clientId, ...data } as any });
 
   const pending = await ensureIncident("Flujo · Puerta abierta de madrugada", {
     categoryId: security.id, typeId: robbery.id, description: "Se encontró la puerta lateral sin seguro", media: photo("incidencia-1"),
@@ -41,13 +41,13 @@ export const reportsFlow = async (prisma: PrismaClient, staff: StaffIds): Promis
   const maintenance =
     (await prisma.maintenance.findFirst({ where: { title: "Flujo · Luminaria fundida" } })) ??
     (await prisma.maintenance.create({
-      data: { title: "Flujo · Luminaria fundida", guardId: staff.guard1, category: "Eléctrico", description: "Poste 4 sin luz", media: photo("mantenimiento-1") },
+      data: { clientId: staff.clientId, title: "Flujo · Luminaria fundida", guardId: staff.guard1, category: "Eléctrico", description: "Poste 4 sin luz", media: photo("mantenimiento-1") },
     }));
 
   const kardex =
     (await prisma.kardex.findFirst({ where: { userId: staff.guard1, notes: "Flujo · punto revisado" } })) ??
     (await prisma.kardex.create({
-      data: { userId: staff.guard1, locationId: pointId, notes: "Flujo · punto revisado", media: photo("kardex-1"), latitude: 32.5, longitude: -117.0 },
+      data: { userId: staff.guard1, locationId: pointId, clientId: staff.clientId, notes: "Flujo · punto revisado", media: photo("kardex-1"), latitude: 32.5, longitude: -117.0 },
     }));
 
   return {

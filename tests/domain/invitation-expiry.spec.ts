@@ -2,7 +2,7 @@
  * Job de pases vencidos: marca EXPIRED solo los PENDING y avisa a quien los creó.
  */
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser } from "../factories";
+import { buildUser, inDefaultClient } from "../factories";
 import { expirePendingInvitations } from "@src/modules/invitations/invitations.service";
 import { processOutbox } from "@src/core/outbox/outbox";
 
@@ -22,7 +22,7 @@ const makeProperty = async (identifier: string) => {
   const type = await prisma.propertyType.findUniqueOrThrow({ where: { name: "CASA" } });
   const status = await prisma.propertyStatus.findUniqueOrThrow({ where: { name: "VACNT" } });
   return prisma.property.create({
-    data: { identifier, name: identifier, mainStreet: "Calle", typeId: type.id, statusId: status.id, kindId: kind.id, occupancyStatusId: occupancy.id },
+    data: { ...(await inDefaultClient()),  identifier, name: identifier, mainStreet: "Calle", typeId: type.id, statusId: status.id, kindId: kind.id, occupancyStatusId: occupancy.id },
   });
 };
 

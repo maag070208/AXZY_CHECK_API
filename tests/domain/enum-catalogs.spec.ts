@@ -4,7 +4,7 @@
  */
 import { AssignmentStatus, IncidentStatus, InvitationStatus, MaintenanceStatus, RoundStatus, ScanType } from "@prisma/client";
 import { resetDatabase, disconnectDatabase, prisma } from "../setup/db";
-import { buildUser } from "../factories";
+import { buildUser, inDefaultClient } from "../factories";
 
 beforeEach(async () => {
   await resetDatabase();
@@ -43,13 +43,13 @@ describe("catálogos sembrados", () => {
 describe("doble escritura", () => {
   it("un INSERT y un UPDATE mantienen la FK alineada con la columna enum", async () => {
     const guard = await buildUser("GUARD");
-    const location = await prisma.location.create({ data: { aisle: "A", spot: "1", number: "1", name: "Ubicación prueba" } });
+    const location = await prisma.location.create({ data: { ...(await inDefaultClient()), aisle: "A", spot: "1", number: "1", name: "Ubicación prueba" } });
     const admin = await buildUser("ADMIN");
-    const assignment = await prisma.assignment.create({ data: { guardId: guard.id, locationId: location.id, assignedBy: admin.id } });
-    await prisma.kardex.create({ data: { userId: guard.id, locationId: location.id, scanType: "RECURRING" } });
-    await prisma.round.create({ data: { guardId: guard.id, status: "COMPLETED" } });
-    await prisma.incident.create({ data: { guardId: guard.id, title: "Prueba" } });
-    await prisma.maintenance.create({ data: { guardId: guard.id, title: "Prueba" } });
+    const assignment = await prisma.assignment.create({ data: { ...(await inDefaultClient()), guardId: guard.id, locationId: location.id, assignedBy: admin.id } });
+    await prisma.kardex.create({ data: { ...(await inDefaultClient()), userId: guard.id, locationId: location.id, scanType: "RECURRING" } });
+    await prisma.round.create({ data: { ...(await inDefaultClient()), guardId: guard.id, status: "COMPLETED" } });
+    await prisma.incident.create({ data: { ...(await inDefaultClient()), guardId: guard.id, title: "Prueba" } });
+    await prisma.maintenance.create({ data: { ...(await inDefaultClient()), guardId: guard.id, title: "Prueba" } });
     await prisma.assignment.update({ where: { id: assignment.id }, data: { status: "REVIEWED" } });
 
     const fromRow = await prisma.assignment.findUniqueOrThrow({
@@ -65,7 +65,7 @@ describe("doble escritura", () => {
 
   it("una fila con estado cambiado varias veces termina con la FK del último valor", async () => {
     const guard = await buildUser("GUARD");
-    const incident = await prisma.incident.create({ data: { guardId: guard.id, title: "Prueba" } });
+    const incident = await prisma.incident.create({ data: { ...(await inDefaultClient()), guardId: guard.id, title: "Prueba" } });
     await prisma.incident.update({ where: { id: incident.id }, data: { status: "ATTENDED" } });
     await prisma.incident.update({ where: { id: incident.id }, data: { status: "PENDING" } });
 

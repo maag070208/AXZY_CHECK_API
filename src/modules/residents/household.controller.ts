@@ -4,7 +4,7 @@ import { addHouseholdResident, listHousehold, moveOut, setPrimary } from "./hous
 
 export const getHousehold = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    return res.status(200).json(createTResult(await listHousehold(Number(req.params.id))));
+    return res.status(200).json(createTResult(await listHousehold(Number(req.params.id), req.scope)));
   } catch (error) {
     return next(error);
   }
@@ -15,7 +15,7 @@ export const postHouseholdResident = async (req: Request, res: Response, next: N
     const resident = await addHouseholdResident(Number(req.params.id), {
       ...req.body,
       personId: req.body.personId || null,
-    });
+    }, req.scope);
     return res.status(201).json(createTResult(resident));
   } catch (error) {
     return next(error);
@@ -24,7 +24,7 @@ export const postHouseholdResident = async (req: Request, res: Response, next: N
 
 export const postSetPrimary = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    return res.status(200).json(createTResult(await setPrimary(Number(req.params.id))));
+    return res.status(200).json(createTResult(await setPrimary(Number(req.params.id), req.scope)));
   } catch (error) {
     return next(error);
   }
@@ -32,7 +32,7 @@ export const postSetPrimary = async (req: Request, res: Response, next: NextFunc
 
 export const postMoveOut = async (req: Request, res: Response, next: NextFunction) => {
   try {
-    const result = await moveOut(Number(req.params.id), { replacementPrimaryId: req.body.replacementPrimaryId || null });
+    const result = await moveOut(Number(req.params.id), { replacementPrimaryId: req.body.replacementPrimaryId || null }, req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error) {
     return next(error);

@@ -7,6 +7,7 @@ import {
 } from "@prisma/client";
 import { prismaClient } from "@src/core/config/database";
 import { AppError } from "@src/core/errors/app-error";
+import { ClientScope, scopeByClient, scopeByProperty } from "@src/core/scope/client-scope";
 import { createCharge } from "../finance/finance.service";
 import type {
   ApplyLateFeesInput,
@@ -67,12 +68,32 @@ const serialize = (config: {
   nextChargeDate: config.nextChargeDate.toISOString().slice(0, 10),
 });
 
-const ensureProperty = async (propertyId: number) => {
+/**
+ * Filtro por el cliente del alcance para las filas que llegan al cliente por su propiedad.
+ * `scope === undefined` solo lo usa el job interno de cobranza (no hay petición ni alcance);
+ * todos los controladores pasan siempre `req.scope`.
+ */
+const byScope = (scope: ClientScope | undefined): { property?: { clientId: number } } =>
+  scope ? scopeByProperty(scope) : {};
+
+/**
+ * Valida la propiedad que referencia una configuración de cobranza: tiene que ser del cliente
+ * del alcance. De otro cliente (o inexistente) responde 400, sin revelar si existe; sin cliente, 403.
+ */
+const ensurePropertyInScope = async (propertyId: number, scope: ClientScope | undefined) => {
+  const clientId = scope ? scopeByClient(scope).clientId : undefined;
   const property = await prismaClient.property.findFirst({
-    where: { id: propertyId, softDelete: false },
+    where: { id: propertyId, softDelete: false, ...(clientId === undefined ? {} : { clientId }) },
     select: { id: true },
   });
-  if (!property) throw new AppError("PROPERTY_NOT_FOUND", "Propiedad no encontrada", 404);
+  if (!property) {
+    throw new AppError(
+      "PROPERTY_NOT_IN_CLIENT",
+      "La propiedad no pertenece al cliente seleccionado",
+      400,
+    );
+  }
+  return property;
 };
 
 const validateLateFee = (type: LateFeeType, value: number) => {
@@ -81,16 +102,18 @@ const validateLateFee = (type: LateFeeType, value: number) => {
   }
 };
 
-export const listCollectionConfigs = async () => {
+export const listCollectionConfigs = async (scope: ClientScope | undefined) => {
   const rows = await prismaClient.collectionConfig.findMany({
+    where: { ...scopeByProperty(scope) },
     include: { property: PROPERTY_SELECT },
     orderBy: { propertyId: "asc" },
   });
   return rows.map(serialize);
 };
 
-export const upsertCollectionConfig = async (input: CollectionConfigInput) => {
-  await ensureProperty(input.propertyId);
+export const upsertCollectionConfig = async (input: CollectionConfigInput, scope: ClientScope | undefined) => {
+  // Multicliente: la propiedad de la configuración tiene que ser del cliente del alcance.
+  await ensurePropertyInScope(input.propertyId, scope);
   validateLateFee(input.lateFeeType, input.lateFeeValue);
 
   const data = {
@@ -114,8 +137,15 @@ export const upsertCollectionConfig = async (input: CollectionConfigInput) => {
   return serialize(config);
 };
 
-export const updateCollectionConfig = async (id: number, input: UpdateCollectionConfigInput) => {
-  const current = await prismaClient.collectionConfig.findUnique({ where: { id } });
+export const updateCollectionConfig = async (
+  id: number,
+  input: UpdateCollectionConfigInput,
+  scope: ClientScope | undefined,
+) => {
+  // Multicliente: una configuración de otro cliente responde 404, como si no existiera.
+  const current = await prismaClient.collectionConfig.findFirst({
+    where: { id, ...scopeByProperty(scope) },
+  });
   if (!current) throw new AppError("COLLECTION_CONFIG_NOT_FOUND", "Configuración de cobranza no encontrada", 404);
 
   const lateFeeType = input.lateFeeType ?? current.lateFeeType;
@@ -144,10 +174,17 @@ export const updateCollectionConfig = async (id: number, input: UpdateCollection
  * Genera los cargos CUOTA que ya tocan según `nextChargeDate` y avanza la fecha
  * según la frecuencia. Es idempotente por `propertyId + period`.
  */
-export const generateCollectionCharges = async (actorId: number, input: GenerateCollectionInput) => {
+export const generateCollectionCharges = async (
+  actorId: number,
+  input: GenerateCollectionInput,
+  scope?: ClientScope,
+) => {
   const target = dateOnly(input.throughDate ?? todayISO());
+  // Multicliente: solo se recorren configuraciones de propiedades del cliente del alcance. Si se
+  // pidió una propiedad de otro cliente, la referencia es ajena → 400.
+  if (input.propertyId) await ensurePropertyInScope(input.propertyId, scope);
   const configs = await prismaClient.collectionConfig.findMany({
-    where: { active: true, ...(input.propertyId ? { propertyId: input.propertyId } : {}) },
+    where: { active: true, ...(input.propertyId ? { propertyId: input.propertyId } : {}), ...byScope(scope) },
     orderBy: { propertyId: "asc" },
   });
 
@@ -179,6 +216,7 @@ export const generateCollectionCharges = async (actorId: number, input: Generate
             dueDate: next.toISOString().slice(0, 10),
             period,
           },
+          scope,
         );
         results.push({ configId: config.id, propertyId: config.propertyId, status: "created", chargeId: charge.id, period });
       } catch (error: any) {
@@ -229,13 +267,20 @@ export const generateCollectionCharges = async (actorId: number, input: Generate
  * Crea un cargo RECARGO por cada cargo vencido que ya pasó los días de gracia y
  * aún no tiene recargo. El recargo es único por cargo (`sourceChargeId` único).
  */
-export const applyLateFees = async (actorId: number, input: ApplyLateFeesInput) => {
+export const applyLateFees = async (
+  actorId: number,
+  input: ApplyLateFeesInput,
+  scope?: ClientScope,
+) => {
   const today = dateOnly(todayISO());
+  // Multicliente: solo configuraciones de propiedades del cliente del alcance; propiedad ajena → 400.
+  if (input.propertyId) await ensurePropertyInScope(input.propertyId, scope);
   const configs = await prismaClient.collectionConfig.findMany({
     where: {
       active: true,
       lateFeeType: { not: LateFeeType.NONE },
       ...(input.propertyId ? { propertyId: input.propertyId } : {}),
+      ...byScope(scope),
     },
     orderBy: { propertyId: "asc" },
   });

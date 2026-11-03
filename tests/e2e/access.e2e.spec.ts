@@ -187,7 +187,7 @@ describe("personas autorizadas", () => {
   });
 
   it("decisiones de la caseta: alcance, vigencia, día y hora", async () => {
-    const person = await prisma.person.create({ data: { firstName: "Visitante" } });
+    const person = await prisma.person.create({ data: { clientId: flows.staff.clientId, firstName: "Visitante" } });
     const { houseId } = flows.properties;
     const mk = async (over: Record<string, unknown>) => expectOk(await api().post(A(houseId)).set("Authorization", s.admin.auth).send(body(person.id, over)), 201);
 
@@ -204,7 +204,7 @@ describe("personas autorizadas", () => {
   });
 
   it("fuera de horario avisa a la titular una sola vez por ventana de 15 minutos", async () => {
-    const person = await prisma.person.create({ data: { firstName: "Tarde", phone: "5550170" } });
+    const person = await prisma.person.create({ data: { clientId: flows.staff.clientId, firstName: "Tarde", phone: "5550170" } });
     expectOk(await api().post(A(flows.properties.houseId)).set("Authorization", s.admin.auth).send(body(person.id, { days: [(todayWeekday() + 1) % 7] })), 201);
     for (let i = 0; i < 3; i++) expect(expectOk(await api().get(check(person.id)).set("Authorization", s.guard1.auth)).decision).toBe("NEEDS_APPROVAL");
     const events = await prisma.outboxEvent.findMany({ where: { type: "notification.send" } });

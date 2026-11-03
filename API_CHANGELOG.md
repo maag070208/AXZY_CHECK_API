@@ -6,3 +6,5 @@
 | 2026-10-22 | 1.2.0 | minor | origen offline de registros |
 | 2026-10-22 | 1.3.0 | minor | sync pull y snapshot offline |
 | 2026-10-22 | 1.4.0 | minor | reglas de ronda confirmada y payloads estrictos |
+| 2026-11-03 | 1.5.0 | minor | multicliente: alcance por cliente en el token, X-Client-Id, rol CLIENT, clientes y asignaciones de guardias, clientes en sync |
+| 2026-11-03 | 1.6.0 | minor | tiempo real: chat por cliente |

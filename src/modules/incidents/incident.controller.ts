@@ -7,7 +7,7 @@ import { getClientRef, getOccurredAt, getOfflineOrigin } from "@src/core/utils/i
 
 export const getDataTable = async (req: Request, res: Response) => {
   try {
-    const result = await incidentService.getDataTableIncidents(req.body);
+    const result = await incidentService.getDataTableIncidents(req.body, req.scope);
     return res.status(200).json(createTResult(result));
   } catch (error: any) {
     return respondError(res, error);
@@ -43,7 +43,7 @@ export const createIncident = async (req: Request, res: Response) => {
       clientRef,
       createdAt: occurredAt,
       ...origin,
-    });
+    }, req.scope);
 
     return res.status(201).json(createTResult(result));
   } catch (error: any) {
@@ -62,7 +62,7 @@ export const getIncidents = async (req: Request, res: Response) => {
         if (category) filters.category = String(category);
         if (title) filters.title = String(title);
 
-        const result = await incidentService.getIncidents(filters);
+        const result = await incidentService.getIncidents(filters, req.scope);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return respondError(res, error);
@@ -78,7 +78,7 @@ export const resolveIncident = async (req: Request, res: Response, next: NextFun
             return res.status(401).json(createTResult(null, ["Usuario no autenticado"]));
         }
 
-        const result = await incidentService.resolveIncident(Number(id), Number(userId));
+        const result = await incidentService.resolveIncident(Number(id), Number(userId), req.scope);
         return res.status(200).json(createTResult(result));
     } catch (error: any) {
         return next(error);
@@ -87,7 +87,7 @@ export const resolveIncident = async (req: Request, res: Response, next: NextFun
 
 export const getPendingCount = async (req: Request, res: Response) => {
     try {
-        const count = await incidentService.getPendingIncidentsCount();
+        const count = await incidentService.getPendingIncidentsCount(req.scope);
         return res.status(200).json(createTResult({ count }));
     } catch (error: any) {
         return respondError(res, error);
@@ -97,7 +97,7 @@ export const getPendingCount = async (req: Request, res: Response) => {
 export const deleteIncident = async (req: Request, res: Response) => {
     try {
         const { id } = req.params;
-        const incident = await incidentService.getIncidentById(Number(id));
+        const incident = await incidentService.getIncidentById(Number(id), req.scope);
         if (!incident) {
             return res.status(404).json(createTResult(null, ["Incidencia no encontrada"]));
         }
@@ -123,7 +123,7 @@ export const deleteMedia = async (req: Request, res: Response) => {
             return res.status(400).json(createTResult(null, ["Falta el key del archivo"]));
         }
 
-        const incident = await incidentService.getIncidentById(Number(id));
+        const incident = await incidentService.getIncidentById(Number(id), req.scope);
         if (!incident || !incident.media) {
             return res.status(404).json(createTResult(null, ["Incidencia o media no encontrada"]));
         }

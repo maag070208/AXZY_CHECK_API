@@ -37,9 +37,9 @@ router.get("/occupancy-statuses", requirePermission("properties.view"), async (_
     return next(error);
   }
 });
-router.get("/stats/occupancy", requirePermission("properties.view"), async (_req, res, next) => {
+router.get("/stats/occupancy", requirePermission("properties.view"), async (req, res, next) => {
   try {
-    return res.status(200).json(createTResult(await occupancyStats()));
+    return res.status(200).json(createTResult(await occupancyStats(req.scope)));
   } catch (error) {
     return next(error);
   }
@@ -49,7 +49,7 @@ router.get("/stats/occupancy", requirePermission("properties.view"), async (_req
 const importBody = z.object({ rows: z.array(z.unknown()).max(IMPORT_MAX_ROWS) });
 router.post("/import", requirePermission("properties.manage"), validate({ body: importBody }), async (req, res, next) => {
   try {
-    return res.status(200).json(createTResult(await importProperties(req.body.rows)));
+    return res.status(200).json(createTResult(await importProperties(req.body.rows, req.scope)));
   } catch (error) {
     return next(error);
   }
@@ -68,14 +68,14 @@ router.post("/:id/residents", requirePermission("residents.manage"), validate({ 
 // Personas autorizadas a entrar sin ser residentes (03 §6).
 router.get("/:id/authorizations", requirePermission("properties.view"), validate({ params: idParam }), async (req, res, next) => {
   try {
-    return res.status(200).json(createTResult(await listAuthorizations(Number(req.params.id))));
+    return res.status(200).json(createTResult(await listAuthorizations(Number(req.params.id), req.scope)));
   } catch (error) {
     return next(error);
   }
 });
 router.post("/:id/authorizations", requirePermission("residents.manage"), validate({ params: idParam, body: authorizationBody }), async (req, res, next) => {
   try {
-    return res.status(201).json(createTResult(await createAuthorization(Number(req.params.id), req.body, req.user!.id)));
+    return res.status(201).json(createTResult(await createAuthorization(Number(req.params.id), req.body, req.user!.id, req.scope)));
   } catch (error) {
     return next(error);
   }

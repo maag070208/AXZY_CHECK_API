@@ -1,17 +1,23 @@
 import { prismaClient } from "@src/core/config/database";
+import { ClientScope, scopeByClient } from "@src/core/scope/client-scope";
 import { IncidentMediaItem, IncidentReportItem } from "./incident-report.dto";
 
 /**
  * @description Servicio para construir el dataset que alimenta el reporte PDF de
  * incidencias. Aplica los filtros de fecha y opcionalmente restringe por IDs
  * específicos seleccionados desde la UI.
+ *
+ * Multicliente: el PDF solo se genera con incidencias del cliente del alcance (`scope`).
+ * Sin cliente en el alcance responde 403 (`scopeByClient`).
  */
 export const getIncidentsForReport = async (params: {
     startDate: Date;
     endDate: Date;
     ids?: number[];
     kind?: string;
+    scope: ClientScope | undefined;
 }): Promise<IncidentReportItem[]> => {
+    const { clientId } = scopeByClient(params.scope);
     const { startDate, endDate, ids, kind = 'INCIDENT' } = params;
 
     // Ajuste de rango: cubrir día completo para endDate
@@ -22,10 +28,12 @@ export const getIncidentsForReport = async (params: {
 
     const whereClause: {
         createdAt: { gte: Date; lte: Date };
+        clientId: number;
         id?: { in: number[] };
         kind?: string;
     } = {
         createdAt: { gte: rangeStart, lte: rangeEnd },
+        clientId,
         kind,
     };
 

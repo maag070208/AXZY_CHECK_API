@@ -7,13 +7,15 @@ import { TResult } from '@src/core/dto/TResult';
 import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datatable.dto";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 import { ABLY_CHANNELS, publishToChannel } from "@src/core/config/ably";
+import { ClientScope, scopeByClient } from "@src/core/scope/client-scope";
 
 const prisma = prismaClient;
 
 /** El detalle del fallo va al log del servidor; al cliente solo un mensaje genérico (E-19). */
 const logFailure = (error: any) => logger.error({ err: { name: error?.name, message: error?.message } }, 'error en rondas');
 
-export const getDataTableRounds = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
+export const getDataTableRounds = async (params: ITDataTableFetchParams, scope: ClientScope | undefined): Promise<ITDataTableResponse<any>> => {
+    const { clientId } = scopeByClient(scope);
     // Extract custom frontend-only filters
     const customFilters = params.filters || {};
     
@@ -43,6 +45,7 @@ export const getDataTableRounds = async (params: ITDataTableFetchParams): Promis
     }
 
     const prismaParams = getPrismaPaginationParams({ ...params, filters: cleanFilters });
+    prismaParams.where.clientId = clientId;
 
     // Map `date` to actual startTime range filter
     if (customFilters.date) {
@@ -146,9 +149,12 @@ const attachRoundProgress = async (rows: any[]) => {
 
 export const startRound = async (
   guardId: number,
-  recurringConfigId?: number,
-  options?: { clientRef?: string; startedAt?: Date; createdOffline?: boolean; syncedAt?: Date },
+  recurringConfigId: number | undefined,
+  options: { clientRef?: string; startedAt?: Date; createdOffline?: boolean; syncedAt?: Date } | undefined,
+  scope: ClientScope | undefined,
 ): Promise<TResult<any>> => {
+  // Fuera del try: sin cliente es 403, no "error al iniciar".
+  const { clientId } = scopeByClient(scope);
   try {
     if (options?.clientRef) {
       const existing = await prisma.round.findUnique({
@@ -156,7 +162,7 @@ export const startRound = async (
         include: { guard: { select: USER_PUBLIC_SELECT }, recurringConfiguration: true },
       });
       if (existing) {
-        if (existing.guardId !== guardId) {
+        if (existing.guardId !== guardId || existing.clientId !== clientId) {
           return { success: false, data: null, messages: ['La clave de sincronización pertenece a otra ronda.'] };
         }
         return { success: true, messages: ['Ronda ya sincronizada'], data: existing };
@@ -178,6 +184,8 @@ export const startRound = async (
     if (!guard) {
         return { success: false, data: null, messages: ['Guardia no encontrado'] };
     }
+    // Multicliente: solo cuentan las rutas del cliente donde trabaja ahora.
+    const clientRoutes = guard.recurringConfigurations.filter((rc) => rc.clientId === clientId);
 
     // 1. STRICT REQUIREMENT: Only 1 active round per guard
     let activeRound = await prisma.round.findFirst({
@@ -197,8 +205,10 @@ export const startRound = async (
         // Heuristic 2: Switching Routes (If user explicitly selected a DIFFERENT route)
         // If we have an active round for Route A, and are starting Route B, we should probably close A.
         const isDifferentRoute = recurringConfigId && activeRound.recurringConfigurationId !== recurringConfigId;
+        // Una ronda abierta en otro cliente quedó del sitio anterior del guardia: se cierra.
+        const isOtherClient = activeRound.clientId !== clientId;
 
-        if (durationHours > 14 || isDifferentRoute) {
+        if (durationHours > 14 || isDifferentRoute || isOtherClient) {
             // Auto-Close Stale/Different Round
             await prisma.round.update({
                 where: { id: activeRound.id },
@@ -222,7 +232,7 @@ export const startRound = async (
     // 2. Validate Recurring Config (Route)
     // If recurringConfigId is provided, check if it's assigned to the guard
     if (recurringConfigId) {
-        const isAssigned = guard.recurringConfigurations.some(rc => rc.id === recurringConfigId);
+        const isAssigned = clientRoutes.some(rc => rc.id === recurringConfigId);
         if (!isAssigned) {
              // Fallback: check if it's assigned via global query just in case, but usually user.recurringConfigurations is enough if loaded
              // Actually `include: { recurringConfigurations: true }` fetches the relation.
@@ -235,9 +245,9 @@ export const startRound = async (
         // If they have only 1 assignment, maybe auto-select?
         // If they have 0, maybe allow generic round?
         
-        if (guard.recurringConfigurations.length === 1) {
-            recurringConfigId = guard.recurringConfigurations[0].id;
-        } else if (guard.recurringConfigurations.length > 1) {
+        if (clientRoutes.length === 1) {
+            recurringConfigId = clientRoutes[0].id;
+        } else if (clientRoutes.length > 1) {
              return { success: false, messages: ['Debes especificar qué ruta deseas iniciar.'], data: null }; // Frontend handles selection
         }
         // If 0, proceed as generic round (legacy support)
@@ -274,6 +284,7 @@ export const startRound = async (
     const newRound = await prisma.round.create({
       data: {
         guardId,
+        clientId,
         status: 'IN_PROGRESS',
         startTime: options?.startedAt ?? new Date(),
         recurringConfigurationId: recurringConfigId,
@@ -319,13 +330,16 @@ const ROUND_SUPERVISORS = ["ADMIN", "SHIFT"];
  */
 export const endRound = async (
   roundId: number,
-  actor?: { id: number; role: string },
-  endedAt?: Date,
-  idempotent = false,
+  actor: { id: number; role: string } | undefined,
+  endedAt: Date | undefined,
+  idempotent: boolean,
+  scope: ClientScope | undefined,
 ): Promise<TResult<any>> => {
+  const { clientId } = scopeByClient(scope);
   try {
-    const round = await prisma.round.findUnique({
-      where: { id: roundId },
+    // De otro cliente es "no encontrada": tampoco se cierra desde un cliente al que el guardia ya no pertenece.
+    const round = await prisma.round.findFirst({
+      where: { id: roundId, clientId },
     });
 
     if (!round) {
@@ -376,7 +390,8 @@ export const endRound = async (
   }
 };
 
-export const getCurrentRound = async (guardId: number): Promise<TResult<any>> => {
+export const getCurrentRound = async (guardId: number, scope: ClientScope | undefined): Promise<TResult<any>> => {
+    const { clientId } = scopeByClient(scope);
     try {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -388,6 +403,7 @@ export const getCurrentRound = async (guardId: number): Promise<TResult<any>> =>
         let round = await prisma.round.findFirst({
             where: {
                 guardId, // Added filter
+                clientId,
                 startTime: {
                     gte: today, // Only from today? 
                     // Actually, if we want to catch "stale" rounds from Yesterday that are still active,
@@ -408,7 +424,7 @@ export const getCurrentRound = async (guardId: number): Promise<TResult<any>> =>
         // If we didn't find one today, let's check if there is ANY active round (even yesterday's) to auto-close
         if (!round) {
              const anyActive = await prisma.round.findFirst({
-                 where: { guardId, status: 'IN_PROGRESS' },
+                 where: { guardId, clientId, status: 'IN_PROGRESS' },
                  include: { guard: { select: USER_PUBLIC_SELECT }, recurringConfiguration: true },
                  orderBy: { startTime: 'desc' }
              });
@@ -441,7 +457,8 @@ export const getCurrentRound = async (guardId: number): Promise<TResult<any>> =>
     }
 };
 
-export const getRounds = async (dateStr?: string, guardId?: number): Promise<TResult<any>> => {
+export const getRounds = async (dateStr: string | undefined, guardId: number | undefined, scope: ClientScope | undefined): Promise<TResult<any>> => {
+    const { clientId } = scopeByClient(scope);
     try {
         let dateFilter: any = {};
         if (dateStr) {
@@ -463,7 +480,7 @@ export const getRounds = async (dateStr?: string, guardId?: number): Promise<TRe
             };
         }
 
-        const where: any = { ...dateFilter };
+        const where: any = { ...dateFilter, clientId };
         if (guardId) {
             where.guardId = guardId;
         }
@@ -490,10 +507,11 @@ export const getRounds = async (dateStr?: string, guardId?: number): Promise<TRe
     }
 };
 
-export const getRoundDetail = async (roundId: number): Promise<TResult<any>> => {
+export const getRoundDetail = async (roundId: number, scope: ClientScope | undefined): Promise<TResult<any>> => {
+    const { clientId } = scopeByClient(scope);
     try {
-        const round = await prisma.round.findUnique({
-            where: { id: roundId },
+        const round = await prisma.round.findFirst({
+            where: { id: roundId, clientId },
             include: {
                 guard: {
                     select: { id: true, name: true, lastName: true }

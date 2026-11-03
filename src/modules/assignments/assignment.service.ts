@@ -7,6 +7,8 @@ import { ITDataTableFetchParams, ITDataTableResponse } from "@src/core/dto/datat
 import { ASSIGNMENT_TRANSITIONS, assertStatusUpdated, assertTransition } from "@src/core/transitions/transitions";
 import { getPrismaPaginationParams } from "@src/core/utils/prisma-pagination.utils";
 import { isCompletedScan } from "@src/modules/recurring/recurring.service";
+import { ClientScope, scopeByClient } from "@src/core/scope/client-scope";
+import { operativeStaffWhere } from "@src/core/scope/membership";
 
 const prisma = prismaClient;
 
@@ -18,8 +20,9 @@ const ACTIVE_STATUSES = [
   AssignmentStatus.ANOMALY,
 ];
 
-export const getDataTableAssignments = async (params: ITDataTableFetchParams): Promise<ITDataTableResponse<any>> => {
+export const getDataTableAssignments = async (params: ITDataTableFetchParams, scope: ClientScope | undefined): Promise<ITDataTableResponse<any>> => {
   const prismaParams = getPrismaPaginationParams(params);
+  prismaParams.where = { ...prismaParams.where, ...scopeByClient(scope) };
 
   const [rows, total] = await Promise.all([
     prisma.assignment.findMany({
@@ -45,16 +48,15 @@ export const createAssignment = async (data: {
   assignedBy: number;
   notes?: string;
   tasks?: { description: string; reqPhoto: boolean }[];
-}) => {
-  // Validate guard role
-  const guard = await prisma.user.findUnique({
-    where: { id: data.guardId },
-    include: { role: true }
+}, scope: ClientScope | undefined) => {
+  const { clientId } = scopeByClient(scope);
+  // Personal operativo del mismo cliente (guardia, jefe de turno o mantenimiento de la organización).
+  const guard = await prisma.user.findFirst({
+    where: { id: data.guardId, ...operativeStaffWhere(scope) },
+    select: { id: true },
   });
 
-  const isAllowed = guard?.role?.name === "GUARD" || guard?.role?.name === "SHIFT" || guard?.role?.name === "MAINT";
-
-  if (!guard || !isAllowed) {
+  if (!guard) {
     throw new AppError("ASSIGNEE_INVALID", "El usuario indicado no existe o no es personal operativo (guardia, jefe de turno o mantenimiento)", 400);
   }
 
@@ -71,13 +73,14 @@ export const createAssignment = async (data: {
     throw new AppError("ASSIGNMENT_DUPLICATE", "El guardia ya tiene una asignación activa para esta ubicación.", 409);
   }
 
-  const location = await prisma.location.findFirst({ where: { id: data.locationId, softDelete: false }, select: { id: true } });
+  const location = await prisma.location.findFirst({ where: { id: data.locationId, softDelete: false, clientId }, select: { id: true } });
   if (!location) {
     throw new AppError("LOCATION_NOT_FOUND", "Ubicación no encontrada", 404);
   }
 
   return prisma.assignment.create({
     data: {
+      clientId,
       guardId: data.guardId,
       locationId: data.locationId,
       assignedBy: data.assignedBy,
@@ -102,9 +105,9 @@ export const createAssignment = async (data: {
 };
 
 // Get assignments for a specific guard (My Assignments)
-export const getAssignmentsByGuard = async (guardId: number) => {
+export const getAssignmentsByGuard = async (guardId: number, scope: ClientScope | undefined) => {
   const assignments = await prisma.assignment.findMany({
-    where: { guardId, status: { in: ACTIVE_STATUSES } },
+    where: { guardId, status: { in: ACTIVE_STATUSES }, ...scopeByClient(scope) },
     include: {
       location: true,
       tasks: true,
@@ -121,8 +124,8 @@ export const getAssignmentsByGuard = async (guardId: number) => {
 };
 
 // Get all assignments (filtering optional)
-export const getAllAssignments = async (filters: { guardId?: number; status?: AssignmentStatus; id?: number }) => {
-  const where: any = {};
+export const getAllAssignments = async (filters: { guardId?: number; status?: AssignmentStatus; id?: number }, scope: ClientScope | undefined) => {
+  const where: any = { ...scopeByClient(scope) };
   if (filters.id) where.id = filters.id;
   if (filters.guardId) where.guardId = filters.guardId;
   if (filters.status) where.status = filters.status;
@@ -146,8 +149,8 @@ export const getAllAssignments = async (filters: { guardId?: number; status?: As
 };
 
 // Update status
-export const updateAssignmentStatus = async (id: number, status: AssignmentStatus) => {
-    const current = await prisma.assignment.findUnique({ where: { id }, select: { status: true } });
+export const updateAssignmentStatus = async (id: number, status: AssignmentStatus, scope: ClientScope | undefined) => {
+    const current = await prisma.assignment.findFirst({ where: { id, ...scopeByClient(scope) }, select: { status: true } });
     if (!current) throw new AppError("ASSIGNMENT_NOT_FOUND", "Asignación no encontrada", 404);
     assertTransition(ASSIGNMENT_TRANSITIONS, current.status, status);
 
@@ -159,9 +162,11 @@ export const updateAssignmentStatus = async (id: number, status: AssignmentStatu
 
 // Toggle task completion
 /** Con `completed` fija el valor: un reintento offline no debe volver a invertir la tarea. */
-export const toggleAssignmentTask = async (taskId: number, actor: { id: number; role: string }, completed?: boolean) => {
-    const task = await prisma.assignmentTask.findUnique({ where: { id: taskId }, include: { assignment: { select: { guardId: true } } } });
-    if (!task) throw new AppError("TASK_NOT_FOUND", "Tarea no encontrada", 404);
+export const toggleAssignmentTask = async (taskId: number, actor: { id: number; role: string }, completed: boolean | undefined, scope: ClientScope | undefined) => {
+    const { clientId } = scopeByClient(scope);
+    const task = await prisma.assignmentTask.findUnique({ where: { id: taskId }, include: { assignment: { select: { guardId: true, clientId: true } } } });
+    // De otro cliente es "no encontrada".
+    if (!task || task.assignment.clientId !== clientId) throw new AppError("TASK_NOT_FOUND", "Tarea no encontrada", 404);
     // Cada guardia completa solo las tareas de SUS asignaciones; la supervisión puede con todas.
     if (task.assignment.guardId !== Number(actor.id) && !(await roleHasPermission(actor.role, "assignments.manage"))) {
         throw new AppError("FORBIDDEN", "No tienes permisos para realizar esta acción", 403);

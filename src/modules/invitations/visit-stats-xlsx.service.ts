@@ -2,6 +2,7 @@ import { Response } from "express";
 import ExcelJS from "exceljs";
 import dayjs from "dayjs";
 import { getVisitStats } from "./invitations.service";
+import { ClientScope } from "@src/core/scope/client-scope";
 
 const addSheet = (book: ExcelJS.Workbook, name: string, header: string[], rows: (string | number | null)[][]) => {
   const sheet = book.addWorksheet(name);
@@ -17,8 +18,9 @@ const addSheet = (book: ExcelJS.Workbook, name: string, header: string[], rows: 
 export const streamVisitStatsXlsx = async (
   res: Response,
   params: { from: Date; to: Date; propertyId?: number },
+  scope: ClientScope | undefined,
 ): Promise<void> => {
-  const stats = await getVisitStats(params);
+  const stats = await getVisitStats(params, scope);
   const periodRows = (rows: typeof stats.byDay) => rows.map((row) => [row.period, row.count, row.deliveries]);
 
   const book = new ExcelJS.Workbook();

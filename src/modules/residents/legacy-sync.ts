@@ -19,6 +19,9 @@ export const syncLegacyResident = async (tx: Tx, userId: number) => {
       lastName: true,
       active: true,
       propertyId: true,
+      organizationId: true,
+      // Multicliente: la persona espejo del usuario RESDN nace en el cliente de la propiedad de su cuenta.
+      property: { select: { clientId: true } },
       role: { select: { name: true } },
       residentProfile: { select: { phoneNumber: true, email: true } },
     },
@@ -60,10 +63,17 @@ export const syncLegacyResident = async (tx: Tx, userId: number) => {
     const stillLinked = activeLinks.some((link) => link.propertyId === user.propertyId);
     if (!stillLinked) {
       const owner = await tx.residentKind.findUniqueOrThrow({ where: { code: "OWNER" } });
+      // Cliente de la propiedad; si una propiedad antigua quedara sin cliente, se usa el primero de la organización.
+      const personClientId =
+        user.property?.clientId ??
+        (await tx.client.findFirst({ where: { organizationId: user.organizationId, active: true }, orderBy: { id: "asc" }, select: { id: true } }))?.id;
+      if (!personClientId) throw new Error("No hay cliente para la persona del residente");
       const newPerson =
         person ??
         (await tx.person.create({
           data: {
+            // Multicliente: cliente de la propiedad de la cuenta.
+            clientId: personClientId,
             firstName: user.name,
             lastName: user.lastName,
             phone: user.residentProfile?.phoneNumber ?? null,
